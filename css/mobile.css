@@ -615,3 +615,18 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .hum-bar i { background: linear-gradient(180deg, #5eead4, var(--cyan)); }
 .wv-alert { background: rgba(241, 94, 34, .14); border-color: rgba(241, 94, 34, .5); }
 .wv-alert b { color: #fdba74; }
+
+/* ── Phone: live connection timeline (one check a second) ── */
+.ph-tl { margin: 4px 0 12px; }
+.ph-live { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.ph-live span { font-size: .62em; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); display: inline-flex; align-items: center; gap: 6px; }
+.ph-live span i { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; animation: phPulse 1s ease-in-out infinite; }
+@keyframes phPulse { 50% { opacity: .35; } }
+.ph-live b { font-size: 1.15em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ph-live b small { font-size: .62em; font-weight: 700; color: var(--ink-3); margin-left: 2px; }
+.ph-live b.ok { color: #34d399; } .ph-live b.warn { color: #fbbf24; } .ph-live b.bad { color: #f43f5e; }
+#phSpark .rn-spark { height: 46px; }
+.ph-lstats { display: flex; justify-content: space-between; gap: 4px; margin-top: 6px; font-size: .62em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.ph-lstats span { white-space: nowrap; }
+.ph-lstats b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.ph-lstats b small { text-transform: none; font-size: .9em; color: var(--ink-3); margin-left: 1px; }

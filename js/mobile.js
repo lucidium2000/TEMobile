@@ -204,11 +204,85 @@
       ['Nearest edge', edge && edge.colo ? `Cloudflare ${edge.colo}` : ''],
       ['Browser estimate', conn && conn.downlink ? `${conn.downlink} Mbps · ${conn.rtt} ms` : ''],
       ['Data saver', conn && conn.saveData ? 'On' : ''],
-      ['Last speed test', lastSpeed ? `${lastSpeed.down.toFixed(1)} ↓ / ${lastSpeed.up.toFixed(1)} ↑ Mbps` : 'Run one in Tests'],
+      ['Last speed test', lastSpeed ? `${lastSpeed.down.toFixed(1)} ↓ / ${lastSpeed.up.toFixed(1)} ↑ Mbps` : 'Run one in Network'],
       ['Provider', room && room.org ? room.org + (room.asn ? ` (AS${room.asn})` : '') : ''],
       ['Public IP', room && room.ip ? room.ip : ''],
     ]);
   }
+  // ── Phone: a live, second-by-second round trip to the nearest edge (the
+  // same Cloudflare check as the Network baseline, on a warm connection, so
+  // each one is about one round trip). Runs only while the Phone tab shows;
+  // the last 10 minutes are kept, so coming back picks up where it left off.
+  const LIVE_SPAN = 600e3, LIVE_URL = 'https://speed.cloudflare.com/cdn-cgi/trace';
+  const live = [];
+  let liveBusy = false, liveWarm = false;
+  async function livePing() {
+    if (liveBusy || tab !== 'phone' || document.hidden) return;
+    liveBusy = true;
+    const ac = new AbortController(), to = setTimeout(() => ac.abort(), 3000);
+    let ms = null;
+    try {
+      if (!liveWarm) { await fetch(LIVE_URL, { cache: 'no-store', credentials: 'omit', signal: ac.signal }).then((r) => r.text()); liveWarm = true; }
+      const t0 = performance.now();
+      const r = await fetch(LIVE_URL, { cache: 'no-store', credentials: 'omit', signal: ac.signal });
+      await r.text();
+      ms = performance.now() - t0;
+    } catch (_) { liveWarm = false; }
+    clearTimeout(to);
+    const now = Date.now();
+    live.push({ t: now, ms });
+    while (live.length && live[0].t < now - LIVE_SPAN) live.shift();
+    liveBusy = false;
+    renderLive();
+  }
+  // Like the service timelines: shading for "answered" (green) or not (red),
+  // and the round trip as a line - light under 30 ms, amber to 80, red past.
+  // Runs of the same state are merged, so it stays light at one per second.
+  function renderLive() {
+    const W = 300, H = 40, now = Date.now(), G = 30, SL = 80;
+    const all = live.filter((x) => x.t >= now - LIVE_SPAN);
+    const last = all[all.length - 1];
+    $('phLiveMs').innerHTML = last && last.ms != null ? `${Math.round(last.ms)}<small>ms</small>` : last ? '<small>no answer</small>' : '&ndash;';
+    $('phLiveMs').className = !last ? '' : last.ms == null ? 'bad' : last.ms < G ? 'ok' : last.ms < SL ? 'warn' : 'bad';
+    if (!all.length) { $('phSpark').innerHTML = ''; $('phT0').textContent = ''; $('phLStats').innerHTML = ''; return; }
+    const t0 = all[0].t, t1 = Math.max(now, t0 + 10e3);
+    const X = (t) => (((t - t0) / (t1 - t0)) * W).toFixed(1);
+    let out = '', i = 0;
+    while (i < all.length) {
+      const up = all[i].ms != null; let j = i;
+      while (j + 1 < all.length && (all[j + 1].ms != null) === up) j++;
+      const b = j + 1 < all.length ? all[j + 1].t : t1;
+      out += `<rect class="rn-av rn-av-${up ? 'g' : 'r'}" x="${X(all[i].t)}" y="0" width="${Math.max(0.8, X(b) - X(all[i].t) + 0.4).toFixed(1)}" height="${H}"/>`;
+      i = j + 1;
+    }
+    const v = all.filter((x) => x.ms != null).map((x) => x.ms);
+    const max = Math.max(G * 2, Math.max(...v, 0) * 1.15);
+    const Y = (ms) => (H - 4 - (Math.min(ms, max) / max) * (H - 8)).toFixed(1);
+    const cls = (ms) => (ms < G ? 'g' : ms < SL ? 'a' : 'r');
+    const segs = { g: '', a: '', r: '' };
+    for (let k = 1; k < all.length; k++) {
+      const a = all[k - 1], b = all[k];
+      if (a.ms == null || b.ms == null) continue;
+      segs[cls((a.ms + b.ms) / 2)] += `M${X(a.t)} ${Y(a.ms)}L${X(b.t)} ${Y(b.ms)}`;
+    }
+    if (last.ms != null) segs[cls(last.ms)] += `M${X(last.t)} ${Y(last.ms)}L${W} ${Y(last.ms)}`;
+    for (const k of ['g', 'a', 'r']) if (segs[k]) out += `<path class="rn-line rn-${k}" d="${segs[k]}"/>`;
+    $('phSpark').innerHTML = `<svg class="rn-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${out}</svg>`;
+    const secs = Math.round((now - t0) / 1000);
+    $('phT0').textContent = secs >= 590 ? '10 min ago' : secs >= 60 ? `${Math.round(secs / 60)} min ago` : `${secs} s ago`;
+    const avg = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    const jit = v.length > 1 ? v.slice(1).reduce((a, b, k) => a + Math.abs(b - v[k]), 0) / (v.length - 1) : null;
+    const st = (k, val) => `<span>${k} <b>${val}</b></span>`;
+    $('phLStats').innerHTML = [
+      st('Avg', avg != null ? Math.round(avg) + '<small>ms</small>' : '–'),
+      st('Best', v.length ? Math.round(Math.min(...v)) + '<small>ms</small>' : '–'),
+      st('Worst', v.length ? Math.round(Math.max(...v)) + '<small>ms</small>' : '–'),
+      st('Jitter', jit != null ? Math.round(jit) + '<small>ms</small>' : '–'),
+      st('Lost', Math.round(((all.length - v.length) / all.length) * 100) + '%'),
+    ].join('');
+  }
+  setInterval(livePing, 1000);
+
   if (conn && conn.addEventListener) conn.addEventListener('change', () => { if (tab === 'phone') refreshNet(); });
   addEventListener('online', () => tab === 'phone' && refreshNet());
   addEventListener('offline', () => tab === 'phone' && refreshNet());

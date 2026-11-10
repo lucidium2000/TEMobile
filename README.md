@@ -13,7 +13,7 @@ The phone edition of [TERoomApp](https://github.com/lucidium2000/TERoomApp), the
   - **Speed test** to the nearest Cloudflare site: download, upload, latency and jitter (about 25 MB of data).
 - **Outages** - its own globe, outages only: live global outages from ThousandEyes Internet Insights on the 3D globe, with the outage list as a sheet that folds down to its counts (Active / Apps / Network / Locations filters, 1-24 h window), spoken summaries and camera hand gestures.
 - **Phone** - what the browser can see:
-  - **Connection:** quality bars from the measured round trip to the internet edge, connection type and the browser's own estimate (where shared), last speed test, provider and public IP.
+  - **Connection:** quality bars from the measured round trip to the internet edge, a live timeline checked every second (last 10 minutes, with average, best, worst, jitter and loss; only while the Phone tab is open), connection type and the browser's own estimate (where shared), last speed test, provider and public IP.
   - **Battery:** level, charging, time left (Chrome on Android; Safari keeps it private).
   - **Location:** the network's approximate place, or live GPS (accuracy, altitude, speed, heading) - also used for this phone's weather and pin. *Show on globe* flies there.
   - **Device:** system, browser, screen, processor, memory, graphics, WebGPU, storage, language, time zone.
