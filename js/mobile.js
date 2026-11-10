@@ -42,7 +42,7 @@
     if (name === 'home') refreshHome();
     if (name === 'weather') refreshWeather();
   }
-  window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab };
+  window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');
     if (b && b.dataset.tab !== tab) { if (window.Sfx) window.Sfx.play('tap'); setTab(b.dataset.tab); }
@@ -434,40 +434,12 @@
     document.querySelectorAll('#segRadar [data-radar]').forEach((b) => b.classList.toggle('on', b.dataset.radar === rm));
     $('segPower').setAttribute('aria-pressed', String(pw));
   }
-  // Now, top right of the weather globe; the next 12 hours atop the sheet.
-  const WX_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  function renderNow() {
-    const A = window.TEApp; if (!A) return;
-    const w = A.weather ? A.weather() : {}, n = w.now, c = n && n.current, d = n && n.daily, room = A.room && A.room();
-    const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
-    $('wnPlace').textContent = (w.brief && w.brief.city) || (room && room.city) || 'My location';
-    if (c) {
-      if (A.drawWx) A.drawWx($('wnIcon'), c.weather_code, c.is_day === 1, 40);
-      $('wnTemp').textContent = Math.round(c.temperature_2m) + '°';
-      $('wnDesc').textContent = (WMO[c.weather_code] || '').replace(/^./, (x) => x.toUpperCase());
-      $('wnHL').textContent = d ? `H:${Math.round(d.temperature_2m_max[0])}°  L:${Math.round(d.temperature_2m_min[0])}°` : '';
-    }
-    const al = (w.brief && w.brief.alertInfo) || [];
-    $('wnAlert').hidden = !al.length;
-    $('wnAlert').textContent = al.length ? '⚠ ' + al[0].event : '';
-    const hr = n && n.hourly, cells = [];
-    if (hr && hr.time) {
-      const nowMs = Date.now() - 30 * 60e3;
-      hr.time.forEach((t, i) => {
-        const wall = Date.parse(t + 'Z'), at = wall - (n.utc_offset_seconds || 0) * 1000;
-        if (at >= nowMs && cells.length < 12) cells.push({ label: cells.length ? new Date(wall).toLocaleTimeString([], { hour: 'numeric', timeZone: 'UTC' }) : 'Now',
-          temp: hr.temperature_2m[i], code: hr.weather_code[i], day: hr.is_day[i] === 1, pop: hr.precipitation_probability ? hr.precipitation_probability[i] : 0 });
-      });
-    }
-    $('wxHours').innerHTML = cells.map((x, i) => `<li><span>${esc(x.label)}</span><canvas data-h="${i}"></canvas><em>${x.pop >= 20 ? x.pop + '%' : ''}</em><b>${Math.round(x.temp)}°</b></li>`).join('');
-    $('wxHours').querySelectorAll('canvas').forEach((cv) => { const x = cells[+cv.dataset.h]; if (A.drawWx) A.drawWx(cv, x.code, x.day, 26); });
-  }
   function refreshWeather() {
     const A = window.TEApp; if (!A) return;
-    if (!wxOpened) { wxOpened = true; A.openForecast(null, true); } else if (!$('wxCard').classList.contains('other')) A.renderForecast();
-    syncLayers(); renderNow();
+    if (!wxOpened) { wxOpened = true; A.openForecast(null, true); }
+    syncLayers();
+    if (window.WxView) window.WxView.render();
   }
-  addEventListener('te-weather', () => { if (tab === 'weather') renderNow(); });
   $('wxNow').addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); foldWx(false); });
   $('segRadar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-radar]'); if (!b || !window.TEApp) return;

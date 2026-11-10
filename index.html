@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=17">
+  <link rel="stylesheet" href="css/mobile.css?v=20">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -280,7 +280,13 @@
       <button class="pwr-tog" id="segPower" aria-pressed="false" aria-label="US power outages"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>Power</button>
       <button class="loc-btn" id="layShow" aria-label="Center on my area" title="Center on my area"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg></button>
     </div>
-    <ol class="wx-hours" id="wxHours" aria-label="Next 12 hours"></ol>
+    <ol class="wx-hours" id="wxHours" aria-label="Next 24 hours"></ol>
+    <form class="wv-search" id="wvSearch" autocomplete="off" role="search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input id="wvQ" type="search" placeholder="Search for a city or ZIP" enterkeyhint="search" aria-label="Search for a place"><button type="button" class="wv-mine" id="wvMine" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M21 3 3 10.5l7 2.5 2.5 7L21 3Z"/></svg>My location</button></form>
+    <ol class="wv-hits" id="wvHits"></ol>
+    <div id="wvAlerts"></div>
+    <section class="wv-card" id="wvSummary" hidden><div class="wv-k"><span id="wvSumSrc">Forecast</span><button type="button" class="wv-speak" id="wvSpeak"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Listen</button></div><p id="wvSumText"></p></section>
+    <section class="wv-card"><div class="wv-k"><span><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>10-day forecast</span></div><ol class="wv-days" id="wvDays"></ol></section>
+    <div class="wv-tiles" id="wvTiles"></div>
     <!-- The local forecast card (tap the weather by the clock). -->
   <section class="wx-card" id="wxCard" hidden role="region" aria-labelledby="wxcTitle">
     <button class="card-close" id="wxcClose" aria-label="Close">&times;</button>
@@ -304,6 +310,7 @@
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="sec-name">US power</span><small class="pwr-flag" id="pwrFlag"></small></h2>
       <ol class="list pwr-list" id="pwrList"></ol>
     </section>
+    <p class="wv-src" id="wvSrc"></p>
       <p class="pwr-credit2">Live county totals by <a href="https://massoutage.com" target="_blank" rel="noopener noreferrer">MassOutage</a>, CC BY 4.0 - an unofficial aggregate of US utility reports; confirm with the utility. In an emergency, call 911.</p>
       <p class="m-note pwr-offnote">Turn on <b>US power outages</b> above to see the counties with the most customers out.</p>
     </section>
@@ -379,8 +386,9 @@
   <script src="js/glglobe.js?v=28"></script>
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
-  <script src="js/app.js?v=229"></script>
-  <script src="js/mobile.js?v=11"></script>
+  <script src="js/app.js?v=230"></script>
+  <script src="js/wxview.js?v=1"></script>
+  <script src="js/mobile.js?v=12"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

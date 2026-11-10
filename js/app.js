@@ -3569,6 +3569,7 @@
     wxCard.hidden = false;
     wxCard.classList.toggle('other', !!wxPlace);
     if (WX_DOCKED) {
+      if (window.WxView) window.WxView.setPlace(wxPlace, true);
       if (!quiet) {
         goTab('weather');
         if (wxPlace) zoomTo(Math.max(view.zoom, 2.4), [wxPlace.lon, wxPlace.lat]);
