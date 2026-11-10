@@ -1,0 +1,350 @@
+<!doctype html>
+<!--
+  TEMobile - ThousandEyes Internet Insights for phones (forked from TERoomApp).
+  Created by Christopher Hunt (github.com/lucidium2000), 2026.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="author" content="Christopher Hunt">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>ThousandEyes Mobile</title>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-180.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="description" content="Live global Internet outages from ThousandEyes Internet Insights on a globe, plus live checks and stats from your phone.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#05070d">
+  <link rel="stylesheet" href="css/app.css?v=178">
+  <link rel="stylesheet" href="css/mobile.css?v=2">
+</head>
+<body>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <canvas id="globe" aria-label="Globe showing current Internet outages"></canvas>
+  <div class="sheen" id="sheen" aria-hidden="true"><i></i></div>
+
+  <header class="brand">
+    <img class="brand-logo" src="assets/te-logo.png" alt="ThousandEyes">
+    <div class="brand-text">
+      <h1>Internet Insights <span class="live"><i></i>LIVE</span></h1>
+      <p class="updated" id="updated"></p>
+    </div>
+  </header>
+
+  <!-- The local forecast card (tap the weather by the clock). -->
+  <section class="wx-card" id="wxCard" hidden role="dialog" aria-labelledby="wxcTitle">
+    <button class="card-close" id="wxcClose" aria-label="Close">&times;</button>
+    <button class="wxc-find" id="wxcFind" aria-label="Forecast for another place" title="Forecast for another city or ZIP"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
+    <h3 id="wxcTitle">Weather</h3>
+    <form class="wxc-search" id="wxcSearch" hidden autocomplete="off"><input id="wxcQ" type="search" placeholder="City or ZIP code" enterkeyhint="search"><ol id="wxcHits"></ol></form>
+    <p class="wxc-src" id="wxcSrc"></p>
+    <div class="wxc-loc" id="wxcLoc" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg><span id="wxcLocText"></span><button id="wxcLocBtn"></button></div>
+    <div class="wxc-now"><canvas id="wxcIcon" width="64" height="64"></canvas><div class="wxc-big"><b id="wxcTemp"></b><span id="wxcDesc"></span></div><dl class="wxc-stats" id="wxcStats"></dl></div>
+    <ol class="wxc-hourly" id="wxcHourly"></ol>
+    <div class="wxc-alerts" id="wxcAlerts"></div>
+    <p class="wxc-text" id="wxcText"></p>
+    <ol class="wxc-periods" id="wxcPeriods"></ol>
+    <div class="wxc-actions">
+    <button class="wxc-radar" id="wxcRadar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg>Show radar</button>
+    <button class="wxc-speak" id="wxcSpeak"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Hear the forecast</button>
+    </div>
+  </section>
+
+  <!-- Local time and weather, and the radar's credit and time: top right. -->
+  <div class="wxbar">
+    <p class="date" id="localDate"></p>
+    <p class="clock" id="localClock"></p>
+    <p class="local" role="button" tabindex="0" title="Local forecast" aria-label="Local weather: tap for the forecast"><canvas id="localWx" width="28" height="28" hidden></canvas><span id="localTemp"></span> <span id="localCity"></span><span class="wx-more" aria-hidden="true">Forecast<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span></p>
+    <p class="radar-time" id="radarTime" hidden><span>NOAA &middot; RainViewer Radar</span><b><i></i><em></em></b></p>
+    <button id="radarBtn" class="radar-btn" aria-pressed="false" aria-label="Weather radar" title="Weather radar: tap for live, past hour, off"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15.5h10a4 4 0 0 0 .3-8 5.5 5.5 0 0 0-10.6 1.4A3.3 3.3 0 0 0 7 15.5Z"/><path d="M9 18.5l-.8 2M13 18.5l-.8 2M17 18.5l-.8 2"/></svg><span id="radarBtnLabel">Radar</span></button>
+    <p class="radar-time power-time" id="powerTime" hidden><span>MassOutage &middot; US power</span><b><i></i><em></em></b></p>
+    <button id="powerBtn" class="radar-btn power-btn" aria-pressed="false" aria-label="Power outages" title="US power outages: tap to show or hide on the globe"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span id="powerBtnLabel">Power: off</span></button>
+    <p class="map-key" id="mapKey">
+      <span class="mk mk-wx"><i></i>Weather</span>
+      <span class="mk mk-pwr"><i></i>Power</span>
+      <span class="mk mk-app"><i></i>Apps</span>
+      <span class="mk mk-net"><i></i>Network</span>
+    </p>
+  </div>
+
+  <aside class="panel" id="panel">
+
+    <section class="pwr-sec sec" id="pwrSec" hidden>
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="sec-name">US power</span><small class="pwr-flag" id="pwrFlag"></small></h2>
+      <ol class="list pwr-list" id="pwrList"></ol>
+    </section>
+
+    <!-- Then every outage in the last 24 hours. -->
+    <section class="outages sec">
+      <h2 class="sec-title"><img class="sec-ico te-eye" src="assets/te-eye.png" alt="" aria-hidden="true"><span class="sec-name">Around the World</span> <button class="win-btn" id="winBtn" title="Time window: tap to change">Last 24 hours</button></h2>
+      <div class="stats">
+        <button class="stat act" data-filter="active" title="Show only active outages"><b id="statActive">–</b><span>Active</span></button>
+        <button class="stat app" data-filter="application" title="Show only application outages"><b id="statApp">–</b><span>Apps</span></button>
+        <button class="stat net" data-filter="network" title="Show only network outages"><b id="statNet">–</b><span>Network</span></button>
+        <button class="stat loc" data-filter="locations" title="List by location"><b id="statLoc">–</b><span>Locations</span></button>
+        <button class="filter-all on" data-filter="all" title="Show all outages">All</button>
+      </div>
+      <ol class="list" id="list"></ol>
+    </section>
+  </aside>
+
+  <nav class="zoomctl" aria-label="Globe controls">
+    <button id="ttsBtn" class="tts-btn" aria-pressed="false" aria-label="Spoken summaries (experimental)" title="Spoken summaries (experimental). Hold for speed stats.">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="tts-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="tts-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+    </button>
+    <div class="glass-wrap">
+    <button id="glassBtn" class="glass-btn" aria-pressed="false" aria-label="Gesture control (uses the camera)" title="Gesture control: uses the camera to follow your hands. Hold for the camera debug view.">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10.5V4a1.5 1.5 0 0 1 3 0v6.5"/><path d="M14 10.5V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M17 10.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1a6 6 0 0 1-4.6-2.2l-3.2-3.9a1.5 1.5 0 0 1 2.2-2L8 15.5V13"/></svg>
+    </button>
+    <span class="cam-chip" id="camChip" hidden><i></i>CAMERA</span>
+    </div>
+    <button id="modeBtn" class="mode-btn" aria-pressed="false" aria-label="Free mode: hide panels for a clean globe" title="Switch between HUD and Free (clean globe) mode">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path class="hud-only" d="M14.5 4.5v15M3.5 15h11"/></svg>
+    </button>
+    <button id="fsBtn" class="fs-btn" aria-pressed="false" aria-label="Full screen" title="Full screen">
+      <svg class="fs-in" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      <svg class="fs-out" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+    </button>
+  </nav>
+
+  <section class="float" id="float" aria-live="polite">
+    <div class="float-head">
+      <div class="float-icon" id="floatIcon"></div>
+      <div class="float-title"><div class="float-kind" id="floatKind"></div><div class="float-name" id="floatName"></div></div>
+    </div>
+    <div class="float-metrics" id="floatMetrics"></div>
+    <div class="float-locs" id="floatLocs"></div>
+    <div class="card-progress"><i id="floatProgress"></i></div>
+  </section>
+
+  <section class="card" id="card" hidden>
+    <div class="card-main">
+    <div class="card-head">
+      <div class="card-icon" id="cardIcon"></div>
+      <div class="card-title">
+        <div class="card-kind" id="cardKind"></div>
+        <h3 id="cardName"></h3>
+      </div>
+      <button class="card-close" id="cardClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="card-metrics" id="cardMetrics"></div>
+    <p class="card-note" id="cardNote" hidden></p>
+    </div>
+    <ul class="card-locs" id="cardLocs"></ul>
+    <div class="card-progress"><i id="cardProgress"></i></div>
+  </section>
+
+  <footer class="timeline">
+    <button class="tour" id="tourBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+      <span>Tour</span>
+    </button>
+    <div class="tl-chart" id="tlChart" title="Drag to scrub through the last 24 hours">
+      <svg id="timeline" preserveAspectRatio="none"></svg>
+      <div class="tl-marks" id="tlMarks" aria-hidden="true"></div>
+      <button class="win-btn tl-win" id="tlWinBtn" title="Time window: tap to change">Last 24 hours</button>
+      <div class="tl-scrub" id="tlScrub" hidden><span id="tlScrubLabel"></span></div>
+      <div class="tl-axis"><span id="tlStart">24h ago</span><span class="tl-clock" id="tlClock1"></span><span id="tlMid">12h</span><span class="tl-clock" id="tlClock2"></span><span>now</span></div>
+    </div>
+  </footer>
+
+  <div class="swipe-hint" id="swipeHint" aria-hidden="true"></div>
+  <div class="gesture" id="gesture" aria-live="polite">
+    <svg viewBox="0 0 120 120" width="150" height="150" aria-hidden="true">
+      <circle class="g-track" cx="60" cy="60" r="54"/>
+      <circle class="g-ring" id="gestureRing" cx="60" cy="60" r="54" pathLength="100"/>
+      <defs>
+        <!-- A fist, front-on: four knuckles, folded fingers, thumb across, wrist. -->
+        <g id="gFist">
+          <rect x="34" y="44" width="52" height="44" rx="15"/>
+          <circle cx="42" cy="47" r="8"/><circle cx="54" cy="44" r="8"/><circle cx="66" cy="44" r="8"/><circle cx="78" cy="47" r="8"/>
+          <rect x="46" y="86" width="28" height="13" rx="4"/>
+          <path d="M48 52v14M60 50v16M72 52v14M36 74h34" fill="none" stroke="rgba(9,14,26,.55)" stroke-width="2.5" stroke-linecap="round"/>
+        </g>
+      </defs>
+      <g class="g-hand g-open">
+        <rect x="38" y="52" width="44" height="40" rx="14"/>
+        <rect x="38" y="22" width="10" height="40" rx="5"/>
+        <rect x="50" y="15" width="10" height="45" rx="5"/>
+        <rect x="62" y="19" width="10" height="42" rx="5"/>
+        <rect x="74" y="28" width="9" height="34" rx="4.5"/>
+        <rect x="24" y="52" width="10" height="30" rx="5" transform="rotate(-35 29 67)"/>
+      </g>
+      <g class="g-hand g-fist"><use href="#gFist"/></g>
+      <g class="g-hand g-pinchg"><use href="#sPinch" width="120" height="120"/></g>
+      <g class="g-hand g-zoom">
+        <use href="#gFist" transform="translate(4 30) scale(.52)"/>
+        <use href="#gFist" transform="translate(54 30) scale(.52)"/>
+        <path class="g-arrow" d="M50 60h20M54 55l-5 5 5 5M66 55l5 5-5 5"/>
+      </g>
+    </svg>
+    <div class="g-label" id="gestureLabel"></div>
+    <button class="g-info" id="gestureInfoBtn">Gesture Help <span class="g-q" aria-hidden="true">?</span></button>
+  </div>
+  <!-- Hand cursor (gestures v2): the dot is the pointer; a pinch clicks under it. -->
+  <div class="hand-cursor" id="handCursor" hidden aria-hidden="true">
+    <div class="hc-dot"><i></i></div>
+  </div>
+  <!-- Gesture icons, shared by the guide. Same drawing style as the badge. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="sOpen" viewBox="0 0 120 120">
+      <rect x="38" y="52" width="44" height="40" rx="14"/><rect x="38" y="22" width="10" height="40" rx="5"/>
+      <rect x="50" y="15" width="10" height="45" rx="5"/><rect x="62" y="19" width="10" height="42" rx="5"/>
+      <rect x="74" y="28" width="9" height="34" rx="4.5"/><rect x="24" y="52" width="10" height="30" rx="5" transform="rotate(-35 29 67)"/>
+    </symbol>
+    <symbol id="sFist" viewBox="0 0 120 120">
+      <rect x="34" y="44" width="52" height="44" rx="15"/>
+      <circle cx="42" cy="47" r="8"/><circle cx="54" cy="44" r="8"/><circle cx="66" cy="44" r="8"/><circle cx="78" cy="47" r="8"/>
+      <rect x="46" y="86" width="28" height="13" rx="4"/>
+      <path d="M48 52v14M60 50v16M72 52v14M36 74h34" fill="none" stroke="rgba(9,14,26,.55)" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="sTwoFists" viewBox="0 0 120 120">
+      <use href="#sFist" x="-10" y="22" width="70" height="70"/><use href="#sFist" x="60" y="22" width="70" height="70"/>
+      <path d="M44 34h32M49 28l-6 6 6 6M71 28l6 6-6 6" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="sSwipe" viewBox="0 0 120 120">
+      <use href="#sOpen" x="22" y="8" width="76" height="76"/>
+      <path d="M22 98h76M30 90l-8 8 8 8M90 90l8 8-8 8" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="sPinch" viewBox="0 0 120 120">
+      <!-- Same palm and three raised fingers as the open hand; the index curls
+           down to meet the thumb tip, leaving an open "O" between them. -->
+      <rect x="42" y="54" width="44" height="40" rx="14"/>
+      <rect x="53" y="15" width="10" height="45" rx="5"/>
+      <rect x="65" y="19" width="10" height="42" rx="5"/>
+      <rect x="77" y="28" width="9" height="34" rx="4.5"/>
+      <path d="M48 60C47 40 36 30 27 39" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+      <path d="M46 84C33 80 23 68 25 48" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="sHead" viewBox="0 0 120 120">
+      <circle cx="60" cy="48" r="20"/><path d="M28 104c4-20 18-30 32-30s28 10 32 30z"/>
+      <path d="M14 48h12M20 42l-6 6 6 6M106 48H94M100 42l6 6-6 6" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <div class="guide" id="guide" hidden>
+    <section class="guide-card" role="dialog" aria-labelledby="guideTitle">
+      <button class="guide-close" id="guideClose" aria-label="Close">&times;</button>
+      <h2 id="guideTitle">Gestures</h2>
+      <div class="guide-grid gv2">
+        <div class="gi"><svg><use href="#sOpen"/></svg><div><b>Hold up an open palm</b><span>Starts gestures. Your hand becomes the pointer.</span></div></div>
+        <div class="gi"><svg><use href="#sPinch"/></svg><div><b>Pinch</b><span>Clicks whatever the dot is on.</span></div></div>
+        <div class="gi"><svg><use href="#sFist"/></svg><div><b>Fist, hold, then move</b><span>Grabs and turns the globe. Open to let go.</span></div></div>
+        <div class="gi"><svg><use href="#sTwoFists"/></svg><div><b>Two fists</b><span>Apart to zoom in, together to zoom out.</span></div></div>
+      </div>
+      <div class="guide-grid gv1">
+        <div class="gi"><svg><use href="#sOpen"/></svg><div><b>Palm up &middot; half a second</b><span>Activates gestures.</span></div></div>
+        <div class="gi"><svg><use href="#sFist"/></svg><div><b>Fist &middot; hold, then move</b><span>Grabs and turns the globe.</span></div></div>
+        <div class="gi"><svg><use href="#sTwoFists"/></svg><div><b>Two fists</b><span>Apart to zoom in, together to zoom out.</span></div></div>
+        <div class="gi"><svg><use href="#sPinch"/></svg><div><b>Pinch</b><span>Right hand next outage, left hand previous.</span></div></div>
+      </div>
+      <p class="guide-tip">Gestures pause when your hands leave the view.</p>
+      <p class="guide-start"><svg><use href="#sOpen"/></svg>Hold up an open palm to start</p>
+    </section>
+  </div>
+
+  <div class="roomnet-strip" id="roomNetStrip" aria-label="Response time from this room"></div>
+<div class="probe-edit" id="probeEdit" hidden role="dialog" aria-labelledby="peTitle">
+    <h3 id="peTitle"></h3>
+    <label class="pe-lbl" for="peName">Name</label>
+    <input id="peName" type="text" autocomplete="off" maxlength="32">
+    <label class="pe-lbl" for="peUrl">Address checked</label>
+    <input id="peUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p id="peNote"></p>
+    <div class="pe-btns"><button id="peReset" class="pe-ghost">Defaults</button><button id="peCancel" class="pe-ghost">Cancel</button><button id="peSave" class="pe-save">Save</button></div>
+  </div>
+    <section class="pathcard" id="pathCard" hidden>
+    <button class="card-close" id="pathClose" aria-label="Close">&times;</button>
+    <div class="pc-kind">Path trace</div>
+    <h3 id="pathTitle"></h3>
+    <div class="pc-meta" id="pathMeta"></div>
+    <div class="pc-body" id="pathBody"></div>
+  </section>
+  <div class="voice-pick" id="voicePick" hidden role="dialog" aria-label="Choose a voice"></div>
+  <section class="wx-card pwr-card" id="pwrCard" hidden role="dialog" aria-labelledby="pwrTitle">
+    <button class="card-close" id="pwrClose" aria-label="Close">&times;</button>
+    <h3 id="pwrTitle">Power outage</h3>
+    <p class="wxc-src" id="pwrSrc"></p>
+    <div class="wxc-now"><div class="wxc-big"><b id="pwrOut"></b><span id="pwrWhere"></span></div><dl class="wxc-stats" id="pwrStats"></dl></div>
+    <p class="wxc-text" id="pwrText"></p>
+    <p class="pwr-credit">Live county totals by <a href="https://massoutage.com" target="_blank" rel="noopener noreferrer">MassOutage (massoutage.com)</a>, CC BY 4.0. An unofficial aggregate of US utility reports - confirm with the utility. In an emergency, call 911.</p>
+  </section>
+
+  <!-- ── Mobile: the Tests and Phone tabs (js/mobile.js) ───────────────── -->
+  <main class="view" id="viewTests" hidden>
+    <header class="view-head"><h2>Tests</h2><p>Live checks from this phone</p></header>
+    <section class="m-card sec speed" id="speedCard">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14l4-4"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg><span class="sec-name">Speed test</span></h2>
+      <div class="gauge-row">
+        <div class="gauge" id="gDown"><svg viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="50"/><circle class="g-val" cx="60" cy="60" r="50" pathLength="100"/></svg><b>&ndash;</b><span>Mbps down</span></div>
+        <div class="gauge up" id="gUp"><svg viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="50"/><circle class="g-val" cx="60" cy="60" r="50" pathLength="100"/></svg><b>&ndash;</b><span>Mbps up</span></div>
+      </div>
+      <dl class="kv" id="speedStats"></dl>
+      <button class="m-btn" id="speedRun">Run speed test</button>
+      <p class="m-note">Measured from this phone to the nearest Cloudflare site. Uses about 25&nbsp;MB of data.</p>
+    </section>
+    <!-- This room first: each service's Internet Insights status (left) and
+         this room's live connection to it (right). -->
+    <section class="services sec m-card" id="services">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span class="sec-name">Service checks</span> <span class="edge-pill" id="edgePill" hidden><i class="svc-dot"></i><span class="edge-k">Local edge</span> <b id="edgeMs">&hellip;</b></span><button class="win-btn svc-done" id="svcDone" hidden>Done</button></h2>
+      <div id="roomNetRows"></div>
+    </section>
+    <p class="m-note m-pad">Tap a service to trace its network path on the globe. The gear edits a check.</p>
+  </main>
+
+  <main class="view" id="viewPhone" hidden>
+    <header class="view-head"><h2>This phone</h2><p>What the browser can see</p></header>
+    <section class="m-card sec" id="phNet">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg><span class="sec-name">Connection</span></h2>
+      <div class="sig"><div class="bars" id="phBars"><i></i><i></i><i></i><i></i><i></i></div><div><b id="phQual">&ndash;</b><span id="phType"></span></div></div>
+      <dl class="kv" id="phNetKv"></dl>
+    </section>
+    <section class="m-card sec" id="phBat">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/></svg><span class="sec-name">Battery</span></h2>
+      <div class="bat"><div class="bat-body"><i id="phBatFill"></i><b id="phBatPct">&ndash;</b></div><dl class="kv" id="phBatKv"></dl></div>
+    </section>
+    <section class="m-card sec" id="phLoc">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg><span class="sec-name">Location</span></h2>
+      <dl class="kv" id="phLocKv"></dl>
+      <div class="m-btns"><button class="m-btn" id="phGps">Use GPS</button><button class="m-btn ghost" id="phShow">Show on globe</button></div>
+    </section>
+    <section class="m-card sec" id="phDev">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span class="sec-name">Device</span></h2>
+      <dl class="kv" id="phDevKv"></dl>
+    </section>
+    <p class="m-note m-pad">Phones don't let web pages read cellular signal strength or Wi-Fi bars, so connection quality here is measured: round-trip time and speed to the nearest internet edge, plus what the browser reports. Some details are only available in some browsers.</p>
+  </main>
+
+  <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <button data-tab="globe" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Globe</span></button>
+    <button data-tab="tests"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Tests</span></button>
+    <button data-tab="phone"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span>Phone</span></button>
+  </nav>
+  <div class="toast" id="toast" hidden></div>
+  <div class="error" id="error" hidden></div>
+
+  <script src="vendor/d3-array.min.js"></script>
+  <script src="vendor/d3-geo.min.js"></script>
+  <script src="vendor/topojson-client.min.js"></script>
+  <script src="js/sound.js?v=67"></script>
+  <script src="js/insights.js?v=3"></script>
+  <script src="js/phrases.js?v=10"></script>
+  <script src="js/wxbrief.js?v=3"></script>
+  <script src="js/narrate.js?v=4"></script>
+  <script src="js/tts.js?v=10"></script>
+  <script src="js/roomnet.js?v=17"></script>
+  <script src="js/pathtrace.js?v=7"></script>
+  <script src="js/radar.js?v=11"></script>
+  <script src="js/power.js?v=3"></script>
+  <script src="js/glglobe.js?v=27"></script>
+  <script src="js/glass.js?v=88"></script>
+  <script src="js/logos.js?v=1"></script>
+  <script src="js/app.js?v=224"></script>
+  <script src="js/mobile.js?v=1"></script>
+  <script src="js/devlab.js?v=78"></script>
+</body>
+</html>

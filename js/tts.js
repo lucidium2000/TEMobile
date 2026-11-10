@@ -1,0 +1,227 @@
+// Part of TERoomApp - created by Christopher Hunt (github.com/lucidium2000).
+/* Spoken summaries with Kokoro (experimental). The model runs in
+ * js/tts-worker.js; this side queues the audio it returns and plays it
+ * through Web Audio, gap-free, as each sentence arrives.
+ *
+ * Off until the speaker button is pressed (so nothing big downloads on a
+ * normal visit); turning it off unloads the model again.
+ *   tts=0          hide the speaker button
+ *   ttsvoice=      a Kokoro voice (default af_heart; or pick one by holding the speaker button)
+ *   ttsspeed=      0.5..2 (default 1; or pick one by holding the speaker button)
+ *   ttsdevice=     auto (WebGPU when available, else cloud) | webgpu | wasm | cloud (or pick in the voice settings)
+ *
+ * Cloud: the GitHub Action renders the narration to audio files ahead of time
+ * (scripts/render-speech.mjs); this side just plays them (playClips). That's
+ * what a device too slow to make speech itself (the Desk Pro, no WebGPU) uses:
+ * instant, no model download, no CPU. app.js loads the clip manifest and calls
+ * setCloudReady.
+ *   ttsdtype=      fp32 | fp16 | q8 | q4 | q4f16 (default fp32 on WebGPU, q8 on CPU)
+ *
+ * window.Tts = { enabled, setEnabled(on), onChange(fn), speak(text), stop(), state, info, progress, stats }
+ */
+(function () {
+  'use strict';
+
+  const qs = new URLSearchParams(location.search);
+  const AVAILABLE = qs.get('tts') !== '0';
+  function savedVoice() { try { return localStorage.getItem('te-tts-voice') || ''; } catch (_) { return ''; } }
+  function savedDevice() { try { return localStorage.getItem('te-tts-device') || ''; } catch (_) { return ''; } }
+  function savedSpeed() { try { return parseFloat(localStorage.getItem('te-tts-speed')) || 0; } catch (_) { return 0; } }
+  let enabled = false, onChange = () => {}, gpuCheck = null;
+  const OPTS = {
+    // URL first, then the last voice picked on this device, then the default.
+    voice: qs.get('ttsvoice') || savedVoice() || 'af_heart',
+    speed: Math.max(0.5, Math.min(2, parseFloat(qs.get('ttsspeed')) || savedSpeed() || 1)),
+    device: qs.get('ttsdevice') || savedDevice() || 'auto',
+    dtype: qs.get('ttsdtype') || '',
+  };
+  // Kokoro's English voices: a = American, b = British; f / m = female / male.
+  const VOICES = ['af_heart', 'af_alloy', 'af_aoede', 'af_bella', 'af_jessica', 'af_kore', 'af_nicole', 'af_nova', 'af_river', 'af_sarah', 'af_sky',
+    'am_adam', 'am_echo', 'am_eric', 'am_fenrir', 'am_liam', 'am_michael', 'am_onyx', 'am_puck', 'am_santa',
+    'bf_alice', 'bf_emma', 'bf_isabella', 'bf_lily', 'bm_daniel', 'bm_fable', 'bm_george', 'bm_lewis'];
+  const WORKER_URL = new URL('tts-worker.js' + (new URL(document.currentScript.src).search || ''), document.currentScript.src).href;
+
+  let worker = null, state = 'off', info = null, progress = 0, error = '', mode = 'live';
+  let ctx = null, gain = null, playAt = 0, curId = 0, sources = [];
+  // Speech in progress: genT0 = when the current request started (0 = none
+  // pending), chunkT0 = when the sentence now being made started.
+  let genT0 = 0, chunkT0 = 0;
+  const stats = [];   // per sentence: { chars, ms, sec, rtf }
+
+  // Audio may only start after a user gesture; until then speech is skipped.
+  function unlock() {
+    if (!ctx) {
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        gain = ctx.createGain(); gain.gain.value = 0.9; gain.connect(ctx.destination);
+      } catch (_) { ctx = null; }
+    }
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  }
+  ['pointerdown', 'touchend', 'click', 'keydown'].forEach((t) => window.addEventListener(t, unlock, { capture: true, passive: true }));
+
+  /** Live model (worker) or pre-rendered clips (cloud)? Auto picks the GPU
+   *  when the browser offers one, otherwise cloud. */
+  async function load() {
+    if (worker || mode === 'cloud' && state !== 'off') return;
+    state = 'loading'; progress = 0; error = '';
+    let dev = OPTS.device;
+    if (dev === 'auto') dev = (await window.Tts.gpuAvailable()) ? 'webgpu' : 'cloud';
+    if (!enabled) { state = 'off'; return; }
+    if (dev === 'cloud') {
+      mode = 'cloud';
+      if (window.Tts.manifestLoader) window.Tts.manifestLoader(); else setCloudReady(false, null, 'no clip manifest');
+      return;
+    }
+    mode = 'live';
+    if (worker) return;
+    try { worker = new Worker(WORKER_URL, { type: 'module' }); } catch (e) { state = 'error'; error = String(e.message || e); return; }
+    worker.onmessage = onMessage;
+    worker.onerror = (e) => { state = 'error'; error = e.message || 'worker failed'; onChange(state); };
+    worker.postMessage({ type: 'load', device: dev, dtype: OPTS.dtype });
+  }
+  function setCloudReady(ok, voice, why) {
+    if (mode !== 'cloud' || !enabled) return;
+    const was = state;
+    if (ok) { state = 'ready'; info = { device: 'cloud', dtype: 'pre-rendered', voice: voice || '' }; progress = 1; error = ''; }
+    else { state = 'error'; error = why || 'no pre-rendered speech'; }
+    if (state !== was) onChange(state);
+  }
+
+  // ── Cloud: play pre-rendered clips back to back ─────────────────────────
+  const clipCache = new Map();   // url -> Promise<AudioBuffer>; a few dozen recent ones
+  function clip(url) {
+    if (!clipCache.has(url)) {
+      clipCache.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+        .then((b) => ctx.decodeAudioData(b)));
+      if (clipCache.size > 60) clipCache.delete(clipCache.keys().next().value);
+    }
+    return clipCache.get(url).catch((e) => { clipCache.delete(url); throw e; });
+  }
+  /** Play these clips in order, cutting off whatever was playing. */
+  async function playClips(urls) {
+    urls = (urls || []).filter(Boolean);
+    if (!enabled || mode !== 'cloud' || !urls.length) return;
+    if (!ctx) { error = 'audio is locked until the screen is tapped'; onChange('speakerror'); return; }
+    stop();
+    const id = ++curId;
+    genT0 = chunkT0 = performance.now();
+    onChange('activity');
+    const t0 = performance.now();
+    // Fetch them all at once, then schedule in order, gap-free.
+    const bufs = await Promise.all(urls.map((u) => clip(u).catch(() => null)));
+    if (id !== curId) return;   // cancelled meanwhile
+    if (ctx.state === 'suspended') ctx.resume();
+    let at = Math.max(ctx.currentTime + 0.03, playAt);
+    for (const buf of bufs) {
+      if (!buf) continue;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(gain);
+      src.start(at); at += buf.duration + 0.05;   // a breath between clips
+      sources.push(src);
+      src.onended = () => { sources = sources.filter((q) => q !== src); onChange('activity'); };
+    }
+    playAt = at;
+    const sec = bufs.reduce((a, b) => a + (b ? b.duration : 0), 0);
+    if (sec) { stats.push({ chars: 0, ms: performance.now() - t0, sec, rtf: (performance.now() - t0) / 1000 / sec }); if (stats.length > 30) stats.shift(); }
+    genT0 = 0;
+    onChange('activity');
+  }
+
+  function onMessage(e) {
+    const m = e.data;
+    if (m.type === 'progress') progress = m.total ? m.loaded / m.total : 0;
+    else if (m.type === 'ready') { state = 'ready'; info = m; progress = 1; onChange(state); }
+    else if (m.type === 'error') {
+      error = m.message; console.warn('[tts]', m.message);
+      if (state === 'loading') { state = 'error'; onChange(state); }
+      else if (m.id === curId) { genT0 = 0; onChange('speakerror'); }
+    }
+    else if (m.type === 'done') { if (m.id === curId) { genT0 = 0; onChange('activity'); } }
+    else if (m.type === 'chunk') {
+      if (m.id === curId) chunkT0 = performance.now();
+      const sec = m.audio.length / m.rate;
+      stats.push({ chars: m.text.length, ms: m.ms, sec, rtf: m.ms / 1000 / sec });
+      if (stats.length > 30) stats.shift();
+      if (m.id !== curId) return;   // cancelled
+      if (!ctx) { error = 'audio is locked until the screen is tapped'; onChange('speakerror'); return; }
+      if (ctx.state === 'suspended') ctx.resume();
+      const buf = ctx.createBuffer(1, m.audio.length, m.rate);
+      buf.copyToChannel(m.audio, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(gain);
+      const at = Math.max(ctx.currentTime + 0.03, playAt);
+      src.start(at);
+      playAt = at + buf.duration;
+      sources.push(src);
+      onChange('activity');
+      src.onended = () => { sources = sources.filter((s) => s !== src); onChange('activity'); };
+    }
+  }
+
+  /** Turn speech on (loads the model) or off (stops and unloads it, giving
+   *  the CPU and memory back). */
+  function setEnabled(on) {
+    if (on === enabled) return;
+    enabled = on;
+    if (on) { unlock(); load(); }   // turned on by a tap: the moment audio may be unlocked
+    else {
+      stop();
+      if (worker) { worker.terminate(); worker = null; }
+      state = 'off'; progress = 0; mode = 'live';
+    }
+    onChange(state);
+  }
+
+  /** Say this, cutting off whatever was being said (only while enabled). */
+  function speak(text) {
+    if (!text || !enabled || mode === 'cloud') return;   // cloud mode plays clips instead
+    if (!worker) { load(); if (!worker) return; }
+    stop();
+    curId++;
+    genT0 = chunkT0 = performance.now();
+    worker.postMessage({ type: 'speak', id: curId, text, voice: OPTS.voice, speed: OPTS.speed });
+    onChange('activity');
+  }
+  function stop() {
+    if (worker && curId) worker.postMessage({ type: 'stop', id: curId });
+    curId++;
+    for (const s of sources) { try { s.stop(); } catch (_) { /* already ended */ } }
+    sources = []; playAt = 0; genT0 = 0;
+  }
+
+  window.Tts = {
+    available: AVAILABLE, voices: VOICES, opts: OPTS,
+    get enabled() { return enabled; }, setEnabled, onChange(fn) { onChange = fn; }, unlock,
+    speak, stop, playClips, setCloudReady,
+    /** 'live' (a model making speech here) or 'cloud' (pre-rendered clips). */
+    get mode() { return mode; },
+    setVoice(v) { OPTS.voice = v; try { localStorage.setItem('te-tts-voice', v); } catch (_) { /* private mode */ } },
+    /** 'auto' | 'webgpu' | 'wasm' | 'cloud': switches there (speech stays on if it was). */
+    setDevice(d) {
+      OPTS.device = d;
+      try { localStorage.setItem('te-tts-device', d); } catch (_) { /* private mode */ }
+      stop();
+      if (worker) { worker.terminate(); worker = null; }
+      info = null; state = 'off'; mode = 'live';
+      if (enabled) load();
+      onChange(state);
+    },
+    /** Does the browser hand out a GPU for compute (WebGPU)? Checked once. */
+    gpuAvailable() {
+      if (!gpuCheck) gpuCheck = (async () => { try { return !!(navigator.gpu && (await navigator.gpu.requestAdapter())); } catch (_) { return false; } })();
+      return gpuCheck;
+    },
+    setSpeed(x) { OPTS.speed = Math.max(0.5, Math.min(2, x)); try { localStorage.setItem('te-tts-speed', String(OPTS.speed)); } catch (_) { /* private mode */ } },
+    get state() { return state; }, get info() { return info; }, get progress() { return progress; },
+    get error() { return error; }, get stats() { return stats; },
+    get speaking() { return sources.length > 0; },
+    /** Still making speech for the current request (nothing or not all of it audible yet). */
+    get generating() { return genT0 > 0; },
+    /** Making or playing speech - the tour waits for this. */
+    get busy() { return genT0 > 0 || sources.length > 0; },
+    /** How long the sentence now being made has taken so far (ms), or 0. */
+    get waitMs() { return genT0 ? performance.now() - chunkT0 : 0; },
+  };
+
+})();

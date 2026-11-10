@@ -1,0 +1,137 @@
+/* Part of TEMobile - forked from TERoomApp, created by Christopher Hunt (github.com/lucidium2000).
+   Phone layout on top of app.css: a tab bar (Globe / Tests / Phone), a
+   cleaner globe view, and the Tests and Phone views as scrolling cards in
+   the same glass style. */
+
+:root {
+  --ui-zoom: 1;                 /* phones: no 80% desk scaling */
+  --tabh: calc(60px + env(safe-area-inset-bottom, 0px));
+  --gutter: 12px;
+}
+html, body { overscroll-behavior: none; }
+
+/* ── Tab bar ─────────────────────────────────────────── */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 110; height: var(--tabh);
+  display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px 8px env(safe-area-inset-bottom, 0px);
+  background: rgba(7, 11, 20, .92); border-top: 1px solid rgba(148, 163, 184, .18);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.tabbar button {
+  display: grid; justify-items: center; align-content: center; gap: 3px; border-radius: 12px;
+  color: var(--ink-3); font-size: 11px; font-weight: 700; letter-spacing: .04em;
+}
+.tabbar button.on { color: var(--app); }
+.tabbar button.on svg { filter: drop-shadow(0 0 8px rgba(22, 189, 235, .55)); }
+
+/* ── Globe tab: cleaner ──────────────────────────────── */
+/* Off the globe tab, its overlays step aside (the views cover the canvas). */
+body:not([data-tab="globe"]) :is(.brand, .wxbar, .panel, .zoomctl, .card, .float, .timeline, .pathcard, .wx-card, .pwr-card, .gesture, .hand-cursor) { display: none !important; }
+#modeBtn, #fsBtn, .map-key { display: none !important; }
+.brand { gap: .15em; }
+.brand-logo { height: 2.1em; }
+.brand h1 { font-size: 1.25em; }
+.brand .updated { font-size: .66em; }
+/* The outage list: a bottom sheet just above the tab bar. */
+@media (max-width: 900px) {
+  .panel { bottom: var(--tabh) !important; height: 36vh; height: 36dvh; padding: 0 8px; border: 0; background: none; }
+  .panel .sec { border-radius: 16px 16px 0 0; }
+  .card { bottom: calc(var(--tabh) + 36dvh + 10px) !important; }
+  .services { display: block !important; }
+  .toast { top: auto !important; bottom: calc(var(--tabh) + 12px); }
+}
+.zoomctl { top: 96px !important; }
+
+/* ── Tests / Phone views ─────────────────────────────── */
+.view {
+  position: fixed; left: 0; right: 0; top: 0; bottom: var(--tabh); z-index: 100; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px 24px;
+  background: radial-gradient(120% 60% at 50% 0%, rgba(22, 189, 235, .10), transparent 60%), linear-gradient(180deg, #070c18, #04060c 70%);
+  -webkit-user-select: none; user-select: none;
+}
+.view-head { margin: 4px 4px 14px; }
+.view-head h2 { margin: 0; font-size: 1.7em; letter-spacing: -.01em; }
+.view-head p { margin: .15em 0 0; color: var(--ink-3); font-size: .9em; }
+.m-card {
+  position: relative; overflow: hidden; margin: 0 0 12px; padding: 0 14px 14px; border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, .2);
+  background: linear-gradient(180deg, rgba(17, 26, 44, .92), rgba(8, 13, 24, .9));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+.m-card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--app) 20%, var(--app) 80%, transparent); opacity: .85;
+}
+.m-card > .sec-title {
+  margin: 0 -14px 12px; padding: .75em 14px .7em; font-size: .82em; color: var(--ink); letter-spacing: .13em; align-items: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .01)); border-bottom: 1px solid rgba(148, 163, 184, .14);
+}
+.m-card > .sec-title::before { display: none; }
+.view .services { padding-bottom: 8px; }
+.m-note { color: var(--ink-3); font-size: .78em; line-height: 1.45; margin: .6em 0 0; }
+.m-pad { margin: 4px 6px 12px; }
+.m-btns { display: flex; gap: 8px; margin-top: 12px; }
+.m-btn {
+  margin-top: 12px; width: 100%; min-height: 44px; border-radius: 12px; font-weight: 800; letter-spacing: .02em;
+  color: #04121a; background: var(--app); box-shadow: 0 6px 20px rgba(22, 189, 235, .3);
+}
+.m-btns .m-btn { margin-top: 0; }
+.m-btn.ghost { color: var(--ink); background: rgba(255, 255, 255, .06); border: 1px solid var(--line); box-shadow: none; }
+.m-btn:disabled { opacity: .6; }
+
+/* Key / value lists. */
+.kv { display: grid; grid-template-columns: 1fr; gap: 0; margin: 0; }
+.kv > div { display: flex; justify-content: space-between; gap: 12px; padding: .5em 0; border-top: 1px solid rgba(148, 163, 184, .08); }
+.kv > div:first-child { border-top: 0; }
+.kv dt { color: var(--ink-3); font-size: .86em; }
+.kv dd { margin: 0; font-weight: 600; font-size: .9em; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kv .ok dd { color: var(--ok); } .kv .warn dd { color: var(--warn); } .kv .bad dd { color: var(--bad); }
+
+/* Speed gauges. */
+.gauge-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.gauge { position: relative; display: grid; place-items: center; aspect-ratio: 1; }
+.gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge .g-bg { fill: none; stroke: rgba(148, 163, 184, .14); stroke-width: 9; }
+.gauge .g-val { fill: none; stroke: var(--app); stroke-width: 9; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100;
+  transition: stroke-dashoffset .5s ease; filter: drop-shadow(0 0 6px rgba(22, 189, 235, .6)); }
+.gauge.up .g-val { stroke: var(--ok); filter: drop-shadow(0 0 6px rgba(52, 211, 153, .6)); }
+.gauge b { position: relative; font-size: 2em; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; margin-top: -.3em; }
+.gauge span { position: absolute; bottom: 30%; font-size: .72em; color: var(--ink-3); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+
+/* Signal bars (measured quality). */
+.sig { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.sig b { display: block; font-size: 1.4em; }
+.sig span { color: var(--ink-3); font-size: .82em; }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 34px; }
+.bars i { width: 7px; border-radius: 2px; background: rgba(148, 163, 184, .18); }
+.bars i:nth-child(1) { height: 20%; } .bars i:nth-child(2) { height: 40%; } .bars i:nth-child(3) { height: 60%; } .bars i:nth-child(4) { height: 80%; } .bars i:nth-child(5) { height: 100%; }
+.bars.q5 i, .bars.q4 i:nth-child(-n+4), .bars.q3 i:nth-child(-n+3) { background: var(--ok); box-shadow: 0 0 8px rgba(52, 211, 153, .5); }
+.bars.q2 i:nth-child(-n+2) { background: var(--warn); }
+.bars.q1 i:nth-child(1) { background: var(--bad); }
+
+/* Battery. */
+.bat { display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: center; }
+.bat-body { position: relative; height: 54px; border-radius: 10px; border: 2px solid rgba(226, 232, 240, .55); padding: 4px; }
+.bat-body::after { content: ""; position: absolute; right: -8px; top: 17px; width: 5px; height: 16px; border-radius: 0 3px 3px 0; background: rgba(226, 232, 240, .55); }
+.bat-body i { display: block; height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #10b981, #34d399); transition: width .6s ease; box-shadow: 0 0 12px rgba(52, 211, 153, .45); }
+.bat-body i.mid { background: linear-gradient(90deg, #d97706, #fbbf24); box-shadow: 0 0 12px rgba(251, 191, 36, .45); }
+.bat-body i.low { background: linear-gradient(90deg, #be123c, #f43f5e); box-shadow: 0 0 12px rgba(244, 63, 94, .5); }
+.bat-body b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.15em; font-weight: 800; text-shadow: 0 1px 4px rgba(0, 0, 0, .7); }
+.charging .bat-body b::after { content: " \26A1"; }
+.na .bat-body { opacity: .4; }
+
+/* The service checks in the Tests tab use the whole width. */
+.view .svc { grid-template-columns: .7em 7.2em minmax(0, 1fr) 3.7em 24px; }
+
+/* Compact gauges. */
+.gauge-row { max-width: 320px; margin: 0 auto 8px; }
+.gauge b { font-size: 1.7em; }
+
+/* Globe tab: a compact outage card (name, status, a few figures) so the
+   globe stays visible; the full location list is in the sheet below. */
+@media (max-width: 900px) {
+  .card { padding: .7em .9em; }
+  .card .card-locs { display: none !important; }
+  .card-metrics { gap: .3em .9em; }
+  .card-icon { width: 2.2em; height: 2.2em; }
+}
