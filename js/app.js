@@ -71,7 +71,10 @@
   const SPIN_RESUME_MS = 12000;
   // Interface zoom (css --ui-zoom): screen pixels -> pixels inside a zoomed element.
   const UIZ = Math.max(0.5, Math.min(1.5, parseFloat(qs.get('ui')) || 1));
-  document.documentElement.style.setProperty('--ui-zoom', String(UIZ));   // leave the globe where the user put it for a while
+  document.documentElement.style.setProperty('--ui-zoom', String(UIZ));
+  // Mobile: the forecast lives in the Weather tab, not a pop-up card.
+  const WX_DOCKED = !!document.getElementById('viewWeather');
+  const goTab = (t) => { if (window.TEMobile) window.TEMobile.setTab(t); };   // leave the globe where the user put it for a while
 
   // Friendly labels + match terms for the "Your services" strip.
   const WATCH_PRESETS = {
@@ -551,7 +554,7 @@
       S.room = room;   // the globe marks it (drawRoom)
       // The spoken rundown for the tour (js/wxbrief.js); live speech only -
       // cloud speech gets its own, rendered by the GitHub Action.
-      if (window.WxBrief) window.WxBrief.get(room.lat, room.lon, { fahrenheit: !WX_C }).then((w) => { if (w) S.wxBrief = w; }).catch(() => {});
+      if (window.WxBrief) window.WxBrief.get(room.lat, room.lon, { fahrenheit: !WX_C }).then((w) => { if (w) { S.wxBrief = w; dispatchEvent(new Event('te-weather')); } }).catch(() => {});
       const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + room.lat.toFixed(3) + '&longitude=' + room.lon.toFixed(3)
         + '&current=temperature_2m,weather_code,is_day,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation'
         + '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max&forecast_days=1&timezone=auto'
@@ -570,6 +573,7 @@
       S.roomWx = { code: c.weather_code, day: c.is_day === 1, t: c.temperature_2m };
       localWeather.retry = 0;
       localCity.textContent = room.city || '';
+      dispatchEvent(new Event('te-weather'));
     } catch (_) {
       // No weather is fine, but don't leave it blank for the full 15 minutes:
       // try again in a minute (then 2, 4 ... up to 15).
@@ -1598,6 +1602,7 @@
     el.statNet.textContent = net.length;
     el.statApp.textContent = app.length;
     el.statLoc.textContent = locs.size;
+    dispatchEvent(new Event('te-outages'));
   }
 
   function watchMatches(term) {
@@ -3157,6 +3162,7 @@
       applyRadar();
     });
     /** Set the radar to a mode from elsewhere (the forecast card). */
+    S.getRadarMode = () => mode;
     S.setRadarMode = (m) => {
       if (!MODES.includes(m)) return;
       mode = m;
@@ -3184,7 +3190,7 @@
     if (!a) return;
     if (S.selected) select(null);
     const wxc = document.getElementById('wxCard');
-    if (wxc && !wxc.hidden) wxc.hidden = true;
+    if (wxc && !wxc.hidden && !WX_DOCKED) wxc.hidden = true;
     S.pwrSel = a;
     userInput(); sfx('select');
     flyTo({ locations: [{ lon: a.lon, lat: a.lat, n: a.out, name: a.name }] }, 1600);
@@ -3279,6 +3285,12 @@
           if (next) openPowerCard(next); else closePowerCard();
         }
       });
+    };
+    S.setPower = (v) => {
+      if (on === !!v) return;
+      on = !!v;
+      try { localStorage.setItem('te-power-on', on ? '1' : '0'); } catch (_) { /* private mode */ }
+      applyPower();
     };
     powerBtn.addEventListener('click', () => {
       userInput();
@@ -3536,9 +3548,9 @@
     if (!w && !c) document.getElementById('wxcText').textContent = pl && !rec.loading ? 'No forecast for here right now.' : 'Getting the forecast\u2026';
   }
   /** Open the card: this room's area (no place), or a place {lat, lon, name}. */
-  function openWxCard(place) {
+  function openWxCard(place, quiet) {
     closePowerCard();
-    userInput(); sfx('open');
+    if (!quiet) { userInput(); sfx('open'); }
     wxPlace = place && isFinite(place.lat) ? place : null;
     const srch = document.getElementById('wxcSearch');
     if (srch) { srch.hidden = true; document.getElementById('wxcFind').classList.remove('on'); }
@@ -3549,8 +3561,16 @@
     wxIdle();
     // Say it straight away only if the voice is already on; otherwise the
     // card's Hear the forecast button turns it on.
-    if (canSpeak && window.Tts.enabled) speakForecast(wxPlace);
+    if (canSpeak && window.Tts.enabled && !quiet) speakForecast(wxPlace);
     wxCard.hidden = false;
+    wxCard.classList.toggle('other', !!wxPlace);
+    if (WX_DOCKED) {
+      if (!quiet) goTab('weather');
+      if (!wxPlace && !S.wxBrief && S.room && window.WxBrief) {
+        window.WxBrief.get(S.room.lat, S.room.lon, { fahrenheit: !WX_C }).then((w) => { if (w) { S.wxBrief = w; renderWxCard(); } }).catch(() => {});
+      }
+      return;
+    }
     // Just below the clock and weather, lined up with their right edge.
     const r = document.querySelector('.wxbar').getBoundingClientRect();
     wxCard.style.top = ((r.bottom + 8) / UIZ) + 'px';
@@ -3559,7 +3579,7 @@
       window.WxBrief.get(S.room.lat, S.room.lon, { fahrenheit: !WX_C }).then((w) => { if (w) { S.wxBrief = w; if (!wxCard.hidden) renderWxCard(); } }).catch(() => {});
     }
   }
-  const closeWxCard = () => { clearTimeout(wxIdleT); if (!wxCard.hidden) { wxCard.hidden = true; sfx('close'); } };
+  const closeWxCard = () => { if (WX_DOCKED) return; clearTimeout(wxIdleT); if (!wxCard.hidden) { wxCard.hidden = true; sfx('close'); } };
   // Left alone, the card closes itself after a minute (not while its forecast
   // is still being spoken); any touch, scroll or hover on it starts the minute again.
   let wxIdleT = 0;
@@ -3573,7 +3593,7 @@
   };
   ['pointerdown', 'pointermove', 'wheel', 'scroll', 'keydown', 'input'].forEach((t) => wxCard.addEventListener(t, wxIdle, { passive: true }));
   if (wxLine) wxLine.addEventListener('click', (e) => { e.stopPropagation(); if (wxCard.hidden || wxPlace) openWxCard(null); else closeWxCard(); });
-  document.getElementById('wxcClose').addEventListener('click', (e) => { e.stopPropagation(); closeWxCard(); });
+  document.getElementById('wxcClose').addEventListener('click', (e) => { e.stopPropagation(); if (WX_DOCKED) { sfx('tap'); openWxCard(null, true); } else closeWxCard(); });
   document.getElementById('wxcLocBtn').addEventListener('click', async (e) => {
     e.stopPropagation(); userInput(); sfx('tap');
     const btn = e.currentTarget;
@@ -3667,6 +3687,7 @@
     closeWxCard();
     select(null);
     const at = keep || S.room;
+    goTab('globe');
     if (at && isFinite(at.lat)) zoomTo(Math.max(view.zoom, 2.6), [at.lon, at.lat]);
     toast('Weather radar: past hour', 'info');
   });
@@ -3801,6 +3822,21 @@
     /** Ask for GPS and use it as this device's place (weather, pin). */
     usePreciseLocation: () => usePreciseLocation(),
     useNetworkLocation: () => useNetworkLocation(),
+    /** The forecast (this device's area, or a place {lat, lon, name}). */
+    openForecast: (place, quiet) => openWxCard(place || null, quiet),
+    weather: () => ({ now: S.wxNow || null, brief: S.wxBrief || null }),
+    radarMode: () => (S.getRadarMode ? S.getRadarMode() : null),
+    setRadar: (m) => { if (S.setRadarMode) { userInput(); S.setRadarMode(m); } },
+    powerOn: () => !!(S.power && S.power.on),
+    power: () => S.power || null,
+    setPower: (v) => { if (S.setPower) { userInput(); S.setPower(v); } },
+    /** Outages in the time window, active first, newest first. */
+    outages: () => S.outages.filter(inWindow).slice().sort((a, b) => (b.active - a.active) || (b.start - a.start)),
+    windowH: () => S.windowH,
+    renderForecast: () => renderWxCard(),
+    drawWx: (cv, code, day, size) => wxIcon(cv, code, day, size),
+    iconHtml: (o) => iconHtml(o),
+    selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
   };
 
   // Credits, for anyone who goes looking: tap the LIVE badge five times

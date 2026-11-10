@@ -1,5 +1,6 @@
 // Part of TEMobile - forked from TERoomApp, created by Christopher Hunt (github.com/lucidium2000).
-/* The mobile tabs: Globe (app.js), Tests (speed test + the service checks
+/* The mobile tabs: Home (an overview of the others), Outages (the globe,
+ * app.js), Weather (forecast, radar, US power), Tests (speed test + the service checks
  * from js/roomnet.js) and Phone (what the browser can tell about the phone:
  * connection, battery, location, device).
  *
@@ -24,8 +25,8 @@
   };
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
-  const views = { tests: $('viewTests'), phone: $('viewPhone') };
-  let tab = 'globe';
+  const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone') };
+  let tab = 'home';
   function setTab(name) {
     tab = name;
     document.body.dataset.tab = name;
@@ -35,7 +36,10 @@
     if (name === 'globe') window.dispatchEvent(new Event('resize'));
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
+    if (name === 'home') refreshHome();
+    if (name === 'weather') refreshWeather();
   }
+  window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab };
   document.getElementById('tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');
     if (b && b.dataset.tab !== tab) { if (window.Sfx) window.Sfx.play('tap'); setTab(b.dataset.tab); }
@@ -306,8 +310,134 @@
   function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); }
   setInterval(() => { if (tab === 'phone') { refreshNet(); refreshLoc(); } }, 5000);
 
+  // ── Outages: the list is a sheet - folded to its counts, or open ──────
+  {
+    const panel = $('panel'), grab = document.createElement('button');
+    grab.className = 'sheet-grab'; grab.setAttribute('aria-label', 'Show or hide the outage list');
+    panel.prepend(grab);
+    let min = true;
+    try { min = localStorage.getItem('te-m-sheet') !== 'open'; } catch (_) { /* */ }
+    const setMin = (v) => {
+      min = v; document.body.classList.toggle('sheet-min', v);
+      try { localStorage.setItem('te-m-sheet', v ? 'min' : 'open'); } catch (_) { /* */ }
+      setTimeout(() => dispatchEvent(new Event('resize')), 300);
+    };
+    setMin(min);
+    // The outage card sits just above the sheet, whatever its height.
+    const fit = () => document.documentElement.style.setProperty('--sheet-px', panel.offsetHeight + 'px');
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(panel); else fit();
+    // Picking an outage folds the list, so the globe and its card show.
+    $('list').addEventListener('click', (e) => { if (e.target.closest('.row')) setMin(true); });
+    grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); setMin(!min); });
+    // A count (filter) or the section title opens it.
+    panel.addEventListener('click', (e) => { if (min && e.target.closest('.stats, .outages .sec-title')) setMin(false); });
+  }
+
+  // ── Home: one glance at every tab; each card opens its tab ──────────────
+  const fmtAgo = (min) => (min < 60 ? `${Math.max(1, Math.round(min))}m ago` : min < 1440 ? `${Math.floor(min / 60)}h ${Math.round(min % 60)}m ago` : `${Math.round(min / 1440)}d ago`);
+  function refreshHome() {
+    const A = window.TEApp;
+    const now = new Date();
+    $('hmClock').textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    $('hmDate').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    if (!A) return;
+    // Outages.
+    const os = A.outages ? A.outages() : [], h = A.windowH ? A.windowH() : 24;
+    const act = os.filter((o) => o.active).length, apps = os.filter((o) => o.kind === 'application').length;
+    $('hmWin').textContent = h === 1 ? 'Last hour' : `Last ${h} hours`;
+    $('hmStats').innerHTML = `<div class="${act ? 'hot' : ''}"><b>${act}</b><span>Active</span></div><div class="app"><b>${apps}</b><span>Apps</span></div>`
+      + `<div class="net"><b>${os.length - apps}</b><span>Network</span></div>`;
+    $('hmList').innerHTML = os.length ? os.slice(0, 3).map((o) => `<li class="${o.kind}${o.active ? ' active' : ''}" data-id="${esc(o.id)}">`
+      + `<span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span>`
+      + `<span class="ago">${o.active ? 'ACTIVE' : fmtAgo((Date.now() - o.start) / 60e3)}</span></li>`).join('')
+      : '<li class="empty">No outages right now</li>';
+    // Weather.
+    const w = A.weather ? A.weather() : {}, c = w.now && w.now.current, d = w.now && w.now.daily, room = A.room && A.room();
+    const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
+    $('hmWxPlace').textContent = (w.brief && w.brief.city) || (room && room.city) || 'Weather';
+    if (c) {
+      if (A.drawWx) A.drawWx($('hmWxIcon'), c.weather_code, c.is_day === 1, 46);
+      $('hmWxTemp').textContent = Math.round(c.temperature_2m) + '\u00B0';
+      $('hmWxDesc').textContent = (WMO[c.weather_code] || '').replace(/^./, (x) => x.toUpperCase());
+      $('hmWxHiLo').textContent = d ? `High ${Math.round(d.temperature_2m_max[0])}\u00B0 \u00B7 Low ${Math.round(d.temperature_2m_min[0])}\u00B0` : '';
+    }
+    const alerts = (w.brief && w.brief.alertInfo) || [];
+    const rm = A.radarMode ? A.radarMode() : null, pw = A.powerOn && A.powerOn(), P = A.power && A.power();
+    $('hmLayers').innerHTML = [
+      alerts.length ? `<span class="h-alert">\u26A0 ${esc(alerts[0].event)}</span>` : '',
+      `Radar: ${rm === 'loop' ? 'past hour' : rm || 'off'}`,
+      pw ? `Power: ${P && P.national ? Math.round(P.national.customers).toLocaleString() + ' US customers out' : 'on'}` : 'Power: off',
+    ].filter(Boolean).join(' \u00B7 ');
+    // Connection + services.
+    const q = quality();
+    $('hmBars').className = 'bars q' + q.bars;
+    $('hmQual').textContent = q.label;
+    const edge = window.RoomNet && window.RoomNet.edge;
+    $('hmEdge').textContent = q.rtt != null ? `${Math.round(q.rtt)} ms to ${edge && edge.colo ? 'Cloudflare ' + edge.colo : 'the internet edge'}` : '';
+    const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
+      name: (r.querySelector('.svc-name') || {}).textContent || '', lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
+    $('hmSvcs').innerHTML = svcs.map((x) => `<span class="h-svc svc-${x.lvl}"><i class="svc-dot"></i>${esc(x.name)}</span>`).join('');
+    $('hmSpeed').textContent = lastSpeed ? `Last speed test: ${lastSpeed.down.toFixed(0)} \u2193 / ${lastSpeed.up.toFixed(0)} \u2191 Mbps \u00B7 ${Math.round(lastSpeed.lat)} ms` : 'No speed test yet - tap to run one';
+    // Phone.
+    const lv = battery ? Math.round(battery.level * 100) : null;
+    const kind = conn && conn.type ? { wifi: 'Wi-Fi', cellular: 'Cellular', ethernet: 'Ethernet' }[conn.type] || conn.type : '';
+    kv($('hmPhKv'), [
+      ['Battery', lv != null ? `${lv}%${battery.charging ? ' \u00B7 charging' : ''}` : ''],
+      ['Location', room ? [room.city, room.region].filter(Boolean).join(', ') + (room.precise ? ' (GPS)' : '') : ''],
+      ['Network', [kind, room && room.org].filter(Boolean).join(' \u00B7 ')],
+      ['Status', navigator.onLine ? 'Online' : 'Offline'],
+    ]);
+  }
+  document.querySelectorAll('.h-card[data-go]').forEach((card) => card.addEventListener('click', (e) => {
+    if (window.Sfx) window.Sfx.play('tap');
+    const li = e.target.closest('#hmList li[data-id]');
+    if (li && window.TEApp) { setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50); return; }
+    setTab(card.dataset.go);
+  }));
+  addEventListener('te-outages', () => tab === 'home' && refreshHome());
+  addEventListener('te-weather', () => {
+    if (tab === 'home') refreshHome();
+    if (tab === 'weather' && window.TEApp && !$('wxCard').classList.contains('other')) window.TEApp.renderForecast();
+  });
+  setInterval(() => { if (tab === 'home') refreshHome(); }, 4000);
+
+  // ── Weather: the forecast, and the radar / power layers ──────────────────
+  let wxOpened = false;
+  function syncLayers() {
+    const A = window.TEApp; if (!A) return;
+    const rm = A.radarMode ? A.radarMode() : null, pw = A.powerOn ? A.powerOn() : false;
+    $('segRadar').closest('.lay').hidden = rm == null;
+    document.querySelectorAll('#segRadar [data-radar]').forEach((b) => b.classList.toggle('on', b.dataset.radar === rm));
+    document.querySelectorAll('#segPower [data-power]').forEach((b) => b.classList.toggle('on', (b.dataset.power === '1') === pw));
+    const P = A.power && A.power();
+    $('layPowerNote').textContent = pw && P && P.national ? `${Math.round(P.national.customers).toLocaleString()} US customers out now` : 'MassOutage, by county';
+  }
+  function refreshWeather() {
+    const A = window.TEApp; if (!A) return;
+    if (!wxOpened) { wxOpened = true; A.openForecast(null, true); } else if (!$('wxCard').classList.contains('other')) A.renderForecast();
+    syncLayers();
+  }
+  $('segRadar').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-radar]'); if (!b || !window.TEApp) return;
+    if (window.Sfx) window.Sfx.play(b.dataset.radar === 'off' ? 'off' : 'on');
+    window.TEApp.setRadar(b.dataset.radar); syncLayers();
+  });
+  $('segPower').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-power]'); if (!b || !window.TEApp) return;
+    if (window.Sfx) window.Sfx.play(b.dataset.power === '1' ? 'on' : 'off');
+    window.TEApp.setPower(b.dataset.power === '1'); syncLayers();
+  });
+  setInterval(() => { if (tab === 'weather') syncLayers(); }, 3000);
+  $('layShow').addEventListener('click', () => {
+    const r = window.TEApp && window.TEApp.room();
+    setTab('globe');
+    if (r && isFinite(r.lat)) window.TEApp.flyToPlace(r.lon, r.lat);
+  });
+  // A county in the power list: shown on the globe.
+  $('pwrList').addEventListener('click', (e) => { if (e.target.closest('[data-fips]')) setTimeout(() => setTab('globe'), 0); });
+
   // Back to the last tab - last, once everything above is set up.
-  let start = 'globe';
-  try { start = sessionStorage.getItem('te-m-tab') || 'globe'; } catch (_) { /* */ }
-  setTab(views[start] ? start : 'globe');
+  let start = 'home';
+  try { start = sessionStorage.getItem('te-m-tab') || 'home'; } catch (_) { /* */ }
+  setTab(views[start] || start === 'globe' ? start : 'home');
 })();

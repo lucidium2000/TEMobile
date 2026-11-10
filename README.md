@@ -6,7 +6,9 @@ The phone edition of [TERoomApp](https://github.com/lucidium2000/TERoomApp), the
 
 ## Tabs
 
-- **Globe** - live global outages from ThousandEyes Internet Insights: the 3D globe, weather radar (NOAA over North America, sharper detail over the UK and Australia, RainViewer elsewhere), the optional US power layer, the outage list as a bottom sheet (Active / Apps / Network / Locations filters, 1-24 h window), the local forecast card, spoken summaries and camera hand gestures.
+- **Home** - one glance at everything: outage counts and the latest three (tap one to see it on the globe), today's weather and any alert, connection quality with each service check, the last speed test, battery and location. Each card opens its tab.
+- **Outages** - live global outages from ThousandEyes Internet Insights on the 3D globe, with the outage list as a sheet that folds down to its counts (Active / Apps / Network / Locations filters, 1-24 h window), spoken summaries and camera hand gestures.
+- **Weather** - the forecast (now, hourly, the week, alerts; search any city or ZIP; hear it read), big switches for the globe's weather radar (off / live / past hour - NOAA over North America, sharper detail over the UK and Australia, RainViewer elsewhere) and the US power layer (MassOutage), and the counties with the most customers out.
 - **Tests** - measured from this phone:
   - **Speed test** to the nearest Cloudflare site: download, upload, latency and jitter (about 25 MB of data).
   - **Service checks** (Webex, Microsoft, Google, AWS, Zoom, editable with the gear): HTTP status, response time, a one-hour timeline, the local-edge round trip; tap one to trace its path on the globe.
@@ -24,7 +26,7 @@ There's no GitHub Action here: the app reads the data TERoomApp's Action already
 
 ## Differences from TERoomApp
 
-- Tab bar (Globe / Tests / Phone); the globe only draws while its tab shows.
+- Tab bar (Home / Outages / Weather / Tests / Phone); the globe only draws while its tab shows.
 - Canvases sized to the visible viewport (no egg-shaped globe behind mobile browser bars).
 - No 80% desk scaling, compact outage card, no HUD/free-mode or full-screen buttons.
 

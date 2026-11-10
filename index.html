@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=3">
+  <link rel="stylesheet" href="css/mobile.css?v=8">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -35,24 +35,6 @@
     </div>
   </header>
 
-  <!-- The local forecast card (tap the weather by the clock). -->
-  <section class="wx-card" id="wxCard" hidden role="dialog" aria-labelledby="wxcTitle">
-    <button class="card-close" id="wxcClose" aria-label="Close">&times;</button>
-    <button class="wxc-find" id="wxcFind" aria-label="Forecast for another place" title="Forecast for another city or ZIP"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
-    <h3 id="wxcTitle">Weather</h3>
-    <form class="wxc-search" id="wxcSearch" hidden autocomplete="off"><input id="wxcQ" type="search" placeholder="City or ZIP code" enterkeyhint="search"><ol id="wxcHits"></ol></form>
-    <p class="wxc-src" id="wxcSrc"></p>
-    <div class="wxc-loc" id="wxcLoc" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg><span id="wxcLocText"></span><button id="wxcLocBtn"></button></div>
-    <div class="wxc-now"><canvas id="wxcIcon" width="64" height="64"></canvas><div class="wxc-big"><b id="wxcTemp"></b><span id="wxcDesc"></span></div><dl class="wxc-stats" id="wxcStats"></dl></div>
-    <ol class="wxc-hourly" id="wxcHourly"></ol>
-    <div class="wxc-alerts" id="wxcAlerts"></div>
-    <p class="wxc-text" id="wxcText"></p>
-    <ol class="wxc-periods" id="wxcPeriods"></ol>
-    <div class="wxc-actions">
-    <button class="wxc-radar" id="wxcRadar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg>Show radar</button>
-    <button class="wxc-speak" id="wxcSpeak"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Hear the forecast</button>
-    </div>
-  </section>
 
   <!-- Local time and weather, and the radar's credit and time: top right. -->
   <div class="wxbar">
@@ -73,10 +55,6 @@
 
   <aside class="panel" id="panel">
 
-    <section class="pwr-sec sec" id="pwrSec" hidden>
-      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="sec-name">US power</span><small class="pwr-flag" id="pwrFlag"></small></h2>
-      <ol class="list pwr-list" id="pwrList"></ol>
-    </section>
 
     <!-- Then every outage in the last 24 hours. -->
     <section class="outages sec">
@@ -274,7 +252,68 @@
     <p class="pwr-credit">Live county totals by <a href="https://massoutage.com" target="_blank" rel="noopener noreferrer">MassOutage (massoutage.com)</a>, CC BY 4.0. An unofficial aggregate of US utility reports - confirm with the utility. In an emergency, call 911.</p>
   </section>
 
-  <!-- ── Mobile: the Tests and Phone tabs (js/mobile.js) ───────────────── -->
+  <!-- ── Mobile: Home (an overview of every tab), Weather, Tests, Phone ── -->
+  <main class="view" id="viewHome" hidden>
+    <header class="view-head home-head"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><p class="home-time"><b id="hmClock"></b><span id="hmDate"></span></p></header>
+    <button class="m-card h-card" data-go="globe" id="hmOut">
+      <h2 class="sec-title"><img class="sec-ico te-eye" src="assets/te-eye.png" alt="" aria-hidden="true"><span class="sec-name">Internet outages</span><span class="h-go" id="hmWin"></span></h2>
+      <div class="h-stats" id="hmStats"></div>
+      <ol class="h-list" id="hmList"></ol>
+    </button>
+    <button class="m-card h-card" data-go="weather" id="hmWx">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/></svg><span class="sec-name">Weather</span><span class="h-go" id="hmWxPlace"></span></h2>
+      <div class="h-wx"><canvas id="hmWxIcon" width="52" height="52"></canvas><b id="hmWxTemp">&ndash;</b><div><span id="hmWxDesc"></span><small id="hmWxHiLo"></small></div></div>
+      <p class="h-line" id="hmLayers"></p>
+    </button>
+    <button class="m-card h-card" data-go="tests" id="hmNet">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="sec-name">Your connection</span><span class="h-go">Tests</span></h2>
+      <div class="sig"><div class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></div><div><b id="hmQual">Measuring&hellip;</b><span id="hmEdge"></span></div></div>
+      <div class="h-svcs" id="hmSvcs"></div>
+      <p class="h-line" id="hmSpeed"></p>
+    </button>
+    <button class="m-card h-card" data-go="phone" id="hmPh">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span class="sec-name">This phone</span><span class="h-go">Phone</span></h2>
+      <dl class="kv" id="hmPhKv"></dl>
+    </button>
+  </main>
+
+  <main class="view" id="viewWeather" hidden>
+    <header class="view-head"><h2>Weather</h2><p>Forecast, radar and US power</p></header>
+    <section class="m-card sec" id="layersCard">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg><span class="sec-name">On the globe</span></h2>
+      <div class="lay"><div class="lay-k"><b>Weather radar</b><small id="layRadarNote">NOAA &middot; RainViewer</small></div>
+        <div class="segs" id="segRadar"><button data-radar="off">Off</button><button data-radar="live">Live</button><button data-radar="loop">Past hour</button></div></div>
+      <div class="lay"><div class="lay-k"><b>US power outages</b><small id="layPowerNote">MassOutage, by county</small></div>
+        <div class="segs" id="segPower"><button data-power="0">Off</button><button data-power="1">On</button></div></div>
+      <button class="m-btn ghost" id="layShow">View on the globe</button>
+    </section>
+    <!-- The local forecast card (tap the weather by the clock). -->
+  <section class="wx-card" id="wxCard" hidden role="region" aria-labelledby="wxcTitle">
+    <button class="card-close" id="wxcClose" aria-label="Close">&times;</button>
+    <button class="wxc-find" id="wxcFind" aria-label="Forecast for another place" title="Forecast for another city or ZIP"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
+    <h3 id="wxcTitle">Weather</h3>
+    <form class="wxc-search" id="wxcSearch" hidden autocomplete="off"><input id="wxcQ" type="search" placeholder="City or ZIP code" enterkeyhint="search"><ol id="wxcHits"></ol></form>
+    <p class="wxc-src" id="wxcSrc"></p>
+    <div class="wxc-loc" id="wxcLoc" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg><span id="wxcLocText"></span><button id="wxcLocBtn"></button></div>
+    <div class="wxc-now"><canvas id="wxcIcon" width="64" height="64"></canvas><div class="wxc-big"><b id="wxcTemp"></b><span id="wxcDesc"></span></div><dl class="wxc-stats" id="wxcStats"></dl></div>
+    <ol class="wxc-hourly" id="wxcHourly"></ol>
+    <div class="wxc-alerts" id="wxcAlerts"></div>
+    <p class="wxc-text" id="wxcText"></p>
+    <ol class="wxc-periods" id="wxcPeriods"></ol>
+    <div class="wxc-actions">
+    <button class="wxc-radar" id="wxcRadar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg>Show radar</button>
+    <button class="wxc-speak" id="wxcSpeak"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Hear the forecast</button>
+    </div>
+  </section>
+    <section class="m-card sec pwr-wrap" id="pwrWrap">
+    <section class="pwr-sec" id="pwrSec" hidden>
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="sec-name">US power</span><small class="pwr-flag" id="pwrFlag"></small></h2>
+      <ol class="list pwr-list" id="pwrList"></ol>
+    </section>
+      <p class="m-note pwr-offnote">Turn on <b>US power outages</b> above to see the counties with the most customers out.</p>
+    </section>
+  </main>
+
   <main class="view" id="viewTests" hidden>
     <header class="view-head"><h2>Tests</h2><p>Live checks from this phone</p></header>
     <section class="m-card sec speed" id="speedCard">
@@ -320,7 +359,9 @@
   </main>
 
   <nav class="tabbar" id="tabbar" aria-label="Sections">
-    <button data-tab="globe" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Globe</span></button>
+    <button data-tab="home" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/></svg><span>Home</span></button>
+    <button data-tab="globe"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Outages</span></button>
+    <button data-tab="weather"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg><span>Weather</span></button>
     <button data-tab="tests"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Tests</span></button>
     <button data-tab="phone"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span>Phone</span></button>
   </nav>
@@ -343,8 +384,8 @@
   <script src="js/glglobe.js?v=27"></script>
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
-  <script src="js/app.js?v=226"></script>
-  <script src="js/mobile.js?v=2"></script>
+  <script src="js/app.js?v=227"></script>
+  <script src="js/mobile.js?v=5"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
