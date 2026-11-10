@@ -345,3 +345,62 @@ body[data-tab="weather"] .pwr-card :is(.pwr-credit, #pwrText) { display: none; }
 body[data-tab="weather"] .pwr-card { padding: .8em 1em !important; }
 .pwr-wrap .pwr-credit2 { margin: 10px 0 0; font-size: .7em; color: var(--ink-3); line-height: 1.45; }
 .pwr-wrap .pwr-credit2 a { color: var(--ink-2); }
+
+/* ── Weather globe, like a weather app: conditions top right, one row of
+   layer switches and the next 12 hours atop the sheet ────────────────── */
+.wx-now { display: none; }
+body[data-tab="weather"] .wx-now {
+  position: fixed; z-index: 105; top: calc(env(safe-area-inset-top, 0px) + 12px); right: 12px;
+  display: grid; justify-items: end; gap: 1px; min-width: 132px; padding: 10px 14px 11px; border-radius: 22px; text-align: right; color: #fff;
+  background: linear-gradient(160deg, rgba(22, 189, 235, .16), rgba(10, 14, 22, .78) 60%); border: 1px solid rgba(255, 255, 255, .12);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: 0 12px 30px rgba(0, 0, 0, .45);
+}
+.wn-place { font-size: .82em; font-weight: 700; letter-spacing: .01em; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wn-row { display: flex; align-items: center; gap: 4px; }
+.wn-row canvas { width: 40px; height: 40px; }
+.wn-row b { font-size: 2.6em; font-weight: 300; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.wn-desc { font-size: .8em; font-weight: 600; color: rgba(255, 255, 255, .85); }
+.wn-hl { font-size: .74em; color: rgba(255, 255, 255, .65); font-variant-numeric: tabular-nums; white-space: pre; }
+.wn-alert { margin-top: 4px; padding: .2em .6em; border-radius: 99px; font-size: .68em; font-weight: 800; color: #1a1205; background: #fbbf24; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wn-alert[hidden] { display: none; }
+/* The layer credits move to the top left on this globe. */
+body[data-tab="weather"] .wxbar { right: auto !important; left: 12px; align-items: flex-start; text-align: left; max-width: 52vw; }
+
+.wx-ctl { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; }
+.wx-ctl .segs { flex: 1; min-width: 0; align-items: center; }
+.wx-ctl .segs[hidden] { display: none; }
+.seg-ico { display: grid; place-items: center; width: 30px; color: var(--cyan); }
+.wx-ctl .segs button { flex: 1; padding: 0 .4em; }
+.pwr-tog, .loc-btn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: .35em; min-height: 46px; border-radius: 14px;
+  border: 1px solid var(--hair); background: rgba(255, 255, 255, .05); color: var(--ink-2); font-weight: 700; font-size: .8em;
+}
+.pwr-tog { padding: 0 .9em; }
+.pwr-tog[aria-pressed="true"] { color: #1a1205; background: #fbbf24; border-color: #fbbf24; box-shadow: 0 2px 12px rgba(251, 191, 36, .4); }
+.loc-btn { width: 46px; color: var(--cyan); }
+.wx-ctl .segs { min-height: 46px; padding: 3px; }
+
+.wx-hours { display: flex; gap: 6px; margin: 0 -16px 14px; padding: 2px 16px 4px; list-style: none; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; }
+.wx-hours::-webkit-scrollbar { display: none; }
+.wx-hours li { flex: none; display: grid; justify-items: center; gap: 3px; width: 52px; padding: 9px 0 10px; border-radius: 18px; scroll-snap-align: start;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--hair); }
+.wx-hours li:first-child { background: rgba(22, 189, 235, .14); border-color: rgba(22, 189, 235, .35); }
+.wx-hours span { font-size: .7em; font-weight: 700; color: var(--ink-3); }
+.wx-hours li:first-child span { color: var(--cyan); }
+.wx-hours canvas { width: 26px; height: 26px; }
+.wx-hours em { min-height: 1em; font-style: normal; font-size: .62em; font-weight: 700; color: #60a5fa; }
+.wx-hours b { font-size: .95em; }
+/* Folded: just the switches and the hours. */
+body.wx-min #viewWeather { height: calc(var(--tabh) + 196px); }
+#viewWeather .view-head { display: none; }
+/* The hours are atop the sheet; the forecast card needn't repeat them. */
+#viewWeather .wxc-hourly { display: none; }
+/* Credits: one quiet line just above the sheet, out of the map's way. */
+body[data-tab="weather"] .wxbar {
+  top: auto !important; bottom: calc(var(--wsheet-px, 280px) + 8px); left: 14px; right: 14px !important; max-width: none;
+  flex-direction: row; flex-wrap: wrap; gap: 2px 12px; opacity: .75;
+}
+body[data-tab="weather"] .wxbar .radar-time { font-size: 10px; margin: 0; }
+body.wx-min #viewWeather :is(#wxCard, #pwrWrap) { opacity: 0; }
+#viewWeather :is(#wxCard, #pwrWrap) { transition: opacity .25s; }
+body[data-tab="weather"]:not(.wx-min) :is(.wx-now, .wxbar) { display: none !important; }

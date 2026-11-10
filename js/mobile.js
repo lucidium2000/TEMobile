@@ -422,7 +422,7 @@
   foldWx(true);
   wxGrab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); foldWx(!wxMin); });
   // Scrolling or touching the forecast opens the sheet.
-  wxView.addEventListener('click', (e) => { if (wxMin && !e.target.closest('[data-fips], button') && e.target.closest('#wxCard, #pwrWrap, .view-head')) foldWx(false); });
+  wxView.addEventListener('click', (e) => { if (wxMin && !e.target.closest('[data-fips], button') && e.target.closest('#wxCard, #pwrWrap, .wx-hours')) foldWx(false); });
   const fitWx = () => document.documentElement.style.setProperty('--wsheet-px', wxView.offsetHeight + 'px');
   if (window.ResizeObserver) new ResizeObserver(fitWx).observe(wxView);
 
@@ -430,26 +430,55 @@
   function syncLayers() {
     const A = window.TEApp; if (!A) return;
     const rm = A.radarMode ? A.radarMode() : null, pw = A.powerOn ? A.powerOn() : false;
-    $('segRadar').closest('.lay').hidden = rm == null;
+    $('segRadar').hidden = rm == null;
     document.querySelectorAll('#segRadar [data-radar]').forEach((b) => b.classList.toggle('on', b.dataset.radar === rm));
-    document.querySelectorAll('#segPower [data-power]').forEach((b) => b.classList.toggle('on', (b.dataset.power === '1') === pw));
-    const P = A.power && A.power();
-    $('layPowerNote').textContent = pw && P && P.national ? `${Math.round(P.national.customers).toLocaleString()} US customers out now` : 'MassOutage, by county';
+    $('segPower').setAttribute('aria-pressed', String(pw));
+  }
+  // Now, top right of the weather globe; the next 12 hours atop the sheet.
+  const WX_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  function renderNow() {
+    const A = window.TEApp; if (!A) return;
+    const w = A.weather ? A.weather() : {}, n = w.now, c = n && n.current, d = n && n.daily, room = A.room && A.room();
+    const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
+    $('wnPlace').textContent = (w.brief && w.brief.city) || (room && room.city) || 'My location';
+    if (c) {
+      if (A.drawWx) A.drawWx($('wnIcon'), c.weather_code, c.is_day === 1, 40);
+      $('wnTemp').textContent = Math.round(c.temperature_2m) + '°';
+      $('wnDesc').textContent = (WMO[c.weather_code] || '').replace(/^./, (x) => x.toUpperCase());
+      $('wnHL').textContent = d ? `H:${Math.round(d.temperature_2m_max[0])}°  L:${Math.round(d.temperature_2m_min[0])}°` : '';
+    }
+    const al = (w.brief && w.brief.alertInfo) || [];
+    $('wnAlert').hidden = !al.length;
+    $('wnAlert').textContent = al.length ? '⚠ ' + al[0].event : '';
+    const hr = n && n.hourly, cells = [];
+    if (hr && hr.time) {
+      const nowMs = Date.now() - 30 * 60e3;
+      hr.time.forEach((t, i) => {
+        const wall = Date.parse(t + 'Z'), at = wall - (n.utc_offset_seconds || 0) * 1000;
+        if (at >= nowMs && cells.length < 12) cells.push({ label: cells.length ? new Date(wall).toLocaleTimeString([], { hour: 'numeric', timeZone: 'UTC' }) : 'Now',
+          temp: hr.temperature_2m[i], code: hr.weather_code[i], day: hr.is_day[i] === 1, pop: hr.precipitation_probability ? hr.precipitation_probability[i] : 0 });
+      });
+    }
+    $('wxHours').innerHTML = cells.map((x, i) => `<li><span>${esc(x.label)}</span><canvas data-h="${i}"></canvas><em>${x.pop >= 20 ? x.pop + '%' : ''}</em><b>${Math.round(x.temp)}°</b></li>`).join('');
+    $('wxHours').querySelectorAll('canvas').forEach((cv) => { const x = cells[+cv.dataset.h]; if (A.drawWx) A.drawWx(cv, x.code, x.day, 26); });
   }
   function refreshWeather() {
     const A = window.TEApp; if (!A) return;
     if (!wxOpened) { wxOpened = true; A.openForecast(null, true); } else if (!$('wxCard').classList.contains('other')) A.renderForecast();
-    syncLayers();
+    syncLayers(); renderNow();
   }
+  addEventListener('te-weather', () => { if (tab === 'weather') renderNow(); });
+  $('wxNow').addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); foldWx(false); });
   $('segRadar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-radar]'); if (!b || !window.TEApp) return;
     if (window.Sfx) window.Sfx.play(b.dataset.radar === 'off' ? 'off' : 'on');
     window.TEApp.setRadar(b.dataset.radar); syncLayers();
   });
-  $('segPower').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-power]'); if (!b || !window.TEApp) return;
-    if (window.Sfx) window.Sfx.play(b.dataset.power === '1' ? 'on' : 'off');
-    window.TEApp.setPower(b.dataset.power === '1'); syncLayers();
+  $('segPower').addEventListener('click', () => {
+    if (!window.TEApp) return;
+    const on = !window.TEApp.powerOn();
+    if (window.Sfx) window.Sfx.play(on ? 'on' : 'off');
+    window.TEApp.setPower(on); syncLayers();
   });
   setInterval(() => { if (tab === 'weather') syncLayers(); }, 3000);
   $('layShow').addEventListener('click', () => {
