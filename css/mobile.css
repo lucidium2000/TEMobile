@@ -563,3 +563,55 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .nc-q { flex: 1; }
 .nc-q > div { min-width: 0; }
 .nc-q div span { max-width: none; }
+
+/* ── Weather in the app's own colours: black glass like the other tabs,
+   the sky shown only as a soft accent glow (ThousandEyes cyan when clear,
+   orange in storms) rather than full-colour backgrounds. ──────────────── */
+#viewWeather { --acc: 22, 189, 235; }
+#viewWeather[data-sky="clear"] { --acc: 22, 189, 235; }
+#viewWeather[data-sky="cloud"], #viewWeather[data-sky="fog"] { --acc: 148, 163, 184; }
+#viewWeather[data-sky="rain"]  { --acc: 56, 152, 236; }
+#viewWeather[data-sky="storm"] { --acc: 241, 94, 34; }
+#viewWeather[data-sky="snow"]  { --acc: 203, 225, 245; }
+#viewWeather[data-sky="night"] { --acc: 99, 102, 241; }
+#viewWeather, #viewWeather[data-sky] {
+  background:
+    radial-gradient(110% 38% at 50% 0%, rgba(var(--acc), .16), transparent 70%),
+    linear-gradient(180deg, rgba(6, 9, 16, .9), rgba(3, 5, 10, .96)) !important;
+  border-top: 1px solid rgba(var(--acc), .28);
+}
+.wx-now, .wx-now[data-sky] {
+  --acc: 22, 189, 235;
+  background: linear-gradient(160deg, rgba(var(--acc), .16), rgba(8, 12, 20, .82) 62%) !important;
+  border: 1px solid rgba(var(--acc), .32) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .5), 0 0 24px rgba(var(--acc), .12) !important;
+}
+.wx-now[data-sky="cloud"], .wx-now[data-sky="fog"] { --acc: 148, 163, 184; }
+.wx-now[data-sky="rain"] { --acc: 56, 152, 236; }
+.wx-now[data-sky="storm"] { --acc: 241, 94, 34; }
+.wx-now[data-sky="snow"] { --acc: 203, 225, 245; }
+.wx-now[data-sky="night"] { --acc: 99, 102, 241; }
+.wx-now .wn-desc { color: rgb(var(--acc)); }
+/* Cards, tiles, hours: the same glass as every other tab. */
+.wv-card, .wt, #viewWeather .pwr-wrap, .wv-search, .wx-hours li, #viewWeather .segs, #viewWeather .pwr-tog:not([aria-pressed="true"]), #viewWeather .loc-btn {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .02)) !important;
+  border: 1px solid var(--hair) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+}
+.wx-hours li:first-child { background: rgba(22, 189, 235, .14) !important; border-color: rgba(22, 189, 235, .4) !important; }
+.wx-hours li:first-child span { color: var(--cyan); }
+.wv-k, .wt-k { color: var(--ink-3); }
+.wt-k svg, .wv-k svg { color: var(--cyan); }
+.wt-s { color: var(--ink-2); }
+.wv-days li, .wv-k { border-color: var(--hair) !important; }
+.wv-days .dh { color: #7dd3fc; }
+.wv-days .di em { color: var(--cyan); }
+.wx-hours em { color: var(--cyan); }
+.wv-mine { background: var(--cyan); }
+.wv-speak { background: rgba(22, 189, 235, .16); color: var(--cyan); }
+.sun-arc .arc { stroke: rgba(22, 189, 235, .45); }
+.gauge-mini .g-on { stroke: var(--cyan); filter: drop-shadow(0 0 4px rgba(22, 189, 235, .6)); }
+.compass .c-arrow { fill: var(--cyan); }
+.compass .c-shaft { stroke: var(--cyan); }
+.hum-bar i { background: linear-gradient(180deg, #5eead4, var(--cyan)); }
+.wv-alert { background: rgba(241, 94, 34, .14); border-color: rgba(241, 94, 34, .5); }
+.wv-alert b { color: #fdba74; }
