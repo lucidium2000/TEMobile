@@ -1636,9 +1636,9 @@
   //  - Line, through the middle: the latency trend (a short moving average),
   //    light when fast, amber past 80 ms, red past 200 ms.
   const RN_SPAN = 3600e3;
-  function rnSpark(p) {
+  function rnSpark(p, gMs, slMs) {
     const W = 200, H = 18, now = Date.now();
-    const G = (window.RoomNet && window.RoomNet.GOOD_MS) || 80, SL = (window.RoomNet && window.RoomNet.SLOW_MS) || 200;
+    const G = gMs || (window.RoomNet && window.RoomNet.GOOD_MS) || 80, SL = slMs || (window.RoomNet && window.RoomNet.SLOW_MS) || 200;
     const all = p.samples.filter((x) => x.t >= now - RN_SPAN);
     if (!all.length) return '<svg class="rn-spark" viewBox="0 0 200 18" preserveAspectRatio="none"></svg>';
     const t0 = all[0].t, t1 = Math.max(now, t0 + 1000);   // first check to now, whatever the span
@@ -3842,6 +3842,8 @@
     outages: () => S.outages.filter(inWindow).slice().sort((a, b) => (b.active - a.active) || (b.start - a.start)),
     windowH: () => S.windowH,
     renderForecast: () => renderWxCard(),
+    /** A one-hour timeline like the service rows', for any {t, ms} samples. */
+    spark: (samples, good, slow) => rnSpark({ samples: samples || [] }, good, slow),
     drawWx: (cv, code, day, size) => wxIcon(cv, code, day, size),
     iconHtml: (o) => iconHtml(o),
     /** Switch the globe between its Outages and Weather views. */

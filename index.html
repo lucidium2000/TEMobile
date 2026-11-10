@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=20">
+  <link rel="stylesheet" href="css/mobile.css?v=24">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -317,7 +317,17 @@
   </main>
 
   <main class="view" id="viewTests" hidden>
-    <header class="view-head"><h2>Tests</h2><p>Live checks from this phone</p></header>
+    <header class="view-head"><h2>Network</h2><p>This phone&rsquo;s connection, live</p></header>
+    <section class="m-card nc" id="ncCard">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0"/><circle cx="12" cy="19.5" r="1"/></svg><span class="sec-name">Your connection</span><span class="nc-live" id="ncLive"><i></i>Live</span></h2>
+      <div class="nc-top">
+        <div class="nc-q"><span class="bars" id="ncBars"><i></i><i></i><i></i><i></i><i></i></span><div><b id="ncQual">Measuring&hellip;</b><span id="ncType"></span></div></div>
+        <div class="nc-ms"><b id="ncMs">&ndash;</b><span>ms to the edge</span></div>
+      </div>
+      <div class="nc-tl"><div class="nc-spark" id="ncSpark"></div><div class="nc-axis"><span id="ncT0">1h ago</span><span>now</span></div></div>
+      <div class="nc-stats" id="ncStats"></div>
+      <p class="m-note" id="ncNote"></p>
+    </section>
     <section class="m-card sec speed" id="speedCard">
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14l4-4"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg><span class="sec-name">Speed test</span></h2>
       <div class="gauge-row">
@@ -364,7 +374,7 @@
     <button data-tab="home" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/></svg><span>Home</span></button>
     <button data-tab="globe"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Outages</span></button>
     <button data-tab="weather"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg><span>Weather</span></button>
-    <button data-tab="tests"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Tests</span></button>
+    <button data-tab="tests"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Network</span></button>
     <button data-tab="phone"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span>Phone</span></button>
   </nav>
   <div class="toast" id="toast" hidden></div>
@@ -386,9 +396,9 @@
   <script src="js/glglobe.js?v=28"></script>
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
-  <script src="js/app.js?v=230"></script>
+  <script src="js/app.js?v=231"></script>
   <script src="js/wxview.js?v=1"></script>
-  <script src="js/mobile.js?v=12"></script>
+  <script src="js/mobile.js?v=13"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

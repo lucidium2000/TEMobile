@@ -130,6 +130,7 @@
   try { lastSpeed = JSON.parse(localStorage.getItem('te-m-speed') || 'null'); } catch (_) { /* */ }
   $('speedRun').addEventListener('click', runSpeed);
   function refreshTests() {
+    renderConn();
     if (lastSpeed && !speedBusy) {
       setGauge('gDown', lastSpeed.down); setGauge('gUp', lastSpeed.up);
       kv($('speedStats'), [['Latency', `${Math.round(lastSpeed.lat)} ms`], ['Jitter', `${Math.round(lastSpeed.jit)} ms`],
@@ -138,6 +139,38 @@
       $('speedRun').textContent = 'Run again';
     }
   }
+
+  // ── Network: this phone's baseline - the round trip to the nearest edge,
+  // checked every 30 s (js/roomnet.js), on a one-hour timeline ──────────────
+  function renderConn() {
+    const q = quality(), edge = window.RoomNet && window.RoomNet.edge, room = window.TEApp && window.TEApp.room();
+    $('ncBars').className = 'bars q' + q.bars;
+    $('ncQual').textContent = q.label;
+    const kind = conn && conn.type ? { wifi: 'Wi-Fi', cellular: 'Cellular', ethernet: 'Ethernet' }[conn.type] || conn.type : '';
+    $('ncType').textContent = [kind, conn && conn.effectiveType ? conn.effectiveType.toUpperCase() : '', room && room.org].filter(Boolean).join(' · ') || (room && room.org) || '';
+    const ms = edge && edge.ms != null ? Math.round(edge.ms) : q.rtt != null ? Math.round(q.rtt) : null;
+    $('ncMs').textContent = ms != null ? ms : '–';
+    $('ncCard').dataset.state = ms == null ? 'wait' : ms < 30 ? 'ok' : ms < 80 ? 'warn' : 'bad';
+    const now = Date.now(), hour = (edge && edge.samples || []).filter((x) => x.t >= now - 3600e3);
+    $('ncSpark').innerHTML = window.TEApp && window.TEApp.spark ? window.TEApp.spark(hour, 30, 80) : '';
+    const mins = hour.length ? Math.max(1, Math.round((now - hour[0].t) / 60e3)) : 0;
+    $('ncT0').textContent = !hour.length ? '' : mins >= 59 ? '1h ago' : `${mins} min ago`;
+    const v = hour.filter((x) => x.ms != null).map((x) => x.ms);
+    const avg = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    const jit = v.length > 1 ? v.slice(1).reduce((a, b, i) => a + Math.abs(b - v[i]), 0) / (v.length - 1) : null;
+    const up = hour.length ? Math.round((v.length / hour.length) * 100) : null;
+    const st = (k, val, cls) => `<div class="${cls || ''}"><b>${val}</b><span>${k}</span></div>`;
+    $('ncStats').innerHTML = [
+      st('Average', avg != null ? Math.round(avg) + '<small>ms</small>' : '–', avg == null ? '' : avg < 30 ? 'ok' : avg < 80 ? 'warn' : 'bad'),
+      st('Best', v.length ? Math.round(Math.min(...v)) + '<small>ms</small>' : '–'),
+      st('Worst', v.length ? Math.round(Math.max(...v)) + '<small>ms</small>' : '–'),
+      st('Jitter', jit != null ? Math.round(jit) + '<small>ms</small>' : '–'),
+      st('Reachable', up != null ? up + '<small>%</small>' : '–', up == null ? '' : up >= 99 ? 'ok' : up >= 90 ? 'warn' : 'bad'),
+    ].join('');
+    $('ncNote').textContent = `Round trip to ${edge && edge.colo ? 'Cloudflare ' + edge.colo : 'the nearest internet edge'}, every 30 seconds while the app is open`
+      + ` - it covers this phone's network and the first stretch of the provider, so a jump here means trouble close to home.`;
+  }
+  setInterval(() => { if (tab === 'tests') renderConn(); }, 5000);
 
   // ── Phone: connection ────────────────────────────────────────────────────
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
