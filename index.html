@@ -328,6 +328,13 @@
       <div class="nc-stats" id="ncStats"></div>
       <p class="m-note" id="ncNote"></p>
     </section>
+    <!-- This room first: each service's Internet Insights status (left) and
+         this room's live connection to it (right). -->
+    <section class="services sec m-card" id="services">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span class="sec-name">Service checks</span> <span class="edge-pill" id="edgePill" hidden><i class="svc-dot"></i><span class="edge-k">Local edge</span> <b id="edgeMs">&hellip;</b></span><button class="win-btn svc-done" id="svcDone" hidden>Done</button></h2>
+      <div id="roomNetRows"></div>
+    </section>
+    <p class="m-note m-pad">Tap a service to trace its network path on the globe. The gear edits a check.</p>
     <section class="m-card sec speed" id="speedCard">
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14l4-4"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg><span class="sec-name">Speed test</span></h2>
       <div class="gauge-row">
@@ -338,13 +345,6 @@
       <button class="m-btn" id="speedRun">Run speed test</button>
       <p class="m-note">Measured from this phone to the nearest Cloudflare site. Uses about 25&nbsp;MB of data.</p>
     </section>
-    <!-- This room first: each service's Internet Insights status (left) and
-         this room's live connection to it (right). -->
-    <section class="services sec m-card" id="services">
-      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span class="sec-name">Service checks</span> <span class="edge-pill" id="edgePill" hidden><i class="svc-dot"></i><span class="edge-k">Local edge</span> <b id="edgeMs">&hellip;</b></span><button class="win-btn svc-done" id="svcDone" hidden>Done</button></h2>
-      <div id="roomNetRows"></div>
-    </section>
-    <p class="m-note m-pad">Tap a service to trace its network path on the globe. The gear edits a check.</p>
   </main>
 
   <main class="view" id="viewPhone" hidden>
@@ -372,10 +372,10 @@
 
   <nav class="tabbar" id="tabbar" aria-label="Sections">
     <button data-tab="home" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/></svg><span>Home</span></button>
-    <button data-tab="globe"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Outages</span></button>
-    <button data-tab="weather"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg><span>Weather</span></button>
     <button data-tab="tests"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Network</span></button>
+    <button data-tab="globe"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Outages</span></button>
     <button data-tab="phone"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span>Phone</span></button>
+    <button data-tab="weather"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg><span>Weather</span></button>
   </nav>
   <div class="toast" id="toast" hidden></div>
   <div class="error" id="error" hidden></div>
