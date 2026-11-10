@@ -339,61 +339,66 @@
     const A = window.TEApp;
     const now = new Date();
     $('hmClock').textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    $('hmDate').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    $('hmDate').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     if (!A) return;
-    // Outages.
+    // Hero: how many outages are active right now.
     const os = A.outages ? A.outages() : [], h = A.windowH ? A.windowH() : 24;
-    const act = os.filter((o) => o.active).length, apps = os.filter((o) => o.kind === 'application').length;
-    $('hmWin').textContent = h === 1 ? 'Last hour' : `Last ${h} hours`;
-    $('hmStats').innerHTML = `<div class="${act ? 'hot' : ''}"><b>${act}</b><span>Active</span></div><div class="app"><b>${apps}</b><span>Apps</span></div>`
-      + `<div class="net"><b>${os.length - apps}</b><span>Network</span></div>`;
+    const act = os.filter((o) => o.active), win = h === 1 ? 'the last hour' : `the last ${h} hours`;
+    const hero = $('hmHero');
+    hero.dataset.state = !os.length && !A.outages ? 'wait' : act.length >= 5 ? 'bad' : act.length ? 'warn' : 'ok';
+    $('hmHeroN').textContent = act.length;
+    $('hmHeroK').textContent = 'active';
+    $('hmHeroTitle').textContent = act.length ? (act.length > 1 ? 'Outages in progress' : 'Outage in progress') : 'The internet looks healthy';
+    $('hmHeroSub').textContent = act.length
+      ? act.slice(0, 2).map((o) => o.name).join(' · ') + (act.length > 2 ? ` +${act.length - 2}` : '')
+      : `${os.length} outage${os.length === 1 ? '' : 's'} seen and cleared in ${win}`;
     $('hmList').innerHTML = os.length ? os.slice(0, 3).map((o) => `<li class="${o.kind}${o.active ? ' active' : ''}" data-id="${esc(o.id)}">`
-      + `<span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span>`
-      + `<span class="ago">${o.active ? 'ACTIVE' : fmtAgo((Date.now() - o.start) / 60e3)}</span></li>`).join('')
-      : '<li class="empty">No outages right now</li>';
-    // Weather.
-    const w = A.weather ? A.weather() : {}, c = w.now && w.now.current, d = w.now && w.now.daily, room = A.room && A.room();
+      + `<span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} · ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span>`
+      + `<span class="ago">${o.active ? 'Active' : fmtAgo((Date.now() - o.start) / 60e3)}</span></li>`).join('')
+      : '<li class="empty">No outages in ' + win + '</li>';
+    // Weather tile.
+    const w = A.weather ? A.weather() : {}, c = w.now && w.now.current, room = A.room && A.room();
     const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
-    $('hmWxPlace').textContent = (w.brief && w.brief.city) || (room && room.city) || 'Weather';
-    if (c) {
-      if (A.drawWx) A.drawWx($('hmWxIcon'), c.weather_code, c.is_day === 1, 46);
-      $('hmWxTemp').textContent = Math.round(c.temperature_2m) + '\u00B0';
-      $('hmWxDesc').textContent = (WMO[c.weather_code] || '').replace(/^./, (x) => x.toUpperCase());
-      $('hmWxHiLo').textContent = d ? `High ${Math.round(d.temperature_2m_max[0])}\u00B0 \u00B7 Low ${Math.round(d.temperature_2m_min[0])}\u00B0` : '';
-    }
     const alerts = (w.brief && w.brief.alertInfo) || [];
-    const rm = A.radarMode ? A.radarMode() : null, pw = A.powerOn && A.powerOn(), P = A.power && A.power();
-    $('hmLayers').innerHTML = [
-      alerts.length ? `<span class="h-alert">\u26A0 ${esc(alerts[0].event)}</span>` : '',
-      `Radar: ${rm === 'loop' ? 'past hour' : rm || 'off'}`,
-      pw ? `Power: ${P && P.national ? Math.round(P.national.customers).toLocaleString() + ' US customers out' : 'on'}` : 'Power: off',
-    ].filter(Boolean).join(' \u00B7 ');
-    // Connection + services.
+    if (c) {
+      if (A.drawWx) A.drawWx($('hmWxIcon'), c.weather_code, c.is_day === 1, 30);
+      $('hmWxTemp').textContent = Math.round(c.temperature_2m) + '°';
+    }
+    $('hmWx').classList.toggle('alert', !!alerts.length);
+    $('hmWxSub').textContent = alerts.length ? alerts[0].event
+      : [c ? (WMO[c.weather_code] || '').replace(/^./, (x) => x.toUpperCase()) : '', (w.brief && w.brief.city) || (room && room.city) || ''].filter(Boolean).join(' · ');
+    // Connection tile.
     const q = quality();
     $('hmBars').className = 'bars q' + q.bars;
-    $('hmQual').textContent = q.label;
-    const edge = window.RoomNet && window.RoomNet.edge;
-    $('hmEdge').textContent = q.rtt != null ? `${Math.round(q.rtt)} ms to ${edge && edge.colo ? 'Cloudflare ' + edge.colo : 'the internet edge'}` : '';
+    $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
+    $('hmNetSub').textContent = q.label + (lastSpeed ? ` · ${Math.round(lastSpeed.down)} Mbps` : '');
+    // Services tile.
     const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
       name: (r.querySelector('.svc-name') || {}).textContent || '', lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
-    $('hmSvcs').innerHTML = svcs.map((x) => `<span class="h-svc svc-${x.lvl}"><i class="svc-dot"></i>${esc(x.name)}</span>`).join('');
-    $('hmSpeed').textContent = lastSpeed ? `Last speed test: ${lastSpeed.down.toFixed(0)} \u2193 / ${lastSpeed.up.toFixed(0)} \u2191 Mbps \u00B7 ${Math.round(lastSpeed.lat)} ms` : 'No speed test yet - tap to run one';
-    // Phone.
+    const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length, bad = svcs.filter((x) => x.lvl === 'bad'), warn = svcs.filter((x) => x.lvl === 'warn');
+    $('hmSvcDots').innerHTML = svcs.map((x) => `<i class="svc-${x.lvl}"></i>`).join('');
+    $('hmSvcV').innerHTML = svcs.length ? `${good}<small>/${svcs.length}</small>` : '–';
+    $('hmSvcSub').textContent = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : 'All reachable';
+    $('hmSvc').dataset.state = bad.length ? 'bad' : warn.length ? 'warn' : 'ok';
+    // Battery tile (or location, where the browser hides the battery).
     const lv = battery ? Math.round(battery.level * 100) : null;
-    const kind = conn && conn.type ? { wifi: 'Wi-Fi', cellular: 'Cellular', ethernet: 'Ethernet' }[conn.type] || conn.type : '';
-    kv($('hmPhKv'), [
-      ['Battery', lv != null ? `${lv}%${battery.charging ? ' \u00B7 charging' : ''}` : ''],
-      ['Location', room ? [room.city, room.region].filter(Boolean).join(', ') + (room.precise ? ' (GPS)' : '') : ''],
-      ['Network', [kind, room && room.org].filter(Boolean).join(' \u00B7 ')],
-      ['Status', navigator.onLine ? 'Online' : 'Offline'],
-    ]);
+    $('hmPh').querySelector('.t-k').textContent = lv != null ? 'Battery' : 'This phone';
+    $('hmBat').hidden = lv == null;
+    $('hmBat').firstElementChild.style.width = (lv || 0) + '%';
+    $('hmBat').className = 't-bat' + (lv != null && lv <= 20 ? ' low' : '');
+    $('hmBatV').innerHTML = lv != null ? `${lv}<small>%</small>` : (navigator.onLine ? 'Online' : 'Offline');
+    $('hmPhSub').textContent = [lv != null && battery.charging ? 'Charging' : '', room ? room.city : ''].filter(Boolean).join(' · ');
   }
-  document.querySelectorAll('.h-card[data-go]').forEach((card) => card.addEventListener('click', (e) => {
+  document.querySelectorAll('#viewHome [data-go]').forEach((el) => el.addEventListener('click', () => {
     if (window.Sfx) window.Sfx.play('tap');
-    const li = e.target.closest('#hmList li[data-id]');
-    if (li && window.TEApp) { setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50); return; }
-    setTab(card.dataset.go);
+    setTab(el.dataset.go);
   }));
+  $('hmList').addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-id]');
+    if (!li || !window.TEApp) return;
+    if (window.Sfx) window.Sfx.play('tap');
+    setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50);
+  });
   addEventListener('te-outages', () => tab === 'home' && refreshHome());
   addEventListener('te-weather', () => {
     if (tab === 'home') refreshHome();

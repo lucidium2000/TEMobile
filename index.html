@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=8">
+  <link rel="stylesheet" href="css/mobile.css?v=11">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -254,27 +254,23 @@
 
   <!-- ── Mobile: Home (an overview of every tab), Weather, Tests, Phone ── -->
   <main class="view" id="viewHome" hidden>
-    <header class="view-head home-head"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><p class="home-time"><b id="hmClock"></b><span id="hmDate"></span></p></header>
-    <button class="m-card h-card" data-go="globe" id="hmOut">
-      <h2 class="sec-title"><img class="sec-ico te-eye" src="assets/te-eye.png" alt="" aria-hidden="true"><span class="sec-name">Internet outages</span><span class="h-go" id="hmWin"></span></h2>
-      <div class="h-stats" id="hmStats"></div>
+    <header class="hm-top"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><p><b id="hmClock"></b><span id="hmDate"></span></p></header>
+    <button class="hm-hero" data-go="globe" id="hmHero">
+      <span class="orb" aria-hidden="true"><i class="orb-ring"></i><i class="orb-ring r2"></i><i class="orb-core"></i></span>
+      <span class="hero-n"><b id="hmHeroN">&ndash;</b><small id="hmHeroK">active</small></span>
+      <span class="hero-t" id="hmHeroTitle">Checking the internet&hellip;</span>
+      <span class="hero-s" id="hmHeroSub"></span>
+    </button>
+    <div class="hm-grid">
+      <button class="tile" data-go="weather" id="hmWx"><span class="t-k">Weather</span><canvas id="hmWxIcon" width="34" height="34"></canvas><b class="t-v" id="hmWxTemp">&ndash;</b><span class="t-s" id="hmWxSub"></span></button>
+      <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection</span><span class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
+      <button class="tile" data-go="tests" id="hmSvc"><span class="t-k">Services</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
+      <button class="tile" data-go="phone" id="hmPh"><span class="t-k">Battery</span><span class="t-bat" id="hmBat"><i></i></span><b class="t-v" id="hmBatV">&ndash;</b><span class="t-s" id="hmPhSub"></span></button>
+    </div>
+    <section class="hm-latest">
+      <button class="hm-label" data-go="globe"><span>Latest outages</span><em>See all</em></button>
       <ol class="h-list" id="hmList"></ol>
-    </button>
-    <button class="m-card h-card" data-go="weather" id="hmWx">
-      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/></svg><span class="sec-name">Weather</span><span class="h-go" id="hmWxPlace"></span></h2>
-      <div class="h-wx"><canvas id="hmWxIcon" width="52" height="52"></canvas><b id="hmWxTemp">&ndash;</b><div><span id="hmWxDesc"></span><small id="hmWxHiLo"></small></div></div>
-      <p class="h-line" id="hmLayers"></p>
-    </button>
-    <button class="m-card h-card" data-go="tests" id="hmNet">
-      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="sec-name">Your connection</span><span class="h-go">Tests</span></h2>
-      <div class="sig"><div class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></div><div><b id="hmQual">Measuring&hellip;</b><span id="hmEdge"></span></div></div>
-      <div class="h-svcs" id="hmSvcs"></div>
-      <p class="h-line" id="hmSpeed"></p>
-    </button>
-    <button class="m-card h-card" data-go="phone" id="hmPh">
-      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span class="sec-name">This phone</span><span class="h-go">Phone</span></h2>
-      <dl class="kv" id="hmPhKv"></dl>
-    </button>
+    </section>
   </main>
 
   <main class="view" id="viewWeather" hidden>
@@ -385,7 +381,7 @@
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
   <script src="js/app.js?v=227"></script>
-  <script src="js/mobile.js?v=5"></script>
+  <script src="js/mobile.js?v=7"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
