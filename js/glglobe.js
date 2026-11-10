@@ -436,6 +436,8 @@ void main() {
 
     /** p: { eye:[x,y,z], ctr:[x,y,z], Rw, R, lon, lat, sun:[x,y,z], starX, starY, px }, all in drawing-buffer px. */
     function render(p) {
+      // p.noWx: draw without the radar and the state lines (the outage view).
+      const rA = p.noWx ? 0 : radarA, stOn = !p.noWx && statesOn;
       const l = p.lon * Math.PI / 180, f = p.lat * Math.PI / 180;
       const sl = Math.sin(l), cl = Math.cos(l), sf = Math.sin(f), cf = Math.cos(f);
       // Columns: east, north, centre (view x, y, z in world coordinates).
@@ -448,15 +450,15 @@ void main() {
       gl.enableVertexAttribArray(Q.aPos);
       gl.vertexAttribPointer(Q.aPos, 2, gl.FLOAT, false, 0, 0);
       gl.uniform2f(Q.uRes, canvas.width, canvas.height);
-      gl.uniform1f(Q.uRadarA, radarA);
+      gl.uniform1f(Q.uRadarA, rA);
       gl.uniform1f(Q.uRadarMix, radarMix);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, radarTexs[radarCur] || radarTexs[0]);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, radarTexs[radarNext] || radarTexs[0]);
-      gl.uniform1f(Q.uRegOn, regOn && radarA > 0 ? 1 : 0);
+      gl.uniform1f(Q.uRegOn, regOn && rA > 0 ? 1 : 0);
       gl.uniform4f(Q.uRegBox, regBox[0], regBox[1], regBox[2], regBox[3]);
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, regTexs[radarCur] || regTexs[0]);
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, regTexs[radarNext] || regTexs[0]);
-      gl.uniform1f(Q.uDetOn, detOn && radarA > 0 && detLayout ? 1 : 0);
+      gl.uniform1f(Q.uDetOn, detOn && rA > 0 && detLayout ? 1 : 0);
       gl.uniform1f(Q.uDetHasA, detHas[radarCur] ? 1 : 0);
       gl.uniform1f(Q.uDetHasB, detHas[radarNext] ? 1 : 0);
       if (detLayout) {
@@ -493,7 +495,7 @@ void main() {
       gl.drawArrays(gl.LINES, 0, coastCount);
       // With the radar on, borders brighten and states/provinces appear, so
       // the weather has something to be read against.
-      const wx = radarA > 0 || statesOn;
+      const wx = rA > 0 || stOn;
       if (wx) gl.uniform4f(Lu.uColor, 0.62, 0.71, 0.84, 0.9);
       else gl.uniform4f(Lu.uColor, 0.282, 0.376, 0.518, 0.85);   // borders #486084
       gl.drawArrays(gl.LINES, coastCount, borderCount);

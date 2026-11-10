@@ -28,12 +28,15 @@
   const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone') };
   let tab = 'home';
   function setTab(name) {
+    // Weather again (Show radar, a county): fold the sheet to show its globe.
+    if (name === 'weather' && tab === 'weather') { foldWx(true); return; }
+    if ((name === 'globe' || name === 'weather') && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
     tab = name;
     document.body.dataset.tab = name;
     for (const [k, v] of Object.entries(views)) v.hidden = k !== name;
     document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     try { sessionStorage.setItem('te-m-tab', name); } catch (_) { /* */ }
-    if (name === 'globe') window.dispatchEvent(new Event('resize'));
+    if (name === 'globe' || name === 'weather') window.dispatchEvent(new Event('resize'));
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
     if (name === 'home') refreshHome();
@@ -406,7 +409,23 @@
   });
   setInterval(() => { if (tab === 'home') refreshHome(); }, 4000);
 
-  // ── Weather: the forecast, and the radar / power layers ──────────────────
+  // ── Weather: its own globe (radar, power) under a sheet - folded to the
+  // layer switches, or open for the full forecast ──────────────────────────
+  const wxView = $('viewWeather'), wxGrab = document.createElement('button');
+  wxGrab.className = 'sheet-grab wx-grab'; wxGrab.setAttribute('aria-label', 'Show or hide the forecast');
+  wxView.prepend(wxGrab);
+  let wxMin = true;
+  function foldWx(v) {
+    wxMin = v; document.body.classList.toggle('wx-min', v);
+    if (v) wxView.scrollTop = 0;
+  }
+  foldWx(true);
+  wxGrab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); foldWx(!wxMin); });
+  // Scrolling or touching the forecast opens the sheet.
+  wxView.addEventListener('click', (e) => { if (wxMin && !e.target.closest('[data-fips], button') && e.target.closest('#wxCard, #pwrWrap, .view-head')) foldWx(false); });
+  const fitWx = () => document.documentElement.style.setProperty('--wsheet-px', wxView.offsetHeight + 'px');
+  if (window.ResizeObserver) new ResizeObserver(fitWx).observe(wxView);
+
   let wxOpened = false;
   function syncLayers() {
     const A = window.TEApp; if (!A) return;
@@ -435,11 +454,11 @@
   setInterval(() => { if (tab === 'weather') syncLayers(); }, 3000);
   $('layShow').addEventListener('click', () => {
     const r = window.TEApp && window.TEApp.room();
-    setTab('globe');
+    foldWx(true);
     if (r && isFinite(r.lat)) window.TEApp.flyToPlace(r.lon, r.lat);
   });
-  // A county in the power list: shown on the globe.
-  $('pwrList').addEventListener('click', (e) => { if (e.target.closest('[data-fips]')) setTimeout(() => setTab('globe'), 0); });
+  // A county in the power list: the sheet folds and the globe flies there.
+  $('pwrList').addEventListener('click', (e) => { if (e.target.closest('[data-fips]')) foldWx(true); });
 
   // Back to the last tab - last, once everything above is set up.
   let start = 'home';

@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=11">
+  <link rel="stylesheet" href="css/mobile.css?v=13">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -274,14 +274,14 @@
   </main>
 
   <main class="view" id="viewWeather" hidden>
-    <header class="view-head"><h2>Weather</h2><p>Forecast, radar and US power</p></header>
+    <header class="view-head"><h2>Weather</h2><p>Radar &amp; US power</p></header>
     <section class="m-card sec" id="layersCard">
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg><span class="sec-name">On the globe</span></h2>
       <div class="lay"><div class="lay-k"><b>Weather radar</b><small id="layRadarNote">NOAA &middot; RainViewer</small></div>
         <div class="segs" id="segRadar"><button data-radar="off">Off</button><button data-radar="live">Live</button><button data-radar="loop">Past hour</button></div></div>
       <div class="lay"><div class="lay-k"><b>US power outages</b><small id="layPowerNote">MassOutage, by county</small></div>
         <div class="segs" id="segPower"><button data-power="0">Off</button><button data-power="1">On</button></div></div>
-      <button class="m-btn ghost" id="layShow">View on the globe</button>
+      <button class="m-btn ghost" id="layShow">Center on my area</button>
     </section>
     <!-- The local forecast card (tap the weather by the clock). -->
   <section class="wx-card" id="wxCard" hidden role="region" aria-labelledby="wxcTitle">
@@ -306,6 +306,7 @@
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg><span class="sec-name">US power</span><small class="pwr-flag" id="pwrFlag"></small></h2>
       <ol class="list pwr-list" id="pwrList"></ol>
     </section>
+      <p class="pwr-credit2">Live county totals by <a href="https://massoutage.com" target="_blank" rel="noopener noreferrer">MassOutage</a>, CC BY 4.0 - an unofficial aggregate of US utility reports; confirm with the utility. In an emergency, call 911.</p>
       <p class="m-note pwr-offnote">Turn on <b>US power outages</b> above to see the counties with the most customers out.</p>
     </section>
   </main>
@@ -377,11 +378,11 @@
   <script src="js/pathtrace.js?v=7"></script>
   <script src="js/radar.js?v=11"></script>
   <script src="js/power.js?v=3"></script>
-  <script src="js/glglobe.js?v=27"></script>
+  <script src="js/glglobe.js?v=28"></script>
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
-  <script src="js/app.js?v=227"></script>
-  <script src="js/mobile.js?v=7"></script>
+  <script src="js/app.js?v=229"></script>
+  <script src="js/mobile.js?v=9"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

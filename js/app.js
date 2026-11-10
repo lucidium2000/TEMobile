@@ -74,7 +74,10 @@
   document.documentElement.style.setProperty('--ui-zoom', String(UIZ));
   // Mobile: the forecast lives in the Weather tab, not a pop-up card.
   const WX_DOCKED = !!document.getElementById('viewWeather');
-  const goTab = (t) => { if (window.TEMobile) window.TEMobile.setTab(t); };   // leave the globe where the user put it for a while
+  const goTab = (t) => { if (window.TEMobile) window.TEMobile.setTab(t); };
+  // Two globes on one renderer: Outages (outages only) and Weather (radar, US
+  // power and this device's place only), each keeping its own view.
+  const WXV = () => document.body.dataset.tab === 'weather';   // leave the globe where the user put it for a while
 
   // Friendly labels + match terms for the "Your services" strip.
   const WATCH_PRESETS = {
@@ -446,7 +449,7 @@
       const sy = (view.lat / 90) * S.h * 0.175 + (cam.E[1] - L.cy);
       glTry('render', () => glr.render({
         eye: cam.E.map((v) => v * pr), ctr: cam.C.map((v) => v * pr), Rw: cam.Rw * pr, R: R * pr,
-        lon: view.lon, lat: view.lat, sun: unitVec(sun.lon, sun.lat), starX: -sx * pr, starY: -sy * pr, px: pr,
+        lon: view.lon, lat: view.lat, sun: unitVec(sun.lon, sun.lat), starX: -sx * pr, starY: -sy * pr, px: pr, noWx: !WXV(),
       }));
     }
     if (!glr) {
@@ -780,6 +783,7 @@
   // the internet dots or the radar. Only drawn while the Power toggle is on.
   const LAYER_NEAR = 0.9;   // degrees: same-area weather / power / internet
   function nearestPower(lon, lat) {
+    if (WX_DOCKED) return null;   // mobile: power has its own globe (Weather)
     if (!S.power || !S.power.on || !S.power.markers) return null;
     let best = null, bd = LAYER_NEAR;
     for (const a of S.power.markers) {
@@ -892,6 +896,7 @@
     // Weather label boxes: this frame's become the next frame's hover test.
     S.wxBoxes = S.wxBoxesNext || new Map(); S.wxBoxesNext = new Map();
     S.wxOffer = S.wxOfferNext || null; S.wxOfferNext = null; S.wxTaps = [];
+    if (WXV()) { drawPower(now, labelK(R)); return; }
     drawPath(now, R);
     const k = labelK(R);
     const sel = S.selected;
@@ -1047,7 +1052,6 @@
         }
       }
     }
-    drawPower(now, k);
   }
 
   // ── Perf overlay (?perf=1) ───────────────────────────────────────────────
@@ -1213,7 +1217,7 @@
       // Inertia after a flick, then a slow idle spin.
       if (Math.abs(S.vel.lon) > 0.0005 || Math.abs(S.vel.lat) > 0.0005) {
         coast(Math.min(dt, 100));
-      } else if (!S.selected && now - S.lastInput > SPIN_RESUME_MS) {
+      } else if (!S.selected && !WXV() && now - S.lastInput > SPIN_RESUME_MS) {
         // With a path trace open, the globe drifts a third slower.
         view.lon = wrapLon(view.lon + (CFG.spinDegPerS * (S.pathOpen ? 2 / 3 : 1) * dt) / 1000);
         view.lat += (18 - view.lat) * 0.0006 * dt / 16;      // drift back to a pleasant tilt
@@ -1223,7 +1227,7 @@
 
     // Tour: start when idle, advance on a timer.
     const tourOff = CFG.tour === '0' && !CFG.signage;
-    if (!S.touring && !tourOff && !S.guideOpen && !S.pathOpen && S.outages.length && now - S.lastInput > CFG.idleMs) setTour(true);
+    if (!S.touring && !tourOff && !WXV() && !S.guideOpen && !S.pathOpen && S.outages.length && now - S.lastInput > CFG.idleMs) setTour(true);
     if (S.touring && !S.spin) {
       const frac = (now - S.tourT0) / CFG.dwellMs;
       el.cardProgress.style.transform = floatProgress.style.transform = `scaleX(${Math.min(1, frac).toFixed(4)})`;
@@ -2402,7 +2406,7 @@
       const o = fresh.sort((a, b) => b.start - a.start)[0];
       toast(`New ${o.kind} outage: ${o.name} · ${o.locations[0].name}`);
       sfx('alert');
-      if (now() - S.lastInput > 10000 || S.touring) { select.quiet = true; select(o, { fromTour: S.touring }); select.quiet = false; }
+      if (!WXV() && (now() - S.lastInput > 10000 || S.touring)) { select.quiet = true; select(o, { fromTour: S.touring }); select.quiet = false; }
       speakOutage(o, true);
     }
   }
@@ -3565,7 +3569,10 @@
     wxCard.hidden = false;
     wxCard.classList.toggle('other', !!wxPlace);
     if (WX_DOCKED) {
-      if (!quiet) goTab('weather');
+      if (!quiet) {
+        goTab('weather');
+        if (wxPlace) zoomTo(Math.max(view.zoom, 2.4), [wxPlace.lon, wxPlace.lat]);
+      }
       if (!wxPlace && !S.wxBrief && S.room && window.WxBrief) {
         window.WxBrief.get(S.room.lat, S.room.lon, { fahrenheit: !WX_C }).then((w) => { if (w) { S.wxBrief = w; renderWxCard(); } }).catch(() => {});
       }
@@ -3687,7 +3694,7 @@
     closeWxCard();
     select(null);
     const at = keep || S.room;
-    goTab('globe');
+    goTab('weather');
     if (at && isFinite(at.lat)) zoomTo(Math.max(view.zoom, 2.6), [at.lon, at.lat]);
     toast('Weather radar: past hour', 'info');
   });
@@ -3836,6 +3843,20 @@
     renderForecast: () => renderWxCard(),
     drawWx: (cv, code, day, size) => wxIcon(cv, code, day, size),
     iconHtml: (o) => iconHtml(o),
+    /** Switch the globe between its Outages and Weather views. */
+    enterView(mode) {
+      if (mode !== 'globe' && mode !== 'weather') return;
+      const cur = S.viewMode || 'globe';
+      if (mode === cur) return;
+      S.views = S.views || {};
+      S.views[cur] = { lon: view.lon, lat: view.lat, zoom: view.zoom };
+      S.viewMode = mode;
+      S.flight = null; S.spin = null; S.vel = { lon: 0, lat: 0 };
+      if (mode === 'weather') { if (S.touring) setTour(false); closePowerCard(); }
+      const v = S.views[mode], r = S.room;
+      if (v) Object.assign(view, v);
+      else if (mode === 'weather') Object.assign(view, r && isFinite(r.lat) ? { lon: r.lon, lat: Math.max(-55, Math.min(55, r.lat)), zoom: 2.3 } : { lon: -95, lat: 38, zoom: 1.5 });
+    },
     selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
   };
 
@@ -3874,7 +3895,7 @@
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
     requestAnimationFrame(frame);
     // Mobile: the globe only draws while its tab is showing (saves battery).
-    if (document.body.dataset.tab && document.body.dataset.tab !== 'globe') return;
+    if (document.body.dataset.tab && document.body.dataset.tab !== 'globe' && document.body.dataset.tab !== 'weather') return;
     // While the camera is on, render at 30: the globe shares the GPU with the
     // hand/face models, and a slow-turning globe looks nearly the same at 30.
     const cap = window.Glass && window.Glass.on ? 30 : frameCap;

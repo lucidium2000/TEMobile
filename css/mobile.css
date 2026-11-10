@@ -26,7 +26,10 @@ html, body { overscroll-behavior: none; }
 
 /* ── Globe tab: cleaner ──────────────────────────────── */
 /* Off the globe tab, its overlays step aside (the views cover the canvas). */
-body:not([data-tab="globe"]) :is(.brand, .wxbar, .panel, .zoomctl, .card, .float, .timeline, .pathcard, .pwr-card, .gesture, .hand-cursor) { display: none !important; }
+body:not([data-tab="globe"]) :is(.brand, .panel, .zoomctl, .card, .float, .timeline, .pathcard, .gesture, .hand-cursor) { display: none !important; }
+/* The Weather globe keeps the layer credits and the power card; Outages drops both. */
+body:not([data-tab="weather"]) .pwr-card, body:not([data-tab="globe"]):not([data-tab="weather"]) .wxbar { display: none !important; }
+body[data-tab="globe"] .wxbar { display: none !important; }
 #modeBtn, #fsBtn, .map-key { display: none !important; }
 .brand { gap: .15em; }
 .brand-logo { height: 2.1em; }
@@ -322,3 +325,23 @@ body { background: #03050a; }
   .card, .pwr-card { border-radius: 22px !important; border: 1px solid var(--hair) !important;
     background: rgba(10, 14, 22, .82) !important; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
 }
+
+/* ── Weather tab: its own globe, the forecast in a sheet over it ──────── */
+#viewWeather {
+  top: auto !important; bottom: 0; height: calc(100dvh - env(safe-area-inset-top, 0px) - 64px);
+  padding-top: 0; border-radius: 28px 28px 0 0; border-top: 1px solid rgba(255, 255, 255, .1);
+  background: linear-gradient(180deg, rgba(10, 14, 22, .9), rgba(4, 6, 11, .97));
+  -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); transition: height .3s ease;
+}
+body.wx-min #viewWeather { height: calc(36dvh + var(--tabh)); overflow: hidden; }
+.wx-grab { position: sticky; top: 0; z-index: 3; height: 26px; margin: 0 -16px 2px; width: calc(100% + 32px); background: inherit; }
+#viewWeather .view-head { margin: 0 2px 10px; display: flex; align-items: baseline; justify-content: space-between; }
+#viewWeather .view-head h2 { font-size: 1.4em; }
+body[data-tab="weather"] .wxbar { top: calc(env(safe-area-inset-top, 0px) + 12px) !important; }
+body[data-tab="weather"] .pwr-card { bottom: calc(var(--wsheet-px, 40dvh) + 10px) !important; }
+/* Compact power card on the Weather globe; the full credit is in the sheet. */
+body[data-tab="weather"] .pwr-card :is(.pwr-credit, #pwrText) { display: none; }
+body[data-tab="weather"] .pwr-card { padding: .8em 1em !important; }
+.pwr-wrap .pwr-credit2 { margin: 10px 0 0; font-size: .7em; color: var(--ink-3); line-height: 1.45; }
+.pwr-wrap .pwr-credit2 a { color: var(--ink-2); }
