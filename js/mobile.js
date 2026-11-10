@@ -45,9 +45,6 @@
     if (e.target.closest('.svc-edit, .svc-grip') || $('services').classList.contains('editing')) return;
     if (e.target.closest('.svc[data-i]')) setTimeout(() => setTab('globe'), 0);
   });
-  let start = 'globe';
-  try { start = sessionStorage.getItem('te-m-tab') || 'globe'; } catch (_) { /* */ }
-  setTab(views[start] ? start : 'globe');
 
   // ── Speed test (Cloudflare's speed endpoints: CORS-open, no key) ─────────
   const CF = 'https://speed.cloudflare.com';
@@ -308,4 +305,9 @@
 
   function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); }
   setInterval(() => { if (tab === 'phone') { refreshNet(); refreshLoc(); } }, 5000);
+
+  // Back to the last tab - last, once everything above is set up.
+  let start = 'globe';
+  try { start = sessionStorage.getItem('te-m-tab') || 'globe'; } catch (_) { /* */ }
+  setTab(views[start] ? start : 'globe');
 })();

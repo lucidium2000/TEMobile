@@ -135,3 +135,11 @@ body:not([data-tab="globe"]) :is(.brand, .wxbar, .panel, .zoomctl, .card, .float
   .card-metrics { gap: .3em .9em; }
   .card-icon { width: 2.2em; height: 2.2em; }
 }
+
+/* Readable on a phone: the desk app's 13 px base (sized for a Room
+   Navigator at arm's length) is too small held in the hand. */
+:root { --fs: 17px !important; }
+@media (max-width: 900px) { :root { --fs: 17px !important; } }
+.view { font-size: 17px; }
+.stat span, .wxbar .radar-time, .radar-btn, .edge-pill, .win-btn { font-size: max(.7em, 11px); }
+.brand .updated, .tabbar button { font-size: 12px; }

@@ -70,7 +70,7 @@
   const ZOOM_MIN = 0.6, ZOOM_MAX = 8;
   const SPIN_RESUME_MS = 12000;
   // Interface zoom (css --ui-zoom): screen pixels -> pixels inside a zoomed element.
-  const UIZ = Math.max(0.5, Math.min(1.5, parseFloat(qs.get('ui')) || 0.8));
+  const UIZ = Math.max(0.5, Math.min(1.5, parseFloat(qs.get('ui')) || 1));
   document.documentElement.style.setProperty('--ui-zoom', String(UIZ));   // leave the globe where the user put it for a while
 
   // Friendly labels + match terms for the "Your services" strip.
@@ -458,7 +458,7 @@
       ctx.clearRect(0, 0, S.w, S.h);
       perfMark('gl');
       drawOutages(now, R);
-      drawRoom(now, Math.max(0.7, Math.min(1.6, R / 430)));
+      drawRoom(now, labelK(R));
       perfMark('markers');
       return;
     }
@@ -494,7 +494,7 @@
     ctx.beginPath(); ctx.arc(L.cx, L.cy, R, 0, 2 * Math.PI); ctx.stroke();
 
     drawOutages(now, R);
-    drawRoom(now, Math.max(0.7, Math.min(1.6, R / 430)));
+    drawRoom(now, labelK(R));
     perfMark('markers');
   }
 
@@ -879,13 +879,17 @@
     ctx.textAlign = 'start';
   }
 
+  /** Label / marker scale on the globe. Phones get a readable floor: the
+   *  desk sizing shrank labels to ~9 px on a small screen. */
+  function labelK(R) { return Math.max(innerWidth < 700 ? 1.2 : 0.7, Math.min(1.6, R / 430)); }
+
   function drawOutages(now, R) {
     S.hits = [];
     // Weather label boxes: this frame's become the next frame's hover test.
     S.wxBoxes = S.wxBoxesNext || new Map(); S.wxBoxesNext = new Map();
     S.wxOffer = S.wxOfferNext || null; S.wxOfferNext = null; S.wxTaps = [];
     drawPath(now, R);
-    const k = Math.max(0.7, Math.min(1.6, R / 430));
+    const k = labelK(R);
     const sel = S.selected;
 
     // Selected outage: great-circle links from its biggest location to the rest.
@@ -1981,7 +1985,7 @@
   }
   function drawPath(now, R) {
     if (!S.path) return;
-    const pts = S.path.pts, k = Math.max(0.7, Math.min(1.6, R / 430));
+    const pts = S.path.pts, k = labelK(R);
     const COL = { 'pv-ok': '52,211,153', 'pv-warn': '251,191,36', 'pv-bad': '244,63,94' };
     ctx.save();
     ctx.lineCap = 'round';
