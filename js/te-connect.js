@@ -122,13 +122,26 @@
         <input id="tecProxy" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://te-proxy.you.workers.dev" value="${esc(state.proxy)}">
       </label>
       <label class="tec-f">API token
-        <input id="tecToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ThousandEyes bearer token">
+        <div class="tec-tokrow">
+          <input id="tecToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ThousandEyes bearer token">
+          <button type="button" class="tec-scan" id="tecScan" title="Scan the token with the camera" aria-label="Scan the token with the camera"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9V7a2 2 0 0 1 2-2h2M17 5h2a2 2 0 0 1 2 2v2M21 15v2a2 2 0 0 1-2 2h-2M7 19H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.2"/></svg></button>
+        </div>
       </label>
       <label class="tec-chk"><input id="tecPersist" type="checkbox" ${state.persist ? 'checked' : ''}><span>Keep me connected on this device</span></label>
       <div class="tec-err" id="tecErr" hidden></div>
       <div class="tec-btns"><button class="m-btn" id="tecGo">Connect</button><button class="m-btn ghost" id="tecCancel">Cancel</button></div>
       <p class="tec-help">Use a read-only account for this. <a href="https://github.com/lucidium2000/TEMobile/tree/main/worker" target="_blank" rel="noopener">How to deploy the proxy</a> · token from <em>ThousandEyes &rsaquo; Account Settings &rsaquo; Users &rsaquo; User API Tokens</em>.</p>`;
     $('tecCancel').addEventListener('click', () => { state.status = state.acct ? 'on' : 'off'; render(); });
+    const scanBtn = $('tecScan');
+    if (scanBtn) scanBtn.addEventListener('click', async () => {
+      if (!window.TEOcr) return;
+      scanBtn.disabled = true;
+      try {
+        const t = await TEOcr.scan();
+        if (t) { const ti = $('tecToken'); if (ti) { ti.type = 'text'; ti.value = t; ti.focus(); } }
+      } catch (_) { /* */ }
+      scanBtn.disabled = false;
+    });
     const go = $('tecGo');
     go.addEventListener('click', async () => {
       const proxy = $('tecProxy').value.trim(), token = $('tecToken').value.trim(), persist = $('tecPersist').checked;

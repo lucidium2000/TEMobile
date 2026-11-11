@@ -44,6 +44,10 @@ wrangler deploy worker/thousandeyes-proxy.js --name te-proxy --compatibility-dat
 2. **Proxy URL:** the Worker URL from above.
 3. **API token:** ThousandEyes → **Account Settings → Users → User API Tokens**
    (the OAuth Bearer token). Use a **read-only** account — the app only reads.
+   - Long to type? Tap the **camera icon** by the token field and point the phone
+     at the token on your computer screen — it reads the characters in (OCR), then
+     lets you check them before use. Pasting is the most reliable if you can get the
+     token onto the phone's clipboard.
 4. Connect. The token is stored on this device only; **Disconnect & forget token**
    removes it.
 

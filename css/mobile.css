@@ -697,3 +697,24 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .tec-acct > span { display: block; color: var(--ink-2); font-size: .9em; margin-top: 1px; }
 .tec-acct small { display: block; color: var(--ink-3); font-size: .74em; margin-top: 6px; }
 .tec[data-state="on"] { border-color: rgba(52, 211, 153, .3); }
+
+/* ── Token scan button + camera OCR overlay ── */
+.tec-tokrow { display: flex; gap: 8px; align-items: stretch; margin-top: 5px; }
+.tec-tokrow #tecToken { margin-top: 0; flex: 1; }
+.tec-scan { flex: none; width: 48px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(22, 189, 235, .1); color: var(--app); display: grid; place-items: center; cursor: pointer; }
+.tec-scan:active { background: rgba(22, 189, 235, .22); }
+.ocr-ov { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; background: #05070d; }
+.ocr-stage { position: relative; flex: 1; overflow: hidden; display: grid; place-items: center; background: #000; }
+.ocr-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.ocr-box { position: relative; z-index: 2; width: 86%; height: 84px; border: 2px solid var(--app); border-radius: 12px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .5); }
+.ocr-hint { position: absolute; z-index: 2; bottom: 18px; left: 16px; right: 16px; text-align: center; font-size: .86em; color: #dbeafe; text-shadow: 0 1px 4px #000; }
+.ocr-bar { flex: none; display: flex; gap: 10px; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: #05070d; }
+.ocr-btn { flex: 1; padding: 14px; border: 0; border-radius: 14px; font-size: 1rem; font-weight: 700; color: #04121a; background: var(--app); cursor: pointer; }
+.ocr-btn.ghost { background: rgba(255, 255, 255, .08); color: var(--ink); }
+.ocr-proc { position: absolute; z-index: 3; inset: auto 0 0 0; top: 0; display: grid; place-content: center; gap: 10px; justify-items: center; background: rgba(5, 7, 13, .7); color: var(--ink); font-weight: 600; }
+.ocr-proc i { width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(22, 189, 235, .25); border-top-color: var(--app); animation: ocrSpin .8s linear infinite; }
+@keyframes ocrSpin { to { transform: rotate(360deg); } }
+.ocr-msg { padding: 24px; text-align: center; color: var(--ink-2); font-size: .95em; line-height: 1.5; max-width: 300px; }
+.ocr-result { position: absolute; z-index: 3; left: 16px; right: 16px; top: 50%; transform: translateY(-50%); background: rgba(10, 16, 28, .95); border: 1px solid var(--hair); border-radius: 16px; padding: 16px; }
+.ocr-rl { font-size: .82em; color: var(--ink-2); margin-bottom: 10px; }
+.ocr-in { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--app); background: #000; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .95rem; word-break: break-all; }
