@@ -676,3 +676,24 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .sh-l { grid-area: l; text-align: right; font-size: .9em; color: var(--ink-3); }
 .sh-l em { font-style: normal; font-weight: 800; color: #34d399; }
 .sh-l em.g-C { color: #fbbf24; } .sh-l em.g-D, .sh-l em.g-F { color: #f43f5e; } .sh-l em.g-B { color: #a3e635; }
+
+/* ── ThousandEyes tenant connection ── */
+.tec .tec-intro { margin: 0 0 12px; color: var(--ink-2); font-size: .9em; line-height: 1.5; }
+.tec-f { display: block; margin-bottom: 10px; font-size: .68em; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.tec-f input { display: block; width: 100%; margin-top: 5px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(0, 0, 0, .3); color: var(--ink); font-size: 1.12rem; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.tec-f input:focus { outline: none; border-color: var(--app); box-shadow: 0 0 0 3px rgba(22, 189, 235, .18); }
+.tec-chk { display: flex; align-items: center; gap: 9px; margin: 2px 0 12px; font-size: .86em; color: var(--ink-2); cursor: pointer; }
+.tec-chk input { width: 18px; height: 18px; accent-color: var(--app); }
+.tec-btns { display: flex; gap: 8px; }
+.tec-btns .m-btn { flex: 1; }
+.tec-err { margin-bottom: 10px; padding: 9px 11px; border-radius: 11px; background: rgba(244, 63, 94, .12); border: 1px solid rgba(244, 63, 94, .3); color: #fda4af; font-size: .84em; line-height: 1.4; }
+.tec-help { margin: 12px 0 0; font-size: .76em; line-height: 1.5; color: var(--ink-3); }
+.tec-help a { color: var(--app); }
+.tec-help em { font-style: normal; color: var(--ink-2); }
+.tec-acct { margin-bottom: 12px; }
+.tec-ok { display: inline-flex; align-items: center; gap: 6px; font-size: .64em; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #34d399; margin-bottom: 8px; }
+.tec-ok i { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+.tec-acct b { display: block; font-size: 1.25em; font-weight: 800; }
+.tec-acct > span { display: block; color: var(--ink-2); font-size: .9em; margin-top: 1px; }
+.tec-acct small { display: block; color: var(--ink-3); font-size: .74em; margin-top: 6px; }
+.tec[data-state="on"] { border-color: rgba(52, 211, 153, .3); }

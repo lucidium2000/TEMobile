@@ -31,6 +31,10 @@ There's no GitHub Action here: the app reads the data TERoomApp's Action already
 - Canvases sized to the visible viewport (no egg-shaped globe behind mobile browser bars).
 - No 80% desk scaling, compact outage card, no HUD/free-mode or full-screen buttons.
 
+## Connect your ThousandEyes tenant
+
+The Network tab can connect to your own ThousandEyes tenant (read-only) to show your agents, tests and alerts in the app. The ThousandEyes API sends no CORS headers, so the app talks to it through a tiny Cloudflare Worker proxy you deploy once - the token stays on your device and is sent only to your proxy, never to the repo or anyone else. See [`worker/`](worker/) for the ~30-line Worker and a 2-minute deploy guide. The tenant layer is optional: without it, the app works exactly as before.
+
 ## Local development
 
 ```bash
