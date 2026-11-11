@@ -572,4 +572,20 @@
   let start = 'home';
   try { start = sessionStorage.getItem('te-m-tab') || 'home'; } catch (_) { /* */ }
   setTab(views[start] || start === 'globe' ? start : 'home');
+
+  // ── iPhone / iPad: Safari never offers to install a web app (no install
+  // event, unlike Chrome on Android), so explain the Share-sheet way once.
+  // Not shown when already installed, and never again once dismissed. ──────
+  (function iosHint() {
+    const ua = navigator.userAgent;
+    const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const installed = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    let seen = false;
+    try { seen = localStorage.getItem('te-m-ioshint') === '1'; } catch (_) { /* */ }
+    if (!ios || installed || seen || /[?&]nohint\b/.test(location.search)) return;
+    const el = $('iosHint');
+    const close = () => { el.classList.remove('on'); setTimeout(() => { el.hidden = true; }, 300); try { localStorage.setItem('te-m-ioshint', '1'); } catch (_) { /* */ } };
+    $('iosHintX').addEventListener('click', close);
+    setTimeout(() => { el.hidden = false; requestAnimationFrame(() => el.classList.add('on')); }, 2500);
+  })();
 })();
