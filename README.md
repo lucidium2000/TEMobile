@@ -10,16 +10,16 @@ The phone edition of [TERoomApp](https://github.com/lucidium2000/TERoomApp), the
 - **Network** - this phone's connection, measured live:
   - **Your connection**: quality, round trip to the nearest internet edge every 30 s on a one-hour timeline (like the service rows), with average, best, worst, jitter and reachability.
   - **Service checks** (Webex, Microsoft, Google, AWS, Zoom, editable with the gear): HTTP status, response time, a one-hour timeline, the local-edge round trip; tap one to trace its path on the globe.
-  - **Speed test** to the nearest Cloudflare site: download, upload, latency and jitter (about 25 MB of data).
+  - **Speed test** to the nearest Cloudflare site (WiFiman-style): a live throughput graph with latency under load, download, upload, idle latency, jitter, latency while downloading and uploading, a bufferbloat grade (A+ to F), packet loss, packets resent (from Cloudflare's side of the connection) and a history of past tests (about 10 s; up to ~55 MB on a fast line).
 - **Outages** - its own globe, outages only: live global outages from ThousandEyes Internet Insights on the 3D globe, with the outage list as a sheet that folds down to its counts (Active / Apps / Network / Locations filters, 1-24 h window), spoken summaries and camera hand gestures.
 - **Weather** - a second globe, purpose-built for weather: radar, US power (amber bolts by county) and your place, under a sheet that folds down to the layer switches. Open it for the forecast (now, hourly, the week, alerts; search any city or ZIP; hear it read), big switches for the globe's weather radar (off / live / past hour - NOAA over North America, sharper detail over the UK and Australia, RainViewer elsewhere) and the US power layer (MassOutage), and the counties with the most customers out.
 - **Phone** - what the browser can see:
-  - **Connection:** quality bars from the measured round trip to the internet edge, a live timeline checked every second (last 10 minutes, with average, best, worst, jitter and loss; only while the Phone tab is open), connection type and the browser's own estimate (where shared), last speed test, provider and public IP.
+  - **Connection:** quality bars from the measured round trip to the internet edge, a live timeline checked every second (last 10 minutes, with average, best, worst, jitter and loss; only while the Phone tab is open), the round trip and resent packets as Cloudflare's edge measures them, IPv4 / IPv6, protocol and TLS version, key exchange (flags post-quantum), connection type and the browser's own estimate (where shared), last speed test, provider and public IP.
   - **Battery:** level, charging, time left (Chrome on Android; Safari keeps it private).
   - **Location:** the network's approximate place, or live GPS (accuracy, altitude, speed, heading) - also used for this phone's weather and pin. *Show on globe* flies there.
   - **Device:** system, browser, screen, processor, memory, graphics, WebGPU, storage, language, time zone.
 
-Web pages can't read cellular signal strength or Wi-Fi bars, so signal quality is measured rather than read from the radio.
+Web pages can't read cellular signal strength or Wi-Fi bars, or scan for nearby Wi-Fi networks (that needs a native app), so signal quality is measured rather than read from the radio.
 
 ## Data
 

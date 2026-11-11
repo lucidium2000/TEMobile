@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=27">
+  <link rel="stylesheet" href="css/mobile.css?v=28">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -341,9 +341,12 @@
         <div class="gauge" id="gDown"><svg viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="50"/><circle class="g-val" cx="60" cy="60" r="50" pathLength="100"/></svg><b>&ndash;</b><span>Mbps down</span></div>
         <div class="gauge up" id="gUp"><svg viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="50"/><circle class="g-val" cx="60" cy="60" r="50" pathLength="100"/></svg><b>&ndash;</b><span>Mbps up</span></div>
       </div>
+      <div class="sp-graph" id="spGraph" hidden><div class="sp-leg"><span class="d">Download</span><span class="u">Upload</span><span class="l">Latency</span></div><div id="spSvg"></div></div>
+      <div class="sp-grade" id="spGrade" hidden></div>
       <dl class="kv" id="speedStats"></dl>
       <button class="m-btn" id="speedRun">Run speed test</button>
-      <p class="m-note">Measured from this phone to the nearest Cloudflare site. Uses about 25&nbsp;MB of data.</p>
+      <div class="sp-hist" id="spHist" hidden><h3>History</h3><div id="spHistRows"></div></div>
+      <p class="m-note">Measured from this phone to the nearest Cloudflare site. About 10 seconds; uses up to about 55&nbsp;MB of data on a fast line.</p>
     </section>
   </main>
 
@@ -354,6 +357,7 @@
       <div class="sig"><div class="bars" id="phBars"><i></i><i></i><i></i><i></i><i></i></div><div><b id="phQual">&ndash;</b><span id="phType"></span></div></div>
       <div class="nc-tl ph-tl"><div class="ph-live"><span><i></i>Live &middot; every second</span><b id="phLiveMs">&ndash;</b></div><div class="nc-spark" id="phSpark"></div><div class="nc-axis"><span id="phT0"></span><span>now</span></div><div class="ph-lstats" id="phLStats"></div></div>
       <dl class="kv" id="phNetKv"></dl>
+      <p class="m-note">Wi-Fi scanning (nearby networks, channels, signal in dBm) needs a native app - phones don't share the radio with web pages. Everything here is measured: edge-measured round trip and resent packets come from Cloudflare's side of the connection.</p>
     </section>
     <section class="m-card sec" id="phBat">
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/></svg><span class="sec-name">Battery</span></h2>
@@ -405,7 +409,7 @@
   <script src="js/logos.js?v=1"></script>
   <script src="js/app.js?v=231"></script>
   <script src="js/wxview.js?v=1"></script>
-  <script src="js/mobile.js?v=15"></script>
+  <script src="js/mobile.js?v=18"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

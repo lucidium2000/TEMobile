@@ -62,63 +62,194 @@
     g.querySelector('.g-val').style.strokeDashoffset = String(100 - f * 100);
     g.querySelector('b').textContent = mbps == null ? '–' : mbps >= 100 ? Math.round(mbps) : mbps.toFixed(1);
   };
-  async function ping() {
-    const t0 = performance.now();
-    const r = await fetch(`${CF}/cdn-cgi/trace?r=${Math.random()}`, { cache: 'no-store' });
-    const txt = await r.text();
-    return { ms: performance.now() - t0, colo: (txt.match(/^colo=(\w+)/m) || [])[1] || '' };
+  async function ping(ms = 3000) {
+    const ac = new AbortController(), to = setTimeout(() => ac.abort(), ms);
+    try {
+      const t0 = performance.now();
+      const r = await fetch(`${CF}/cdn-cgi/trace?r=${Math.random()}`, { cache: 'no-store', signal: ac.signal });
+      const txt = await r.text();
+      return { ms: performance.now() - t0, colo: (txt.match(/^colo=(\w+)/m) || [])[1] || '' };
+    } catch (_) { return { ms: null, colo: '' }; } finally { clearTimeout(to); }
   }
+  // Cloudflare's own view of the connection (its Server-Timing "cfL4"
+  // header, readable here because the speed endpoints allow it): the TCP
+  // round trip its kernel measured, and packets lost or resent so far.
+  function cfL4(url) {
+    try {
+      const e = performance.getEntriesByName(url).pop();
+      const st = e && e.serverTiming && e.serverTiming.find((x) => x.name === 'cfL4');
+      if (!st) return null;
+      const q = new URLSearchParams(st.description.replace(/^\?/, ''));
+      const n = (k) => (q.has(k) ? Number(q.get(k)) : null);
+      return { proto: q.get('proto') || '', rtt: n('rtt') != null ? n('rtt') / 1000 : null, sent: n('sent'), lost: n('lost'), retrans: n('retrans'), proto2: e.nextHopProtocol || '' };
+    } catch (_) { return null; }
+  }
+  // Throughput samples for the live graph: { t (s from start), mbps, k: 'd'|'u' },
+  // and latency under load: { t, ms, k: 'l' }.
+  let spPts = [], spT0 = 0;
   async function down(bytes) {
+    const url = `${CF}/__down?bytes=${bytes}&r=${Math.random()}`;
     const t0 = performance.now();
-    const r = await fetch(`${CF}/__down?bytes=${bytes}&r=${Math.random()}`, { cache: 'no-store' });
+    const r = await fetch(url, { cache: 'no-store' });
     const reader = r.body.getReader();
-    let got = 0, first = 0;
-    for (;;) { const { done, value } = await reader.read(); if (done) break; if (!first) first = performance.now(); got += value.length; }
+    let got = 0, first = 0, lastT = 0, lastB = 0;
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      const now = performance.now();
+      if (!first) { first = now; lastT = now; }
+      got += value.length;
+      if (now - lastT >= 150) { spPts.push({ t: (now - spT0) / 1000, mbps: ((got - lastB) * 8) / ((now - lastT) / 1000) / 1e6, k: 'd' }); lastT = now; lastB = got; drawSpeed(); }
+    }
     const s = (performance.now() - (first || t0)) / 1000;
-    return got * 8 / Math.max(0.01, s) / 1e6;
+    return { mbps: got * 8 / Math.max(0.01, s) / 1e6, bytes: got, s, l4: cfL4(url) };
   }
   async function up(bytes) {
     const body = new Uint8Array(bytes);
     const t0 = performance.now();
     await fetch(`${CF}/__up?r=${Math.random()}`, { method: 'POST', body, cache: 'no-store' });
-    return bytes * 8 / Math.max(0.01, (performance.now() - t0) / 1000) / 1e6;
+    const now = performance.now(), mbps = bytes * 8 / Math.max(0.01, (now - t0) / 1000) / 1e6;
+    if (bytes >= 3e5) { spPts.push({ t: (t0 - spT0) / 1000, mbps, k: 'u' }); spPts.push({ t: (now - spT0) / 1000, mbps, k: 'u' }); drawSpeed(); }
+    return mbps;
+  }
+  // Pings alongside a transfer: how much the latency climbs when the line
+  // is busy (bufferbloat) - the lag a video call feels during an upload.
+  function loadedPinger() {
+    const out = []; let on = true;
+    (async () => {
+      while (on) {
+        const p = await ping(2000);
+        if (!on) break;
+        out.push(p.ms);
+        if (p.ms != null) { spPts.push({ t: (performance.now() - spT0) / 1000, ms: p.ms, k: 'l' }); drawSpeed(); }
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    })();
+    return { stop() { on = false; return out; } };
   }
   const median = (a) => { const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  // Bufferbloat grade, on the usual scale (added latency under load).
+  const bloatGrade = (add) => (add == null ? null : add < 5 ? 'A+' : add < 30 ? 'A' : add < 60 ? 'B' : add < 200 ? 'C' : add < 400 ? 'D' : 'F');
+  const gradeWhat = { 'A+': 'No lag under load', A: 'Barely any lag under load', B: 'Some lag under load', C: 'Calls may stutter during big transfers', D: 'Calls and games lag during transfers', F: 'Heavy lag whenever the line is busy' };
+  function drawSpeed() {
+    const W = 300, H = 90, el = $('spSvg');
+    $('spGraph').hidden = !spPts.length;
+    if (!spPts.length) { el.innerHTML = ''; return; }
+    const tMax = Math.max(4, ...spPts.map((p) => p.t));
+    const mMax = Math.max(10, ...spPts.filter((p) => p.mbps != null).map((p) => p.mbps)) * 1.12;
+    const lMax = Math.max(60, ...spPts.filter((p) => p.k === 'l').map((p) => p.ms)) * 1.15;
+    const X = (t) => ((t / tMax) * W).toFixed(1);
+    const line = (k, val, max) => {
+      const pts = spPts.filter((p) => p.k === k);
+      if (!pts.length) return '';
+      const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.t)} ${(H - 4 - (val(p) / max) * (H - 10)).toFixed(1)}`).join('');
+      const area = k !== 'l' ? `<path class="sp-a sp-${k}" d="${d}L${X(pts[pts.length - 1].t)} ${H}L${X(pts[0].t)} ${H}Z"/>` : '';
+      return area + `<path class="sp-l sp-${k}" d="${d}"/>`;
+    };
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`
+      + `<path class="sp-grid" d="M0 ${H / 4}H${W}M0 ${H / 2}H${W}M0 ${(H * 3) / 4}H${W}"/>`
+      + line('d', (p) => p.mbps, mMax) + line('u', (p) => p.mbps, mMax) + line('l', (p) => p.ms, lMax) + '</svg>'
+      + `<span class="sp-max">${mMax >= 100 ? Math.round(mMax) : mMax.toFixed(1)} Mbps</span><span class="sp-lmax">${Math.round(lMax)} ms</span>`;
+  }
+  function showResult(res, live) {
+    const g = res.grade;
+    $('spGrade').hidden = !g;
+    if (g) {
+      $('spGrade').className = 'sp-grade g-' + g.replace('+', 'p');
+      $('spGrade').innerHTML = `<b>${g}</b><div><strong>Bufferbloat</strong><span>${gradeWhat[g]} &middot; +${Math.round(res.bloat)} ms when busy</span></div>`;
+    }
+    const ms = (v) => (v != null ? `${Math.round(v)} ms` : '');
+    kv($('speedStats'), [
+      ['Idle latency', res.lat != null ? `${Math.round(res.lat)} ms` : live ? '…' : '', res.lat == null ? '' : res.lat < 30 ? 'ok' : res.lat < 80 ? 'warn' : 'bad'],
+      ['Jitter', ms(res.jit)],
+      ['Latency, downloading', ms(res.latD)],
+      ['Latency, uploading', ms(res.latU)],
+      ['Packet loss', res.loss != null ? `${res.loss.toFixed(res.loss && res.loss < 1 ? 1 : 0)}%` : '', res.loss == null ? '' : res.loss === 0 ? 'ok' : res.loss < 2 ? 'warn' : 'bad'],
+      ['Resent packets', res.retrans != null ? `${res.retrans} of ${res.sent} (${((res.retrans / Math.max(1, res.sent)) * 100).toFixed(1)}%)` : ''],
+      ['Server', res.colo ? `Cloudflare ${res.colo}` + (res.proto ? ` · ${res.proto}` : '') : ''],
+      ['Tested', res.at ? new Date(res.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''],
+    ]);
+  }
+  let spHist = [];
+  try { spHist = JSON.parse(localStorage.getItem('te-m-speedhist') || '[]'); } catch (_) { /* */ }
+  function renderHist() {
+    $('spHist').hidden = spHist.length < 1;
+    const max = Math.max(1, ...spHist.map((h) => h.down || 0));
+    $('spHistRows').innerHTML = spHist.slice().reverse().slice(0, 8).map((h) => `<div class="sh-row">
+      <span class="sh-t">${new Date(h.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+      <span class="sh-bar"><i style="width:${((h.down / max) * 100).toFixed(0)}%"></i></span>
+      <span class="sh-v"><b>${h.down >= 100 ? Math.round(h.down) : h.down.toFixed(1)}</b>&darr; ${h.up >= 100 ? Math.round(h.up) : h.up.toFixed(1)}&uarr;</span>
+      <span class="sh-l">${Math.round(h.lat)} ms${h.grade ? ` · <em class="g-${h.grade.replace('+', 'p')}">${h.grade}</em>` : ''}</span></div>`).join('');
+  }
   let speedBusy = false;
   async function runSpeed() {
     if (speedBusy) return;
     speedBusy = true;
-    const btn = $('speedRun'), stats = $('speedStats');
+    const btn = $('speedRun');
     btn.disabled = true;
     const res = {};
-    const show = () => kv(stats, [
-      ['Latency', res.lat != null ? `${Math.round(res.lat)} ms` : '…'],
-      ['Jitter', res.jit != null ? `${Math.round(res.jit)} ms` : ''],
-      ['Server', res.colo ? `Cloudflare ${res.colo}` : ''],
-      ['Tested', res.at ? new Date(res.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''],
-    ]);
+    spPts = []; spT0 = performance.now(); drawSpeed(); $('spGrade').hidden = true;
     try {
       setGauge('gDown', null); setGauge('gUp', null);
-      btn.textContent = 'Measuring latency…'; show();
-      const ps = [];
-      for (let i = 0; i < 10; i++) { const p = await ping(); ps.push(p.ms); res.colo = p.colo || res.colo; }
-      ps.shift();   // the first opens the connection
-      res.lat = median(ps);
-      res.jit = ps.slice(1).reduce((a, v, i) => a + Math.abs(v - ps[i]), 0) / (ps.length - 1);
-      show();
+      btn.textContent = 'Measuring latency…'; showResult(res, true);
+      const ps = []; let tries = 0;
+      for (let i = 0; i < 12; i++) { const p = await ping(); tries++; ps.push(p.ms); res.colo = p.colo || res.colo; }
+      ps.shift(); tries--;   // the first opens the connection
+      const okPs = ps.filter((v) => v != null);
+      if (!okPs.length) throw new Error('no answer');
+      res.lat = median(okPs);
+      res.jit = okPs.length > 1 ? okPs.slice(1).reduce((a, v, i) => a + Math.abs(v - okPs[i]), 0) / (okPs.length - 1) : 0;
+      showResult(res, true);
       btn.textContent = 'Testing download…';
-      const dl = [];
-      for (const b of [1e5, 1e6, 5e6, 10e6]) { const m = await down(b); dl.push(m); setGauge('gDown', Math.max(...dl)); if (b >= 1e6 && m < 5) break; }
-      res.down = Math.max(...dl.slice(-2));
+      let lp = loadedPinger();
+      const dl = []; let l4 = null;
+      // Ramp up, then keep going for about 5 s (at most ~40 MB) so the
+      // graph shows how steady the line is, not just one burst.
+      let tB = 0, tS = 0, used = 0, size = 1e5;
+      const dEnd = performance.now() + 5000;
+      for (let n = 0; n < 40; n++) {
+        const d = await down(size); dl.push(d.mbps); l4 = d.l4 || l4; used += d.bytes;
+        if (size >= 1e6) { tB += d.bytes; tS += d.s; }
+        setGauge('gDown', tS ? (tB * 8) / tS / 1e6 : d.mbps);
+        if ((size >= 1e6 && d.mbps < 5) || performance.now() > dEnd || used > 40e6) break;
+        size = Math.min(10e6, size * (d.s < 0.5 ? 5 : 2));
+      }
+      const ldD = lp.stop();
+      res.down = tS ? (tB * 8) / tS / 1e6 : Math.max(...dl);
       setGauge('gDown', res.down);
+      if (l4) { res.retrans = l4.retrans; res.sent = l4.sent; res.proto = (l4.proto2 || '').replace('http/1.1', 'HTTP/1.1').replace(/^h(\d)$/, 'HTTP/$1'); }
+      const okD = ldD.filter((v) => v != null);
+      res.latD = okD.length ? median(okD) : null;
+      showResult(res, true);
       btn.textContent = 'Testing upload…';
+      lp = loadedPinger();
       const ul = [];
-      for (const b of [1e5, 1e6, 3e6]) { const m = await up(b); ul.push(m); setGauge('gUp', Math.max(...ul)); if (b >= 1e6 && m < 3) break; }
-      res.up = Math.max(...ul.slice(-2));
+      let uB = 0, uS = 0, uUsed = 0, uSize = 1e5;
+      const uEnd = performance.now() + 5000;
+      for (let n = 0; n < 40; n++) {
+        const t = performance.now(), m = await up(uSize); ul.push(m); uUsed += uSize;
+        if (uSize >= 1e6) { uB += uSize; uS += (performance.now() - t) / 1000; }
+        setGauge('gUp', uS ? (uB * 8) / uS / 1e6 : m);
+        if ((uSize >= 1e6 && m < 3) || performance.now() > uEnd || uUsed > 15e6) break;
+        uSize = Math.min(3e6, uSize * 3);
+      }
+      const ldU = lp.stop();
+      res.up = uS ? (uB * 8) / uS / 1e6 : Math.max(...ul);
       setGauge('gUp', res.up);
+      const okU = ldU.filter((v) => v != null);
+      res.latU = okU.length ? median(okU) : null;
+      // Loss: pings that never came back, idle and under load.
+      const all = ps.concat(ldD, ldU);
+      res.loss = (all.filter((v) => v == null).length / Math.max(1, all.length)) * 100;
+      const loaded = [res.latD, res.latU].filter((v) => v != null);
+      res.bloat = loaded.length ? Math.max(0, Math.max(...loaded) - res.lat) : null;
+      res.grade = bloatGrade(res.bloat);
       res.at = Date.now();
-      show();
+      showResult(res);
       try { localStorage.setItem('te-m-speed', JSON.stringify(res)); } catch (_) { /* */ }
+      spHist.push({ at: res.at, down: res.down, up: res.up, lat: res.lat, grade: res.grade });
+      spHist = spHist.slice(-20);
+      try { localStorage.setItem('te-m-speedhist', JSON.stringify(spHist)); } catch (_) { /* */ }
+      renderHist();
       lastSpeed = res;
       refreshPhone();
     } catch (e) {
@@ -131,11 +262,10 @@
   $('speedRun').addEventListener('click', runSpeed);
   function refreshTests() {
     renderConn();
+    renderHist();
     if (lastSpeed && !speedBusy) {
       setGauge('gDown', lastSpeed.down); setGauge('gUp', lastSpeed.up);
-      kv($('speedStats'), [['Latency', `${Math.round(lastSpeed.lat)} ms`], ['Jitter', `${Math.round(lastSpeed.jit)} ms`],
-        ['Server', lastSpeed.colo ? `Cloudflare ${lastSpeed.colo}` : ''],
-        ['Tested', new Date(lastSpeed.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })]]);
+      showResult(lastSpeed);
       $('speedRun').textContent = 'Run again';
     }
   }
@@ -189,7 +319,31 @@
     const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
     return h ? `${h} h ${m} min` : `${m} min`;
   }
+  // What the connection itself looks like from the edge (WiFiman-style
+  // details): Cloudflare's trace says which address, protocol, TLS version
+  // and key exchange it saw; IPv4 / IPv6 are tested separately by reaching
+  // 1.1.1.1 on each. Refreshed at most once a minute.
+  let netInfo = null, netInfoAt = 0;
+  async function reach(url) {
+    const ac = new AbortController(), to = setTimeout(() => ac.abort(), 4000);
+    try { const t0 = performance.now(); await fetch(url, { mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: ac.signal }); return performance.now() - t0; }
+    catch (_) { return null; } finally { clearTimeout(to); }
+  }
+  async function loadNetInfo() {
+    if (Date.now() - netInfoAt < 60e3) return;
+    netInfoAt = Date.now();
+    const info = {};
+    try {
+      const txt = await (await fetch(`${CF}/cdn-cgi/trace?r=${Math.random()}`, { cache: 'no-store', credentials: 'omit' })).text();
+      txt.split('\n').forEach((l) => { const i = l.indexOf('='); if (i > 0) info[l.slice(0, i)] = l.slice(i + 1); });
+    } catch (_) { /* */ }
+    const [v4, v6] = await Promise.all([reach('https://1.1.1.1/cdn-cgi/trace'), reach('https://[2606:4700:4700::1111]/cdn-cgi/trace')]);
+    info.v4 = v4; info.v6 = v6;
+    netInfo = info;
+    if (tab === 'phone') refreshNet();
+  }
   async function refreshNet() {
+    loadNetInfo();
     const q = quality();
     $('phBars').dataset.n = q.bars;
     $('phBars').className = 'bars q' + q.bars;
@@ -201,12 +355,23 @@
     kv($('phNetKv'), [
       ['Status', navigator.onLine ? 'Online' : 'Offline'],
       ['Round trip to edge', q.rtt != null ? `${Math.round(q.rtt)} ms` : '', q.rtt != null ? (q.rtt < 50 ? 'ok' : q.rtt < 100 ? 'warn' : 'bad') : ''],
-      ['Nearest edge', edge && edge.colo ? `Cloudflare ${edge.colo}` : ''],
+      ['Nearest edge', edge && edge.colo ? `Cloudflare ${edge.colo}` : netInfo && netInfo.colo ? `Cloudflare ${netInfo.colo}` : ''],
+      ['Edge-measured round trip', liveL4 && liveL4.rtt != null ? `${liveL4.rtt.toFixed(1)} ms` : '', liveL4 && liveL4.rtt != null ? (liveL4.rtt < 30 ? 'ok' : liveL4.rtt < 80 ? 'warn' : 'bad') : ''],
+      ['Resent packets (this link)', liveL4 && liveL4.retrans != null && liveL4.sent ? `${liveL4.retrans} of ${liveL4.sent} (${((liveL4.retrans / liveL4.sent) * 100).toFixed(1)}%)` : '', liveL4 && liveL4.retrans != null ? (liveL4.retrans / Math.max(1, liveL4.sent) < 0.01 ? 'ok' : liveL4.retrans / Math.max(1, liveL4.sent) < 0.03 ? 'warn' : 'bad') : ''],
+      ...['v4', 'v6'].map((f) => {
+        if (!netInfo) return [f === 'v4' ? 'IPv4' : 'IPv6', ''];
+        const seen = netInfo.ip && (f === 'v6' ? netInfo.ip.includes(':') : netInfo.ip.includes('.'));
+        const ms = netInfo[f];
+        return [f === 'v4' ? 'IPv4' : 'IPv6', ms != null ? `Yes · ${Math.round(ms)} ms` : seen ? 'Yes' : 'Not detected', ms != null || seen ? 'ok' : ''];
+      }),
+      ['Protocol', netInfo && netInfo.http ? netInfo.http.toUpperCase().replace('HTTP/2', 'HTTP/2').replace('HTTP/3', 'HTTP/3 (QUIC)') + (netInfo.tls ? ` · ${netInfo.tls.replace('TLSv', 'TLS ')}` : '') : ''],
+      ['Key exchange', netInfo && netInfo.kex ? netInfo.kex + (/MLKEM|Kyber/i.test(netInfo.kex) ? ' (post-quantum)' : '') : ''],
+      ['Cloudflare WARP', netInfo && netInfo.warp && netInfo.warp !== 'off' ? 'On' : ''],
       ['Browser estimate', conn && conn.downlink ? `${conn.downlink} Mbps · ${conn.rtt} ms` : ''],
       ['Data saver', conn && conn.saveData ? 'On' : ''],
       ['Last speed test', lastSpeed ? `${lastSpeed.down.toFixed(1)} ↓ / ${lastSpeed.up.toFixed(1)} ↑ Mbps` : 'Run one in Network'],
       ['Provider', room && room.org ? room.org + (room.asn ? ` (AS${room.asn})` : '') : ''],
-      ['Public IP', room && room.ip ? room.ip : ''],
+      ['Public IP', netInfo && netInfo.ip ? netInfo.ip : room && room.ip ? room.ip : ''],
     ]);
   }
   // ── Phone: a live, second-by-second round trip to the nearest edge (the
@@ -215,7 +380,7 @@
   // the last 10 minutes are kept, so coming back picks up where it left off.
   const LIVE_SPAN = 600e3, LIVE_URL = 'https://speed.cloudflare.com/cdn-cgi/trace';
   const live = [];
-  let liveBusy = false, liveWarm = false;
+  let liveBusy = false, liveWarm = false, liveL4 = null;
   async function livePing() {
     if (liveBusy || tab !== 'phone' || document.hidden) return;
     liveBusy = true;
@@ -223,10 +388,14 @@
     let ms = null;
     try {
       if (!liveWarm) { await fetch(LIVE_URL, { cache: 'no-store', credentials: 'omit', signal: ac.signal }).then((r) => r.text()); liveWarm = true; }
+      const u = `${CF}/__down?bytes=0&r=${Math.random()}`;
       const t0 = performance.now();
-      const r = await fetch(LIVE_URL, { cache: 'no-store', credentials: 'omit', signal: ac.signal });
+      const r = await fetch(u, { cache: 'no-store', credentials: 'omit', signal: ac.signal });
       await r.text();
       ms = performance.now() - t0;
+      const l4 = cfL4(u);
+      if (l4) liveL4 = l4;
+      if (performance.getEntriesByType('resource').length > 200) performance.clearResourceTimings();
     } catch (_) { liveWarm = false; }
     clearTimeout(to);
     const now = Date.now();
