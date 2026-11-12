@@ -25,7 +25,7 @@
   };
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
-  const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone') };
+  const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone'), tenant: $('viewTenant') };
   let tab = 'home';
   function setTab(name, fromPop) {
     // Weather again (Show radar, a county): fold the sheet to show its globe.
@@ -45,6 +45,7 @@
     if (name === 'home') { refreshHome(); spinRings(); }
     if (name === 'weather') refreshWeather();
     if (name === 'globe') updateOTabs();
+    if (name === 'tenant') renderTenant();
   }
 
   // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
@@ -110,11 +111,23 @@
     if (t === 'tenant') renderTenantOutages();
   }
   function updateOTabs() {
-    const on = !!(window.TEConn && TEConn.on());
+    // Tenant lives in its own tab now - Outages is global only.
     const btn = document.querySelector('#oTabs .ot-tab[data-otab="tenant"]');
-    if (btn) btn.hidden = !on;
-    if (on) renderTenantOutages();
-    setOTab(on ? oTab : 'world');
+    if (btn) btn.hidden = true;
+    setOTab('world');
+  }
+  // The dedicated ThousandEyes tab: the connect card, active alerts and the
+  // endpoint match (moved here from Network / Outages / This Device).
+  (function buildTenant() {
+    const root = $('tnRoot'); if (!root) return;
+    ['teConnCard', 'teTenant', 'phTE'].forEach((id) => { const el = $(id); if (el) root.appendChild(el); });
+  })();
+  function renderTenant() {
+    const on = !!(window.TEConn && TEConn.on());
+    const t = $('teTenant'), ep = $('phTE');
+    if (t) t.hidden = !on;
+    if (ep) ep.hidden = !on;
+    if (on) { TEConn.refresh(); renderTenantOutages(); renderTEEndpoint(); }
   }
   function renderTenantOutages() {
     if (!window.TEConn || !TEConn.on()) return;
@@ -142,8 +155,8 @@
     const op = al.classList.toggle('open');
     if (op) openAlerts.add(al.dataset.aid); else openAlerts.delete(al.dataset.aid);
   });
-  addEventListener('te-conn', () => updateOTabs());
-  addEventListener('te-data', () => { if (tab === 'globe') updateOTabs(); });
+  addEventListener('te-conn', () => { updateOTabs(); if (tab === 'tenant') renderTenant(); });
+  addEventListener('te-data', () => { if (tab === 'tenant') renderTenant(); });
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');
@@ -842,12 +855,8 @@
     // Hero rings (fuller = healthier): This Device, My Network (services, plus
     // tenant if connected), Internet Insights network, and applications (outer).
     const dev = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
+    // Tenant data is no longer blended in here - the Network ring is service checks.
     let net = svcs.length ? Math.round((good / svcs.length) * 100) : null;
-    if (window.TEConn && TEConn.on()) {
-      const sm = TEConn.summary(), sv = sm.alerts.bySeverity || {}, maj = (sv.CRITICAL || 0) + (sv.MAJOR || 0);
-      const tenant = Math.max(0, 100 - (maj * 22 + (sm.alerts.total - maj) * 8));
-      net = net != null ? Math.round((net + tenant) / 2) : tenant;
-    }
     if (net == null) net = 0;
     // Internet Insights rings: outages in the window (active hit hard, recently
     // cleared ones dent, capped) so the ring is never full when outages occurred.
@@ -856,17 +865,16 @@
     const iiNet = Math.max(0, Math.min(100, 100 - nAct * 16 - Math.min(30, (netAll.length - nAct) * 2.5)));
     const iiApp = Math.max(0, Math.min(100, 100 - aAct * 16 - Math.min(30, (appAll.length - aAct) * 2.5)));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
-    const tenantOn = !!(window.TEConn && TEConn.on());
     const legRow = (x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
     // Apps + Internet are out on the public internet (external); Network and
     // this Device are things you run (internal).
     $('hmRingLegend').innerHTML =
       `<div class="rg-grp"><em class="rg-cat">External</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
-      + `<div class="rg-grp"><em class="rg-cat">Internal</em>${[['#78be20', tenantOn ? 'Network+' : 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
+      + `<div class="rg-grp"><em class="rg-cat">Internal</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
     homeRings = {
       rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
       rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
-      rgNet: { name: tenantOn ? 'Network+' : 'Network', color: '#78be20', val: net, desc: tenantOn ? 'Your service checks, plus active alerts in your ThousandEyes tenant.' : 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
+      rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
       rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
     };
   }
@@ -927,12 +935,7 @@
   }
   function renderHomeFeed() {
     const A = window.TEApp, host = $('hmList'); if (!host) return;
-    // Tenant alerts, most severe / newest first.
-    const alerts = [];
-    if (window.TEConn && TEConn.on()) {
-      TEConn.alerts().forEach((a) => { const n = normAlert(a); alerts.push({ sev: AL_SEV[n.sev] || 0, name: n.sev || 'ALERT', t: n.start || 0, html: alertRow(n) }); });
-    }
-    alerts.sort((a, b) => b.sev - a.sev || b.t - a.t);
+    // Tenant alerts now live in the dedicated Tenant tab, not here.
     // Active Internet Insights outages, network first then newest.
     const act = (A && A.outages ? A.outages() : []).filter((o) => o.active)
       .sort((a, b) => (b.kind === 'network') - (a.kind === 'network') || (b.start || 0) - (a.start || 0));
@@ -941,10 +944,6 @@
     const news = homeNews.slice(0, 4).slice().sort((a, b) => b.t - a.t);
 
     const parts = [];
-    const sevCnt = {}; alerts.forEach((x) => { sevCnt[x.name] = (sevCnt[x.name] || 0) + 1; });
-    const aSub = Object.entries(sevCnt).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(' \u00b7 ');
-    const aTag = alerts.length ? `<em class="feed-tag sev-${sevCls(alerts[0].name)}">${alerts.length}</em>` : '';
-    parts.push(feedGroup('alerts', 'g-alert', ALERT_ICO, alerts.map((x) => x.html), 'ThousandEyes alerts', aSub, aTag));
     const nNet = act.filter((o) => o.kind === 'network').length, nApp = act.length - nNet;
     const oSub = [nNet ? `${nNet} network` : '', nApp ? `${nApp} application` : ''].filter(Boolean).join(' \u00b7 ');
     parts.push(feedGroup('outages', 'g-outage', OUTAGE_ICO, outRows, 'active outages', oSub, `<em class="feed-tag count">${outRows.length}</em>`));
@@ -957,7 +956,7 @@
       if (openGroups.has(g.dataset.grp)) { g.classList.add('open'); const h = g.querySelector('.grp-head'); if (h) h.setAttribute('aria-expanded', 'true'); }
     });
     host.querySelectorAll('.feed-alert').forEach((li) => { if (openAlerts.has(li.dataset.aid)) li.classList.add('open'); });
-    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = (alerts.length || act.length) ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
+    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = act.length ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
     loadHomeNews();
   }
   document.querySelectorAll('#viewHome [data-go]').forEach((el) => el.addEventListener('click', () => {
@@ -1087,7 +1086,7 @@
   // Back to the last tab - last, once everything above is set up.
   let start = 'home';
   try { start = sessionStorage.getItem('te-m-tab') || 'home'; } catch (_) { /* */ }
-  const startTab = (views[start] || start === 'globe') ? start : 'home';
+  const startTab = (start !== 'phone' && (views[start] || start === 'globe')) ? start : 'home';
   setTab(startTab);
   // Seed history so the very first Back has a tab to return to, and route Back
   // / Forward through the tabs rather than off the page.
