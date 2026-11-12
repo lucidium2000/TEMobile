@@ -793,16 +793,16 @@
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
-      ['#16bdeb', 'Applications', iiApp],
+      ['#00bceb', 'Apps', iiApp],
+      ['#78be20', tenantOn ? 'Network + Tenant' : 'Network', net],
       ['#f15e22', 'Internet', iiNet],
-      ['#34d399', tenantOn ? 'My Network + Tenant' : 'My Network', net],
-      ['#7c3aed', 'This Device', dev],
+      ['#7c3aed', 'Device', dev],
     ].map((x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
     homeRings = {
-      rgIIApp: { name: 'Applications', color: '#16bdeb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
+      rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
       rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
-      rgNet: { name: tenantOn ? 'My Network + Tenant' : 'My Network', color: '#34d399', val: net, desc: tenantOn ? 'Your service checks, plus active alerts in your ThousandEyes tenant.' : 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
-      rgDevice: { name: 'This Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
+      rgNet: { name: tenantOn ? 'Network + Tenant' : 'Network', color: '#78be20', val: net, desc: tenantOn ? 'Your service checks, plus active alerts in your ThousandEyes tenant.' : 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
+      rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
     };
   }
   function setRing(id, v) {

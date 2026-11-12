@@ -269,13 +269,13 @@ body { background: #03050a; }
 .rg.r-dev   { stroke: #7c3aed; filter: drop-shadow(0 0 5px rgba(124, 58, 237, .8)); }   /* This Device - violet */
 .rg.r-net   { stroke: #34d399; filter: drop-shadow(0 0 5px rgba(52, 211, 153, .6)); }
 .rg.r-iinet { stroke: #f15e22; filter: drop-shadow(0 0 6px rgba(241, 94, 34, .7)); }   /* Internet / network - orange */
-.rg.r-app   { stroke: #16bdeb; filter: drop-shadow(0 0 5px rgba(22, 189, 235, .65)); }  /* Applications - cyan/light blue */
+.rg.r-app   { stroke: #00bceb; filter: drop-shadow(0 0 5px rgba(0, 188, 235, .65)); }   /* Apps - Cisco blue */
 @keyframes ringspin { to { transform: rotate(360deg); } }
 .rg-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; pointer-events: none; }
 .rg-center b { font-size: 2.5em; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: #fff; text-shadow: 0 0 26px rgba(var(--c2), .65); font-variant-numeric: tabular-nums; }
 .rg-center small { font-size: .62em; letter-spacing: .22em; text-transform: uppercase; color: var(--c); font-weight: 700; margin-top: 2px; }
-.rg-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px 16px; margin-top: 12px; padding: 0 8px; }
-.rg-legend span { display: inline-flex; align-items: center; gap: 7px; font-size: .92em; font-weight: 800; }
+.rg-legend { display: grid; grid-template-columns: auto auto; justify-content: center; justify-items: start; gap: 8px 22px; margin-top: 12px; padding: 0 8px; }
+.rg-legend span { display: inline-flex; align-items: center; gap: 7px; font-size: .9em; font-weight: 800; white-space: nowrap; }
 .rg-legend i { width: 11px; height: 11px; border-radius: 50%; flex: none; box-shadow: 0 0 7px currentColor; }
 .rg-legend b { color: #fff; font-weight: 800; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .rings::before, .rg-val circle { animation: none; } }
