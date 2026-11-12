@@ -791,8 +791,8 @@
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
       ['#00bceb', 'Apps', iiApp],
-      ['#78be20', tenantOn ? 'Network+' : 'Network', net],
       ['#f15e22', 'Internet', iiNet],
+      ['#78be20', tenantOn ? 'Network+' : 'Network', net],
       ['#7c3aed', 'Device', dev],
     ].map((x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
     homeRings = {
