@@ -860,6 +860,8 @@
   // security news (Hacker News Algolia, keyless, best-effort). ──────────────
   const ALERT_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
   const NEWS_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14H5a2 2 0 0 1-2-2V7M17 8h3v9a2 2 0 0 1-2 2M7 9h7M7 13h7"/></svg>';
+  const OUTAGE_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
+  const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
   const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'news'; } };
   let homeNews = [], newsAt = 0;
   async function loadHomeNews() {
@@ -874,24 +876,49 @@
       if (tab === 'home') renderHomeFeed();
     } catch (_) { /* best-effort */ }
   }
+  // Row builders - one per feed kind (a single item renders as a plain row).
+  const alertRow = (n) => `<li class="feed-alert sev-${sevCls(n.sev)}" data-alert="1"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}</span></li>`;
+  const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
+  const newsRow = (n) => `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`;
+  // Which rolled-up groups the user has expanded (kept across the 4s refresh).
+  const openGroups = new Set();
+  function feedGroup(key, cls, ico, rows, label, sub, tag) {
+    if (!rows.length) return '';
+    if (rows.length === 1) return rows[0];                        // one of a kind: show it plainly
+    return `<li class="feed-group ${cls}" data-grp="${key}"><button type="button" class="grp-head" aria-expanded="false"><span class="ico">${ico}</span><span class="nm">${rows.length} ${esc(label)}<small>${esc(sub)}</small></span><span class="ago">${tag}${CHEV}</span></button><ol class="grp-body">${rows.join('')}</ol></li>`;
+  }
   function renderHomeFeed() {
     const A = window.TEApp, host = $('hmList'); if (!host) return;
-    const items = [];
+    // Tenant alerts, most severe / newest first.
+    const alerts = [];
     if (window.TEConn && TEConn.on()) {
-      TEConn.alerts().forEach((a) => {
-        const n = normAlert(a);
-        items.push({ pri: 0, sev: AL_SEV[n.sev] || 0, t: n.start || 0,
-          html: `<li class="feed-alert sev-${sevCls(n.sev)}"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}</span></li>` });
-      });
+      TEConn.alerts().forEach((a) => { const n = normAlert(a); alerts.push({ sev: AL_SEV[n.sev] || 0, name: n.sev || 'ALERT', t: n.start || 0, html: alertRow(n) }); });
     }
-    const act = (A && A.outages ? A.outages() : []).filter((o) => o.active);
-    act.forEach((o) => items.push({ pri: 1, sev: o.kind === 'network' ? 2 : 1, t: o.start || 0,
-      html: `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>` }));
-    homeNews.slice(0, 2).forEach((n) => items.push({ pri: 2, sev: 0, t: n.t,
-      html: `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>` }));
-    items.sort((a, b) => a.pri - b.pri || b.sev - a.sev || b.t - a.t);
-    host.innerHTML = items.length ? items.map((i) => i.html).join('') : '<li class="empty">All clear \u2014 no active alerts or outages</li>';
-    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = items.some((i) => i.pri < 2) ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
+    alerts.sort((a, b) => b.sev - a.sev || b.t - a.t);
+    // Active Internet Insights outages, network first then newest.
+    const act = (A && A.outages ? A.outages() : []).filter((o) => o.active)
+      .sort((a, b) => (b.kind === 'network') - (a.kind === 'network') || (b.start || 0) - (a.start || 0));
+    const outRows = act.map((o) => outageRow(o, A));
+    // Recent news, newest first.
+    const news = homeNews.slice(0, 4).slice().sort((a, b) => b.t - a.t);
+
+    const parts = [];
+    const sevCnt = {}; alerts.forEach((x) => { sevCnt[x.name] = (sevCnt[x.name] || 0) + 1; });
+    const aSub = Object.entries(sevCnt).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(' \u00b7 ');
+    const aTag = alerts.length ? `<em class="feed-tag sev-${sevCls(alerts[0].name)}">${alerts.length}</em>` : '';
+    parts.push(feedGroup('alerts', 'g-alert', ALERT_ICO, alerts.map((x) => x.html), 'ThousandEyes alerts', aSub, aTag));
+    const nNet = act.filter((o) => o.kind === 'network').length, nApp = act.length - nNet;
+    const oSub = [nNet ? `${nNet} network` : '', nApp ? `${nApp} application` : ''].filter(Boolean).join(' \u00b7 ');
+    parts.push(feedGroup('outages', 'g-outage', OUTAGE_ICO, outRows, 'active outages', oSub, `<em class="feed-tag count">${outRows.length}</em>`));
+    const nSub = news.length ? news[0].title : '';
+    parts.push(feedGroup('news', 'g-news', NEWS_ICO, news.map(newsRow), 'news stories', nSub, `<em class="feed-tag count">${news.length}</em>`));
+
+    const html = parts.filter(Boolean).join('');
+    host.innerHTML = html || '<li class="empty">All clear \u2014 no active alerts or outages</li>';
+    host.querySelectorAll('.feed-group').forEach((g) => {        // re-apply expanded state after the rebuild
+      if (openGroups.has(g.dataset.grp)) { g.classList.add('open'); const h = g.querySelector('.grp-head'); if (h) h.setAttribute('aria-expanded', 'true'); }
+    });
+    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = (alerts.length || act.length) ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
     loadHomeNews();
   }
   document.querySelectorAll('#viewHome [data-go]').forEach((el) => el.addEventListener('click', () => {
@@ -899,7 +926,16 @@
     setTab(el.dataset.go);
   }));
   $('hmList').addEventListener('click', (e) => {
-    const li = e.target.closest('li'); if (!li) return;
+    const head = e.target.closest('.grp-head');                  // tap a roll-up summary to expand / collapse it
+    if (head) {
+      const g = head.closest('.feed-group'); if (!g) return;
+      const open = g.classList.toggle('open');
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) openGroups.add(g.dataset.grp); else openGroups.delete(g.dataset.grp);
+      if (window.Sfx) window.Sfx.play('tap');
+      return;
+    }
+    const li = e.target.closest('li'); if (!li || li.classList.contains('feed-group')) return;
     if (li.dataset.url) { window.open(li.dataset.url, '_blank', 'noopener'); return; }
     if (window.Sfx) window.Sfx.play('tap');
     if (li.dataset.id && window.TEApp) { setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50); return; }
