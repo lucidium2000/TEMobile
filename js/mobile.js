@@ -789,15 +789,19 @@
       net = net != null ? Math.round((net + tenant) / 2) : tenant;
     }
     if (net == null) net = 0;
-    const netOut = act.filter((o) => o.kind === 'network').length, appOut = act.filter((o) => o.kind !== 'network').length;
-    const iiNet = Math.max(0, 100 - Math.min(100, netOut * 12)), iiApp = Math.max(0, 100 - Math.min(100, appOut * 12));
+    // Internet Insights rings: outages in the window (active hit hard, recently
+    // cleared ones dent, capped) so the ring is never full when outages occurred.
+    const netAll = os.filter((o) => o.kind === 'network'), appAll = os.filter((o) => o.kind !== 'network');
+    const nAct = netAll.filter((o) => o.active).length, aAct = appAll.filter((o) => o.active).length;
+    const iiNet = Math.max(0, Math.min(100, 100 - nAct * 16 - Math.min(30, (netAll.length - nAct) * 2.5)));
+    const iiApp = Math.max(0, Math.min(100, 100 - aAct * 16 - Math.min(30, (appAll.length - aAct) * 2.5)));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
-      ['#16bdeb', 'This Device', dev],
+      ['#7c3aed', 'This Device', dev],
       ['#34d399', tenantOn ? 'My Network + Tenant' : 'My Network', net],
-      ['#f7873a', 'Internet', iiNet],
-      ['#a78bfa', 'Applications', iiApp],
+      ['#f15e22', 'Internet', iiNet],
+      ['#16bdeb', 'Applications', iiApp],
     ].map((x) => `<span><i style="color:${x[0]};background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
   }
   function setRing(id, v) { const el = $(id); if (el) el.style.strokeDashoffset = String(100 - Math.max(0, Math.min(100, v || 0))); }

@@ -6,7 +6,7 @@ The phone edition of [TERoomApp](https://github.com/lucidium2000/TERoomApp), the
 
 ## Tabs
 
-- **Home** - a glance at everything. An animated multi-ring gauge (radial bars) shows health at four layers, fuller = healthier: **This Device** (cyan, connection quality), **My Network** (green, service checks plus your ThousandEyes tenant if connected), **Internet** (orange, Internet Insights network outages) and **Applications** (violet, outermost). Plus the latest outages (tap one to see it on the globe), today's weather and any alert, connection quality with each service check, the last speed test, battery and location. Each card opens its tab.
+- **Home** - a glance at everything. An animated multi-ring gauge (radial bars) shows health at four layers, fuller = healthier: **This Device** (violet, connection quality), **My Network** (green, service checks plus your ThousandEyes tenant if connected), **Internet** (orange, Internet Insights network outages) and **Applications** (light blue, outermost) - orange and light blue matching the network/application colours used across the app. Plus the latest outages (tap one to see it on the globe), today's weather and any alert, connection quality with each service check, the last speed test, battery and location. Each card opens its tab.
 - **Network** - this phone's connection, measured live:
   - **Your connection**: quality, round trip to the nearest internet edge every 30 s on a one-hour timeline (like the service rows), with average, best, worst, jitter and reachability.
   - **Service checks** (Webex, Microsoft, Google, AWS, Zoom, editable with the gear): HTTP status, response time, a one-hour timeline, the local-edge round trip; tap one to trace its path on the globe.

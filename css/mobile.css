@@ -266,10 +266,10 @@ body { background: #03050a; }
 .rings-svg { position: relative; width: 100%; height: 100%; display: block; animation: ringspin 26s linear infinite; }
 .rg-track circle { fill: none; stroke: rgba(255, 255, 255, .06); stroke-width: 11; }
 .rg-val circle { fill: none; stroke-width: 11; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 100px 100px; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset 1.1s cubic-bezier(.22, 1, .36, 1); }
-.rg.r-dev   { stroke: #16bdeb; filter: drop-shadow(0 0 5px rgba(22, 189, 235, .75)); }
+.rg.r-dev   { stroke: #7c3aed; filter: drop-shadow(0 0 5px rgba(124, 58, 237, .8)); }   /* This Device - violet */
 .rg.r-net   { stroke: #34d399; filter: drop-shadow(0 0 5px rgba(52, 211, 153, .6)); }
-.rg.r-iinet { stroke: #f7873a; filter: drop-shadow(0 0 5px rgba(241, 94, 34, .6)); }
-.rg.r-app   { stroke: #a78bfa; filter: drop-shadow(0 0 5px rgba(139, 92, 246, .65)); }
+.rg.r-iinet { stroke: #f15e22; filter: drop-shadow(0 0 6px rgba(241, 94, 34, .7)); }   /* Internet / network - orange */
+.rg.r-app   { stroke: #16bdeb; filter: drop-shadow(0 0 5px rgba(22, 189, 235, .65)); }  /* Applications - cyan/light blue */
 @keyframes ringspin { to { transform: rotate(360deg); } }
 .rg-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; pointer-events: none; }
 .rg-center b { font-size: 2.5em; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: #fff; text-shadow: 0 0 26px rgba(var(--c2), .65); font-variant-numeric: tabular-nums; }
