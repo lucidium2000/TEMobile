@@ -27,9 +27,12 @@
   // ── Tabs ─────────────────────────────────────────────────────────────────
   const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone') };
   let tab = 'home';
-  function setTab(name) {
+  function setTab(name, fromPop) {
     // Weather again (Show radar, a county): fold the sheet to show its globe.
     if (name === 'weather' && tab === 'weather') { foldWx(true); return; }
+    // Keep the device Back button / swipe inside the app: each tab change is a
+    // history entry, so Back returns to the previous tab instead of leaving.
+    if (!fromPop && name !== tab) { try { history.pushState({ teTab: name }, ''); } catch (_) { /* */ } }
     if ((name === 'globe' || name === 'weather') && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
     tab = name;
     document.body.dataset.tab = name;
@@ -1047,7 +1050,15 @@
   // Back to the last tab - last, once everything above is set up.
   let start = 'home';
   try { start = sessionStorage.getItem('te-m-tab') || 'home'; } catch (_) { /* */ }
-  setTab(views[start] || start === 'globe' ? start : 'home');
+  const startTab = (views[start] || start === 'globe') ? start : 'home';
+  setTab(startTab);
+  // Seed history so the very first Back has a tab to return to, and route Back
+  // / Forward through the tabs rather than off the page.
+  try { history.replaceState({ teTab: startTab }, ''); } catch (_) { /* */ }
+  addEventListener('popstate', (e) => {
+    const t = e.state && e.state.teTab;
+    if (t && t !== tab) setTab(t, true);
+  });
 
   // ── iPhone / iPad: Safari never offers to install a web app (no install
   // event, unlike Chrome on Android), so explain the Share-sheet way once.

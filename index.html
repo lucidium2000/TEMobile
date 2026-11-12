@@ -58,7 +58,7 @@
     <!-- Toggle between the global Internet Insights view and the user's own
          ThousandEyes tenant (the tenant tab appears only when connected). -->
     <div class="sheet-tabs" id="oTabs">
-      <button class="ot-tab on" data-otab="world" type="button"><img class="ot-eye" src="assets/te-eye.png" alt="" aria-hidden="true">Around the World</button>
+      <button class="ot-tab on" data-otab="world" type="button"><img class="ot-eye" src="assets/te-eye.png" alt="" aria-hidden="true">Global Outages</button>
       <button class="ot-tab" data-otab="tenant" type="button" hidden>My ThousandEyes<i class="ot-badge" id="oTenantBadge" hidden></i></button>
       <button class="win-btn ot-win" id="winBtn" title="Time window: tap to change">Last 24 hours</button>
     </div>
@@ -409,10 +409,10 @@
 
   <nav class="tabbar" id="tabbar" aria-label="Sections">
     <button data-tab="home" class="on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/></svg><span>Home</span></button>
+    <button data-tab="phone"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span>Phone</span></button>
     <button data-tab="tests"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Network</span></button>
     <button data-tab="globe"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg><span>Outages</span></button>
     <button data-tab="weather"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg><span>Weather</span></button>
-    <button data-tab="phone"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg><span>Phone</span></button>
   </nav>
   <div class="toast" id="toast" hidden></div>
   <!-- iPhone / iPad Safari can't be asked to install a web app, so show how (once). -->
@@ -443,7 +443,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=36"></script>
+  <script src="js/mobile.js?v=37"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
