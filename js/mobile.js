@@ -737,8 +737,6 @@
     const act = os.filter((o) => o.active), win = h === 1 ? 'the last hour' : `the last ${h} hours`;
     const hero = $('hmHero');
     hero.dataset.state = !os.length && !A.outages ? 'wait' : act.length >= 5 ? 'bad' : act.length ? 'warn' : 'ok';
-    $('hmHeroN').textContent = act.length;
-    $('hmHeroK').textContent = 'active';
     $('hmHeroTitle').textContent = act.length ? (act.length > 1 ? 'Outages in progress' : 'Outage in progress') : 'The internet looks healthy';
     renderHomeFeed();
     // Weather tile.
@@ -794,14 +792,14 @@
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
       ['#00bceb', 'Apps', iiApp],
-      ['#78be20', tenantOn ? 'Network + Tenant' : 'Network', net],
+      ['#78be20', tenantOn ? 'Network+' : 'Network', net],
       ['#f15e22', 'Internet', iiNet],
       ['#7c3aed', 'Device', dev],
     ].map((x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
     homeRings = {
       rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
       rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
-      rgNet: { name: tenantOn ? 'Network + Tenant' : 'Network', color: '#78be20', val: net, desc: tenantOn ? 'Your service checks, plus active alerts in your ThousandEyes tenant.' : 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
+      rgNet: { name: tenantOn ? 'Network+' : 'Network', color: '#78be20', val: net, desc: tenantOn ? 'Your service checks, plus active alerts in your ThousandEyes tenant.' : 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
       rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
     };
   }
