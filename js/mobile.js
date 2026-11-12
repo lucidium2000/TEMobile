@@ -805,7 +805,12 @@
       rgDevice: { name: 'This Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
     };
   }
-  function setRing(id, v) { const el = $(id); if (el) el.style.strokeDashoffset = String(100 - Math.max(0, Math.min(100, v || 0))); }
+  function setRing(id, v) {
+    const el = $(id); if (!el) return;
+    const c = Math.max(0, Math.min(100, v || 0));
+    el.style.strokeDashoffset = String(100 - c);
+    el.style.animationDuration = (8 + (100 - c) * 0.34).toFixed(1) + 's';   // higher % -> faster
+  }
 
   // ── Home feed: current before past - tenant active alerts, then active
   // Internet Insights outages (network + application), then recent network /
