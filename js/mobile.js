@@ -41,7 +41,36 @@
     if (name === 'tests') refreshTests();
     if (name === 'home') refreshHome();
     if (name === 'weather') refreshWeather();
+    if (name === 'globe') renderTenantOutages();
   }
+
+  // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
+  const AL_SEV = { CRITICAL: 3, MAJOR: 3, MINOR: 2, INFO: 1, WARNING: 2 };
+  function alertSince(ms) {
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min'; if (s < 86400) return Math.round(s / 3600) + ' h'; return Math.round(s / 86400) + ' d';
+  }
+  function renderTenantOutages() {
+    const sec = $('teTenant'); if (!sec) return;
+    if (!window.TEConn || !TEConn.on()) { sec.hidden = true; return; }
+    sec.hidden = false;
+    TEConn.refresh();
+    const alerts = TEConn.alerts().slice().sort((a, b) => (AL_SEV[(b.severity || '').toUpperCase()] || 0) - (AL_SEV[(a.severity || '').toUpperCase()] || 0) || (b.start || 0) - (a.start || 0));
+    const meta = $('teTenantMeta'); if (meta) meta.textContent = alerts.length ? alerts.length + ' active' : 'all clear';
+    const host = $('teAlerts');
+    if (!alerts.length) { host.innerHTML = '<p class="te-clear">No active alerts in your tenant.</p>'; return; }
+    const cls = (sv) => { sv = (sv || '').toUpperCase(); return sv === 'CRITICAL' || sv === 'MAJOR' ? 'bad' : sv === 'MINOR' || sv === 'WARNING' ? 'warn' : 'info'; };
+    host.innerHTML = alerts.slice(0, 40).map((a) => {
+      const t = a.test || {}, r = a.rule || {}, tg = a.target || {};
+      return `<div class="te-al ${cls(a.severity)}">
+        <span class="te-al-dot"></span>
+        <div class="te-al-main"><b>${esc(t.name || r.name || 'Alert')}</b><span>${esc(r.expressionText || r.name || '')}${tg.name ? ' · ' + esc(tg.name) : ''}</span></div>
+        <div class="te-al-meta"><span>${esc(t.type || r.type || '')}</span><small>${a.start ? alertSince(a.start) : ''}</small></div>
+      </div>`;
+    }).join('');
+  }
+  addEventListener('te-conn', () => renderTenantOutages());
+  addEventListener('te-data', () => { if (tab === 'globe') renderTenantOutages(); });
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');

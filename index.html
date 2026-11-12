@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=33">
+  <link rel="stylesheet" href="css/mobile.css?v=34">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -55,6 +55,11 @@
 
   <aside class="panel" id="panel">
 
+    <!-- The user's own ThousandEyes tenant: active alerts (when connected). -->
+    <section class="outages sec te-tenant" id="teTenant" hidden>
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="10" ry="5"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/></svg><span class="sec-name">My ThousandEyes</span> <span class="win-btn" id="teTenantMeta"></span></h2>
+      <div class="te-alerts" id="teAlerts"></div>
+    </section>
 
     <!-- Then every outage in the last 24 hours. -->
     <section class="outages sec">
@@ -419,7 +424,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=4"></script>
-  <script src="js/mobile.js?v=19"></script>
+  <script src="js/mobile.js?v=20"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

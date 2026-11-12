@@ -757,3 +757,21 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .ep-meta { text-align: right; flex: none; max-width: 42%; }
 .ep-meta span { display: block; font-size: .74em; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ep-meta small { display: block; font-size: .64em; color: var(--ink-3); }
+
+/* Outages: My ThousandEyes active alerts */
+.te-tenant .sec-ico { color: var(--app); }
+#teTenantMeta { pointer-events: none; }
+.te-alerts { display: flex; flex-direction: column; }
+.te-clear { margin: 4px 0 0; color: var(--ink-3); font-size: .86em; }
+.te-al { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--hair); }
+.te-al:first-child { border-top: 0; }
+.te-al-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.te-al.bad .te-al-dot { background: #f43f5e; box-shadow: 0 0 8px rgba(244,63,94,.6); }
+.te-al.warn .te-al-dot { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,.5); }
+.te-al.info .te-al-dot { background: #60a5fa; }
+.te-al-main { min-width: 0; }
+.te-al-main b { display: block; font-size: .92em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.te-al-main span { display: block; font-size: .74em; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.te-al-meta { text-align: right; flex: none; }
+.te-al-meta span { display: block; font-size: .66em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); }
+.te-al-meta small { display: block; font-size: .68em; color: var(--ink-3); }
