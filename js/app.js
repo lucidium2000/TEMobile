@@ -139,6 +139,7 @@
     statActive: $('statActive'), statNet: $('statNet'), statApp: $('statApp'), statLoc: $('statLoc'),
     card: $('card'), cardIcon: $('cardIcon'), cardKind: $('cardKind'), cardName: $('cardName'),
     cardMetrics: $('cardMetrics'), cardLocs: $('cardLocs'), cardProgress: $('cardProgress'),
+    cardDeep: $('cardDeep'), cardMore: $('cardMore'),
     cardClose: $('cardClose'), tourBtn: $('tourBtn'), timeline: $('timeline'),
     toast: $('toast'), error: $('error'), panel: $('panel'),
   };
@@ -1527,10 +1528,27 @@
       note.textContent = pwrNear ? `Power out nearby: ${pwrNear.name}, ${pwrNear.state} \u00B7 ${Math.round(pwrNear.out).toLocaleString('en-US')} customers` : '';
     }
     const locs = o.locations.slice().sort((a, b) => b.n - a.n);
+    // Deeper detail, revealed by "More details" (the mobile card is condensed).
+    const deep = [];
+    deep.push(['Started', fmtTime(o.start) + ' · ' + new Date(o.start).toLocaleDateString()]);
+    deep.push([o.active ? 'Ongoing for' : 'Lasted', fmtDur(o.durationS)]);
+    if (!o.active && o.endRound) deep.push(['Cleared', clearedAgo(o) + ' ago']);
+    deep.push([o.kind === 'network' ? 'Interfaces affected' : 'Servers affected', String(o.kind === 'network' ? (o.interfaces || 0) : (o.servers || 0))]);
+    deep.push(['Locations', String(o.locations.length)]);
+    if (o.asn) deep.push(['Network (ASN)', 'AS' + o.asn]);
+    if (o.fullName && o.fullName !== o.name) deep.push(['Provider', o.fullName]);
+    if (o.appId) deep.push(['Service', o.appId]);
+    if (o.domains && o.domains.length) deep.push(['Domains', o.domains.slice(0, 8).join(', ')]);
+    deep.push(['Top location', locs[0] ? (locs[0].name + ' · ' + locs[0].n + ' affected') : '—']);
+    el.cardDeep.innerHTML = deep.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+    el.cardDeep.hidden = false;
+    el.cardMore.hidden = false;
+    el.card.classList.remove('exp');
+    el.cardMore.setAttribute('aria-expanded', 'false');
+    el.cardMore.textContent = 'More details';
     // Each location: hover lights up its point on the globe, tap zooms to it.
-    S.locHover = null; S.locPick = null; S.cardLocList = locs.slice(0, 8);
-    el.cardLocs.innerHTML = S.cardLocList.map((l, i) => `<li data-loc="${i}" title="Show ${esc(l.label || l.name)} on the globe">${esc(l.name)}</li>`).join('')
-      + (locs.length > 8 ? `<li>+${locs.length - 8} more</li>` : '');
+    S.locHover = null; S.locPick = null; S.cardLocsAll = locs;
+    renderCardLocs();
     el.card.hidden = false;
     fillFloat(o, metrics, locs);
     // Restart the entrance animation.
@@ -1544,6 +1562,21 @@
   // most outages (active first) or by distance from where the globe is
   // looking. Tap one to fly there and open its latest outage.
   S.locSort = 'most';
+  S.region = 'all';
+  // Rough continent bucket from a lat/lon, for the Locations region filter.
+  const REGION_ORDER = ['N. America', 'S. America', 'Europe', 'Africa', 'Asia', 'Oceania', 'Other'];
+  function regionOf(lat, lon) {
+    if (!isFinite(lat) || !isFinite(lon)) return 'Other';
+    if (lat <= -40) return 'Oceania';
+    if (lon >= -170 && lon < -30 && lat >= 13) return 'N. America';
+    if (lon >= -90 && lon < -30 && lat < 13) return 'S. America';
+    if (lon >= -30 && lon < 40 && lat >= 36) return 'Europe';
+    if (lon >= -20 && lon < 52 && lat < 36) return 'Africa';
+    if (lon >= 40 && lon < 110 && lat >= 8) return 'Asia';
+    if (lon >= 110 && lat >= 8) return 'Asia';
+    if ((lon >= 110 || lon < -140) && lat < 8) return 'Oceania';
+    return 'Other';
+  }
   function locationGroups() {
     const by = new Map();
     for (const o of S.outages) {
@@ -1563,12 +1596,22 @@
   }
   const PIN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
   function renderLocations() {
-    const groups = locationGroups();
+    const all = locationGroups();
+    all.forEach((g) => { g.region = regionOf(g.lat, g.lon); });
     const dist = (km) => (WX_C ? `${Math.round(km).toLocaleString()} km` : `${Math.round(km * 0.621371).toLocaleString()} mi`);
     const head = `<li class="loc-sort">Sort by <button data-sort="most" class="${S.locSort === 'most' ? 'on' : ''}">Most outages</button>`
       + `<button data-sort="near" class="${S.locSort === 'near' ? 'on' : ''}">Nearest to view</button></li>`;
-    if (!groups.length) { el.list.innerHTML = head + '<li class="empty">No outage locations in this window.</li>'; return; }
-    el.list.innerHTML = head + groups.map((g, i) => {
+    // Region filter: a chip per continent present, with its place count.
+    const regions = [...new Set(all.map((g) => g.region))].sort((a, b) => REGION_ORDER.indexOf(a) - REGION_ORDER.indexOf(b));
+    if (S.region !== 'all' && !regions.includes(S.region)) S.region = 'all';
+    const regHead = regions.length > 1
+      ? `<li class="loc-region"><span>Region</span><button data-region="all" class="${S.region === 'all' ? 'on' : ''}">All <b>${all.length}</b></button>`
+        + regions.map((r) => `<button data-region="${esc(r)}" class="${S.region === r ? 'on' : ''}">${esc(r)} <b>${all.filter((g) => g.region === r).length}</b></button>`).join('') + '</li>'
+      : '';
+    const groups = S.region === 'all' ? all : all.filter((g) => g.region === S.region);
+    if (!all.length) { el.list.innerHTML = head + '<li class="empty">No outage locations in this window.</li>'; return; }
+    if (!groups.length) { el.list.innerHTML = head + regHead + '<li class="empty">No outages in this region.</li>'; S.locRows = groups; return; }
+    el.list.innerHTML = head + regHead + groups.map((g, i) => {
       const kind = g.kinds.size > 1 ? 'mixed' : [...g.kinds][0];
       const names = [...new Set(g.outages.map((o) => o.name.replace(/,?\s*(Inc|LLC)\.?$/, '')))];
       const who = names.slice(0, 2).join(', ') + (names.length > 2 ? ` +${names.length - 2}` : '');
@@ -1580,6 +1623,16 @@
         + (g.active ? `<span class="loc-act">${g.active} active</span>` : '') + '</div></li>';
     }).join('');
     S.locRows = groups;
+  }
+
+  // The card's location list - the first 8, or all of them when expanded.
+  function renderCardLocs() {
+    const locs = S.cardLocsAll || [];
+    const exp = el.card.classList.contains('exp');
+    const shown = exp ? locs : locs.slice(0, 8);
+    S.cardLocList = shown;
+    el.cardLocs.innerHTML = shown.map((l, i) => `<li data-loc="${i}" title="Show ${esc(l.label || l.name)} on the globe">${esc(l.name)}</li>`).join('')
+      + (!exp && locs.length > 8 ? `<li class="loc-more">+${locs.length - 8} more</li>` : '');
   }
 
   function renderList() {
@@ -2613,6 +2666,8 @@
   el.list.addEventListener('click', (e) => {
     const sortBtn = e.target.closest('[data-sort]');
     if (sortBtn) { e.stopPropagation(); userInput(); sfx('tap'); S.locSort = sortBtn.dataset.sort; renderList(); return; }
+    const regBtn = e.target.closest('[data-region]');
+    if (regBtn) { e.stopPropagation(); userInput(); sfx('tap'); S.region = regBtn.dataset.region; renderList(); return; }
     const locRow = e.target.closest('.row.loc');
     if (locRow) {
       userInput();
@@ -2663,10 +2718,20 @@
   }));
 
   el.cardClose.addEventListener('click', () => { userInput(); select(null); });
+  // "More details": reveal the deeper fields and every location.
+  function toggleCardMore(force) {
+    const exp = force != null ? force : !el.card.classList.contains('exp');
+    el.card.classList.toggle('exp', exp);
+    el.cardMore.setAttribute('aria-expanded', exp ? 'true' : 'false');
+    el.cardMore.textContent = exp ? 'Less detail' : 'More details';
+    renderCardLocs();
+  }
+  el.cardMore.addEventListener('click', (e) => { e.stopPropagation(); userInput(); sfx('tap'); toggleCardMore(); });
   const cardLoc = (e) => { const li = e.target.closest('[data-loc]'); return li ? S.cardLocList[+li.dataset.loc] : null; };
   el.cardLocs.addEventListener('pointerover', (e) => { if (e.pointerType === 'mouse') S.locHover = cardLoc(e); });
   el.cardLocs.addEventListener('pointerleave', () => { S.locHover = null; });
   el.cardLocs.addEventListener('click', (e) => {
+    if (e.target.closest('.loc-more')) { userInput(); sfx('tap'); toggleCardMore(true); return; }
     const loc = cardLoc(e);
     if (!loc || !S.selected) return;
     userInput();

@@ -97,6 +97,12 @@ button.stat:hover { background: rgba(255, 255, 255, .05); }
 .list .loc-sort { display: flex; align-items: center; gap: .4em; padding: .2em .3em .5em; font-size: .74em; color: var(--ink-3); }
 .list .loc-sort button { padding: .2em .6em; border-radius: 99px; border: 1px solid var(--line); color: var(--ink-2); font-weight: 600; cursor: pointer; background: none; font-size: 1em; }
 .list .loc-sort button.on { color: var(--ink); background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .25); }
+.list .loc-region { display: flex; align-items: center; flex-wrap: wrap; gap: .4em; padding: 0 .3em .55em; font-size: .74em; color: var(--ink-3); }
+.list .loc-region > span { text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-right: .1em; }
+.list .loc-region button { padding: .22em .62em; border-radius: 99px; border: 1px solid var(--line); color: var(--ink-2); font-weight: 600; cursor: pointer; background: none; font-size: 1em; }
+.list .loc-region button b { font-weight: 800; color: var(--ink-3); margin-left: .25em; }
+.list .loc-region button.on { color: var(--ink); background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .25); }
+.list .loc-region button.on b { color: var(--ink); }
 .row.loc .ico { color: var(--ink-2); background: rgba(255, 255, 255, .06); display: grid; place-items: center; }
 .row.loc.active .ico { color: var(--bad); }
 .row.loc.mixed { background: linear-gradient(90deg, rgba(167, 139, 250, .14), rgba(167, 139, 250, .03) 70%); box-shadow: inset 3px 0 0 rgba(167, 139, 250, .7); }

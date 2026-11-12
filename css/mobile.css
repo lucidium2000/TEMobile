@@ -196,6 +196,18 @@ body.power-on .pwr-offnote { display: none; }
 body.sheet-min .panel .list, body.sheet-min .panel .te-alerts { display: none; }
 .brand .brand-logo { display: none; }
 .card-metrics > :nth-child(n+4) { display: none; }
+.card.exp .card-metrics > :nth-child(n+4) { display: block; }
+/* Condensed outage card: "More details" reveals the deeper fields + all locations */
+.card-more { display: block; width: 100%; margin: .45em 0 0; padding: .5em .1em .2em; background: none; border: 0; border-top: 1px solid var(--hair); color: var(--cyan); font-weight: 700; font-size: .86em; text-align: left; cursor: pointer; }
+.card-more::after { content: " \25BE"; }
+.card.exp .card-more::after { content: " \25B4"; }
+.card-deep { display: none; margin: .1em 0 0; padding: 0; }
+.card.exp .card-deep { display: block; }
+.card-deep > div { display: flex; justify-content: space-between; gap: 1em; font-size: .82em; padding: .36em 0; border-top: 1px solid var(--hair); }
+.card-deep dt { margin: 0; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; font-size: .92em; white-space: nowrap; }
+.card-deep dd { margin: 0; color: var(--ink); font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.card-locs .loc-more { color: var(--cyan); cursor: pointer; font-weight: 700; }
+.card-locs .loc-more::before { display: none; }
 .sheet-grab { display: block; width: 100%; height: 22px; margin: 0 0 -4px; position: relative; z-index: 2; pointer-events: auto; }
 .sheet-grab::before { content: ""; display: block; width: 44px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: rgba(226, 232, 240, .35); }
 .pwr-wrap .pwr-list { max-height: none !important; overflow: visible !important; }
