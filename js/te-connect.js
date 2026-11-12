@@ -16,9 +16,9 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
 
-  // Fill this in once a shared Worker is deployed, to make Connect one-tap.
-  // Until then the user pastes their own Worker URL.
-  const DEFAULT_PROXY = '';
+  // Shared, stateless CORS proxy (worker/thousandeyes-proxy.js) so Connect is
+  // one-tap - paste just the token. Override via "Advanced" to use your own.
+  const DEFAULT_PROXY = 'https://te-proxy.lucidium2000.workers.dev';
 
   // Token persistence: localStorage (this device, until disconnected) or
   // sessionStorage (gone when the tab closes). Proxy URL isn't secret.
@@ -46,6 +46,7 @@
   }
 
   let state = { proxy: load().proxy, token: load().token, persist: load().persist, acct: null, status: 'off' };
+  let showProxy = !state.proxy;   // hidden when we have a default proxy
 
   const base = () => state.proxy.replace(/\/+$/, '');
   function changed() { try { dispatchEvent(new CustomEvent('te-conn', { detail: { on: state.status === 'on' } })); } catch (_) { /* */ } render(); }
@@ -117,21 +118,23 @@
       $('tecStart').addEventListener('click', () => { state.status = 'form'; render(); });
       return;
     }
+    const proxyHidden = !showProxy;
     card.querySelector('.tec-body').innerHTML = `
-      <label class="tec-f">Proxy URL
-        <input id="tecProxy" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://te-proxy.you.workers.dev" value="${esc(state.proxy)}">
-      </label>
       <label class="tec-f">API token
         <div class="tec-tokrow">
           <input id="tecToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ThousandEyes bearer token">
           <button type="button" class="tec-scan" id="tecScan" title="Scan the token with the camera" aria-label="Scan the token with the camera"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9V7a2 2 0 0 1 2-2h2M17 5h2a2 2 0 0 1 2 2v2M21 15v2a2 2 0 0 1-2 2h-2M7 19H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.2"/></svg></button>
         </div>
       </label>
+      <label class="tec-f" id="tecProxyWrap"${proxyHidden ? ' hidden' : ''}>Proxy URL
+        <input id="tecProxy" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://te-proxy.you.workers.dev" value="${esc(state.proxy)}">
+      </label>
       <label class="tec-chk"><input id="tecPersist" type="checkbox" ${state.persist ? 'checked' : ''}><span>Keep me connected on this device</span></label>
       <div class="tec-err" id="tecErr" hidden></div>
       <div class="tec-btns"><button class="m-btn" id="tecGo">Connect</button><button class="m-btn ghost" id="tecCancel">Cancel</button></div>
-      <p class="tec-help">Use a read-only account for this. <a href="https://github.com/lucidium2000/TEMobile/tree/main/worker" target="_blank" rel="noopener">How to deploy the proxy</a> · token from <em>ThousandEyes &rsaquo; Account Settings &rsaquo; Users &rsaquo; User API Tokens</em>.</p>`;
+      <p class="tec-help"><a href="#" id="tecAdv">${proxyHidden ? 'Advanced: use your own proxy' : 'Hide advanced'}</a> · token from <em>ThousandEyes &rsaquo; Account Settings &rsaquo; Users &rsaquo; User API Tokens</em>. Use a read-only account.</p>`;
     $('tecCancel').addEventListener('click', () => { state.status = state.acct ? 'on' : 'off'; render(); });
+    $('tecAdv').addEventListener('click', (e) => { e.preventDefault(); showProxy = !showProxy; render(); });
     const scanBtn = $('tecScan');
     if (scanBtn) scanBtn.addEventListener('click', async () => {
       if (!window.TEOcr) return;
@@ -144,10 +147,10 @@
     });
     const go = $('tecGo');
     go.addEventListener('click', async () => {
-      const proxy = $('tecProxy').value.trim(), token = $('tecToken').value.trim(), persist = $('tecPersist').checked;
+      const proxy = ($('tecProxy') ? $('tecProxy').value.trim() : '') || state.proxy, token = $('tecToken').value.trim(), persist = $('tecPersist').checked;
       const err = $('tecErr');
       err.hidden = true;
-      if (!/^https:\/\//i.test(proxy) && !/^http:\/\/(localhost|127\.0\.0\.1)/i.test(proxy)) { err.textContent = 'Enter the https Worker URL.'; err.hidden = false; return; }
+      if (!/^https:\/\//i.test(proxy) && !/^http:\/\/(localhost|127\.0\.0\.1)/i.test(proxy)) { showProxy = true; render(); const e2 = $('tecErr'); if (e2) { e2.textContent = 'Enter the https proxy URL.'; e2.hidden = false; } return; }
       if (!token) { err.textContent = 'Paste your ThousandEyes API token.'; err.hidden = false; return; }
       go.disabled = true; go.textContent = 'Connecting…';
       try {
