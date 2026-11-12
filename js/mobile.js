@@ -57,6 +57,7 @@
   // Normalise an alert across the nested (test/rule/target) and flat
   // (testName/ruleName/ruleExpression) shapes the API can return, and fall back
   // to the tests list by id, so an alert always shows real detail - not just "Alert".
+  const parseTs = (v) => { if (!v) return 0; const d = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isFinite(d) ? d : 0; };
   function normAlert(a) {
     const t = a.test || {}, r = a.rule || {}, tg = a.target || {};
     let name = t.name || a.testName || tg.name || a.targetName || '';
@@ -64,10 +65,34 @@
     if (!name) name = r.name || a.ruleName || '';
     const cond = r.expressionText || a.ruleExpression || a.expressionText || r.name || a.ruleName || '';
     const type = t.type || r.type || a.alertType || a.type || '';
-    let start = a.start || a.dateStartMs || 0;
-    if (!start && a.dateStart) { const d = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(a.dateStart) ? a.dateStart : a.dateStart + 'Z'); if (isFinite(d)) start = d; }
-    return { sev: (a.severity || '').toUpperCase(), title: name || (type ? type + ' alert' : 'ThousandEyes alert'), cond, type, start, viol: a.violationCount || a.violations || 0 };
+    const start = (a.start || a.dateStartMs || 0) || parseTs(a.dateStart);
+    const end = (a.end || a.dateEndMs || 0) || parseTs(a.dateEnd);
+    const active = a.active != null ? !!a.active : (['ACTIVE', 'TRIGGERED'].includes(String(a.state || a.status || '').toUpperCase()) || (!end));
+    const agents = (a.monitors && a.monitors.length) || (a.agents && a.agents.length) || a.affectedAgents || a.agentCount || 0;
+    const perma = (a.links && (a.links.appLink || a.links.self)) || a.permalink || (a.apiLinks && a.apiLinks[0] && a.apiLinks[0].href) || '';
+    return {
+      sev: (a.severity || '').toUpperCase(), title: name || (type ? type + ' alert' : 'ThousandEyes alert'),
+      cond, type, start, end, active, agents, viol: a.violationCount || a.violations || 0,
+      rule: r.name || a.ruleName || '', id: a.id || a.alertId || '', testId: a.testId || t.id || '', perma,
+    };
   }
+  // The shared deep-detail body for an alert (used on Home and in the tenant panel).
+  function alertDetail(n, withOpen) {
+    const rows = [];
+    if (n.cond) rows.push(['Condition', n.cond]);
+    if (n.type) rows.push(['Type', n.type]);
+    if (n.sev) rows.push(['Severity', n.sev]);
+    if (n.rule && n.rule !== n.title) rows.push(['Alert rule', n.rule]);
+    if (n.start) rows.push(['Started', new Date(n.start).toLocaleString()]);
+    rows.push(['Status', n.active ? `Active · ${alertSince(n.start)} so far` : (n.end ? `Cleared ${alertSince(n.end)} ago` : 'Cleared')]);
+    if (n.viol) rows.push(['Violations', String(n.viol)]);
+    if (n.agents) rows.push(['Agents affected', String(n.agents)]);
+    if (n.id) rows.push(['Alert ID', String(n.id)]);
+    return `<dl class="al-kv">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`
+      + (withOpen ? `<button type="button" class="al-open" data-act="tenant">Open in My ThousandEyes ›</button>` : '');
+  }
+  const alKey = (n) => String(n.id || n.title || '');
+  const openAlerts = new Set();   // which alerts are expanded (kept across refreshes)
   // Two equivalent views in the outage sheet, one row of tabs: the global
   // "Around the World" and the user's own "My ThousandEyes" (shown only when
   // connected). Only one is visible at a time, so the sheet stays compact.
@@ -100,13 +125,23 @@
     if (!alerts.length) { host.innerHTML = '<p class="te-clear">No active alerts in your tenant right now.</p>'; return; }
     host.innerHTML = alerts.slice(0, 40).map((a) => {
       const n = normAlert(a);
-      return `<div class="te-al ${sevCls(n.sev)}">
+      return `<div class="te-al al-exp ${sevCls(n.sev)}" data-aid="${esc(alKey(n))}">
+        <div class="te-al-row">
         <span class="te-al-dot"></span>
         <div class="te-al-main"><b>${esc(n.title)}</b><span>${esc([n.cond, n.type].filter(Boolean).join(' · '))}</span></div>
         <div class="te-al-meta"><span>${esc(n.sev || '')}</span><small>${n.start ? alertSince(n.start) : ''}${n.viol ? ' · ' + n.viol + '\u00d7' : ''}</small></div>
+        </div>
+        <div class="al-detail">${alertDetail(n, false)}</div>
       </div>`;
     }).join('');
+    host.querySelectorAll('.te-al').forEach((al) => { if (openAlerts.has(al.dataset.aid)) al.classList.add('open'); });
   }
+  $('teAlerts').addEventListener('click', (e) => {
+    const al = e.target.closest('.te-al.al-exp'); if (!al) return;
+    if (window.Sfx) window.Sfx.play('tap');
+    const op = al.classList.toggle('open');
+    if (op) openAlerts.add(al.dataset.aid); else openAlerts.delete(al.dataset.aid);
+  });
   addEventListener('te-conn', () => updateOTabs());
   addEventListener('te-data', () => { if (tab === 'globe') updateOTabs(); });
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
@@ -880,7 +915,7 @@
     } catch (_) { /* best-effort */ }
   }
   // Row builders - one per feed kind (a single item renders as a plain row).
-  const alertRow = (n) => `<li class="feed-alert sev-${sevCls(n.sev)}" data-alert="1"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}</span></li>`;
+  const alertRow = (n) => `<li class="feed-alert al-exp sev-${sevCls(n.sev)}" data-alert="1" data-aid="${esc(alKey(n))}"><div class="al-row"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}${CHEV}</span></div><div class="al-detail">${alertDetail(n, true)}</div></li>`;
   const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
   const newsRow = (n) => `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`;
   // Which rolled-up groups the user has expanded (kept across the 4s refresh).
@@ -921,6 +956,7 @@
     host.querySelectorAll('.feed-group').forEach((g) => {        // re-apply expanded state after the rebuild
       if (openGroups.has(g.dataset.grp)) { g.classList.add('open'); const h = g.querySelector('.grp-head'); if (h) h.setAttribute('aria-expanded', 'true'); }
     });
+    host.querySelectorAll('.feed-alert').forEach((li) => { if (openAlerts.has(li.dataset.aid)) li.classList.add('open'); });
     const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = (alerts.length || act.length) ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
     loadHomeNews();
   }
@@ -938,11 +974,12 @@
       if (window.Sfx) window.Sfx.play('tap');
       return;
     }
+    if (e.target.closest('.al-open')) { if (window.Sfx) window.Sfx.play('tap'); setTab('globe'); setTimeout(() => { try { setOTab('tenant'); } catch (_) { /* */ } }, 60); return; }
     const li = e.target.closest('li'); if (!li || li.classList.contains('feed-group')) return;
     if (li.dataset.url) { window.open(li.dataset.url, '_blank', 'noopener'); return; }
     if (window.Sfx) window.Sfx.play('tap');
+    if (li.classList.contains('feed-alert')) { const op = li.classList.toggle('open'); if (op) openAlerts.add(li.dataset.aid); else openAlerts.delete(li.dataset.aid); return; }   // tap an alert for its deeper detail
     if (li.dataset.id && window.TEApp) { setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50); return; }
-    if (li.classList.contains('feed-alert')) { setTab('globe'); setTimeout(() => { try { setOTab('tenant'); } catch (_) { /* */ } }, 60); }
   });
   addEventListener('te-conn', () => { if (tab === 'home') renderHomeFeed(); });
   addEventListener('te-data', () => { if (tab === 'home') renderHomeFeed(); });
