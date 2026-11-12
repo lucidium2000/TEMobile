@@ -41,7 +41,7 @@
     if (name === 'tests') refreshTests();
     if (name === 'home') refreshHome();
     if (name === 'weather') refreshWeather();
-    if (name === 'globe') renderTenantOutages();
+    if (name === 'globe') updateOTabs();
   }
 
   // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
@@ -50,15 +50,36 @@
     const s = Math.max(0, (Date.now() - ms) / 1000);
     if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min'; if (s < 86400) return Math.round(s / 3600) + ' h'; return Math.round(s / 86400) + ' d';
   }
+  // Two equivalent views in the outage sheet, one row of tabs: the global
+  // "Around the World" and the user's own "My ThousandEyes" (shown only when
+  // connected). Only one is visible at a time, so the sheet stays compact.
+  let oTab = 'world';
+  try { oTab = sessionStorage.getItem('te-m-otab') || 'world'; } catch (_) { /* */ }
+  function setOTab(t) {
+    if (t === 'tenant' && !(window.TEConn && TEConn.on())) t = 'world';
+    oTab = t;
+    try { sessionStorage.setItem('te-m-otab', t); } catch (_) { /* */ }
+    document.querySelectorAll('#oTabs .ot-tab').forEach((b) => b.classList.toggle('on', b.dataset.otab === t));
+    const tenant = $('teTenant'), world = $('owSection'), win = $('winBtn');
+    if (tenant) tenant.hidden = t !== 'tenant';
+    if (world) world.hidden = t !== 'world';
+    if (win) win.style.display = t === 'world' ? '' : 'none';
+    if (t === 'tenant') renderTenantOutages();
+  }
+  function updateOTabs() {
+    const on = !!(window.TEConn && TEConn.on());
+    const btn = document.querySelector('#oTabs .ot-tab[data-otab="tenant"]');
+    if (btn) btn.hidden = !on;
+    if (on) renderTenantOutages();
+    setOTab(on ? oTab : 'world');
+  }
   function renderTenantOutages() {
-    const sec = $('teTenant'); if (!sec) return;
-    if (!window.TEConn || !TEConn.on()) { sec.hidden = true; return; }
-    sec.hidden = false;
+    if (!window.TEConn || !TEConn.on()) return;
     TEConn.refresh();
     const alerts = TEConn.alerts().slice().sort((a, b) => (AL_SEV[(b.severity || '').toUpperCase()] || 0) - (AL_SEV[(a.severity || '').toUpperCase()] || 0) || (b.start || 0) - (a.start || 0));
-    const meta = $('teTenantMeta'); if (meta) meta.textContent = alerts.length ? alerts.length + ' active' : 'all clear';
-    const host = $('teAlerts');
-    if (!alerts.length) { host.innerHTML = '<p class="te-clear">No active alerts in your tenant.</p>'; return; }
+    const badge = $('oTenantBadge'); if (badge) { badge.textContent = alerts.length; badge.hidden = !alerts.length; badge.className = 'ot-badge' + (alerts.some((a) => ['CRITICAL', 'MAJOR'].includes((a.severity || '').toUpperCase())) ? '' : ' minor'); }
+    const host = $('teAlerts'); if (!host) return;
+    if (!alerts.length) { host.innerHTML = '<p class="te-clear">No active alerts in your tenant right now.</p>'; return; }
     const cls = (sv) => { sv = (sv || '').toUpperCase(); return sv === 'CRITICAL' || sv === 'MAJOR' ? 'bad' : sv === 'MINOR' || sv === 'WARNING' ? 'warn' : 'info'; };
     host.innerHTML = alerts.slice(0, 40).map((a) => {
       const t = a.test || {}, r = a.rule || {}, tg = a.target || {};
@@ -69,8 +90,8 @@
       </div>`;
     }).join('');
   }
-  addEventListener('te-conn', () => renderTenantOutages());
-  addEventListener('te-data', () => { if (tab === 'globe') renderTenantOutages(); });
+  addEventListener('te-conn', () => updateOTabs());
+  addEventListener('te-data', () => { if (tab === 'globe') updateOTabs(); });
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');
@@ -695,8 +716,11 @@
     // Picking an outage folds the list, so the globe and its card show.
     $('list').addEventListener('click', (e) => { if (e.target.closest('.row')) setMin(true); });
     grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); setMin(!min); });
+    const oTabsEl = $('oTabs');
+    if (oTabsEl) oTabsEl.addEventListener('click', (e) => { const b = e.target.closest('.ot-tab'); if (b) { if (window.Sfx) window.Sfx.play('tap'); setOTab(b.dataset.otab); } });
+    updateOTabs();
     // A count (filter) or the section title opens it.
-    panel.addEventListener('click', (e) => { if (min && e.target.closest('.stats, .outages .sec-title')) setMin(false); });
+    panel.addEventListener('click', (e) => { if (min && e.target.closest('.stats, .ot-tab')) setMin(false); });
   }
 
   // ── Home: one glance at every tab; each card opens its tab ──────────────

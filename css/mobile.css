@@ -193,7 +193,7 @@ body.power-on .pwr-offnote { display: none; }
   body.sheet-min .panel { height: auto !important; }
   .card { bottom: calc(var(--tabh) + var(--sheet-px, 52dvh) + 10px) !important; }
 }
-body.sheet-min .panel .list { display: none; }
+body.sheet-min .panel .list, body.sheet-min .panel .te-alerts { display: none; }
 .brand .brand-logo { display: none; }
 .card-metrics > :nth-child(n+4) { display: none; }
 .sheet-grab { display: block; width: 100%; height: 22px; margin: 0 0 -4px; position: relative; z-index: 2; pointer-events: auto; }
@@ -775,3 +775,14 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .te-al-meta { text-align: right; flex: none; }
 .te-al-meta span { display: block; font-size: .66em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); }
 .te-al-meta small { display: block; font-size: .68em; color: var(--ink-3); }
+
+/* Outage sheet: segmented tabs (Around the World / My ThousandEyes) */
+.sheet-tabs { display: flex; align-items: center; gap: 6px; padding: 2px 2px 10px; }
+.ot-tab { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 11px; border: 1px solid var(--hair); background: rgba(255,255,255,.04); color: var(--ink-3); font-size: .8em; font-weight: 700; cursor: pointer; }
+.ot-tab.on { color: var(--ink); background: rgba(22,189,235,.14); border-color: rgba(22,189,235,.45); }
+.ot-tab[hidden] { display: none; }
+.ot-eye { width: 15px; height: 15px; object-fit: contain; opacity: .9; }
+.ot-badge { min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: #f43f5e; color: #fff; font-size: .72em; font-weight: 800; display: inline-grid; place-items: center; }
+.ot-badge.minor { background: #fbbf24; color: #1a1205; }
+.ot-badge[hidden] { display: none; }
+.ot-win { margin-left: auto; flex: 0 0 auto; }
