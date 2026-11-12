@@ -818,6 +818,7 @@
     const iiNet = Math.max(0, Math.min(100, 100 - nAct * 16 - Math.min(30, (netAll.length - nAct) * 2.5)));
     const iiApp = Math.max(0, Math.min(100, 100 - aAct * 16 - Math.min(30, (appAll.length - aAct) * 2.5)));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
+    spinRingsOnce();
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
       ['#00bceb', 'Apps', iiApp],
@@ -836,7 +837,24 @@
     const el = $(id); if (!el) return;
     const c = Math.max(0, Math.min(100, v || 0));
     el.style.strokeDashoffset = String(100 - c);
-    el.style.animationDuration = (8 + (100 - c) * 0.34).toFixed(1) + 's';   // higher % -> faster
+    // Park so the MIDDLE of this ring's gap sits at the 4:30 clock position.
+    // Arc starts at 3 o'clock and draws clockwise for c%; its gap-mid is 180deg
+    // from its arc-mid, so base rotation = 225 - 1.8*c keeps the gap at 4:30.
+    el.style.setProperty('--rg-base', (225 - 1.8 * c).toFixed(1) + 'deg');
+    el.style.setProperty('--rg-dur', (2.4 + (100 - c) * 0.012).toFixed(2) + 's'); // fuller settles first
+  }
+  // Spin the rings one full turn on first reveal, then let them rest.
+  let ringsSpun = false;
+  function spinRingsOnce() {
+    if (ringsSpun) return;
+    const r = document.querySelector('.rings'); if (!r) return;
+    ringsSpun = true;
+    r.classList.remove('spin'); void r.offsetWidth; r.classList.add('spin');
+    const circles = r.querySelectorAll('.rg-val circle');
+    let done = 0;
+    circles.forEach((c) => c.addEventListener('animationend', () => {
+      if (++done >= circles.length) r.classList.remove('spin'); // hand back to the resting transform
+    }, { once: true }));
   }
 
   // ── Home feed: current before past - tenant active alerts, then active
