@@ -39,7 +39,7 @@
     if (name === 'globe' || name === 'weather') window.dispatchEvent(new Event('resize'));
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
-    if (name === 'home') refreshHome();
+    if (name === 'home') { refreshHome(); spinRings(); }
     if (name === 'weather') refreshWeather();
     if (name === 'globe') updateOTabs();
   }
@@ -818,7 +818,6 @@
     const iiNet = Math.max(0, Math.min(100, 100 - nAct * 16 - Math.min(30, (netAll.length - nAct) * 2.5)));
     const iiApp = Math.max(0, Math.min(100, 100 - aAct * 16 - Math.min(30, (appAll.length - aAct) * 2.5)));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
-    spinRingsOnce();
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
       ['#00bceb', 'Apps', iiApp],
@@ -841,14 +840,11 @@
     // Arc starts at 3 o'clock and draws clockwise for c%; its gap-mid is 180deg
     // from its arc-mid, so base rotation = 225 - 1.8*c keeps the gap at 4:30.
     el.style.setProperty('--rg-base', (225 - 1.8 * c).toFixed(1) + 'deg');
-    el.style.setProperty('--rg-dur', (2.4 + (100 - c) * 0.012).toFixed(2) + 's'); // fuller settles first
+    el.style.setProperty('--rg-dur', (0.8 + (100 - c) * 0.004).toFixed(2) + 's'); // fuller settles first
   }
-  // Spin the rings one full turn on first reveal, then let them rest.
-  let ringsSpun = false;
-  function spinRingsOnce() {
-    if (ringsSpun) return;
+  // Spin the rings one full turn, then let them rest. Re-runs each time Home opens.
+  function spinRings() {
     const r = document.querySelector('.rings'); if (!r) return;
-    ringsSpun = true;
     r.classList.remove('spin'); void r.offsetWidth; r.classList.add('spin');
     const circles = r.querySelectorAll('.rg-val circle');
     let done = 0;
