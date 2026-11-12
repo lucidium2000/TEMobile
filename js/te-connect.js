@@ -73,21 +73,68 @@
     return cur ? { name: cur.accountGroupName || 'ThousandEyes', org: cur.organizationName || '', aid: cur.aid || '', count: groups.length } : { name: 'ThousandEyes', org: '', aid: '', count: groups.length };
   }
 
+  // ── Tenant data, cached and shared by the snapshot / Outages / Phone ──────
+  const cache = { at: 0, agents: null, tests: null, alerts: null, endpoints: null, loading: false };
+  function withAid(path) { const a = state.acct && state.acct.aid; return a ? path + (path.includes('?') ? '&' : '?') + 'aid=' + encodeURIComponent(a) : path; }
+  function pick(d) { for (let i = 1; i < arguments.length; i++) { const k = arguments[i]; if (d && Array.isArray(d[k])) return d[k]; } return []; }
+  async function refresh(force) {
+    if (state.status !== 'on') return cache;
+    if (!force && cache.agents && Date.now() - cache.at < 45e3) return cache;
+    if (cache.loading) return cache;
+    cache.loading = true;
+    try {
+      const [ag, ts, al, ep] = await Promise.all([
+        api(withAid('/v7/agents')).catch(() => null),
+        api(withAid('/v7/tests')).catch(() => null),
+        api(withAid('/v7/alerts')).catch(() => null),
+        api(withAid('/v7/endpoint/agents')).catch(() => null),
+      ]);
+      if (ag) cache.agents = pick(ag, 'agents', 'result');
+      if (ts) cache.tests = pick(ts, 'tests', 'result');
+      if (al) cache.alerts = pick(al, 'alerts', 'results', 'result');
+      if (ep) cache.endpoints = pick(ep, 'agents', 'results', 'result');
+      cache.at = Date.now();
+    } finally { cache.loading = false; }
+    try { dispatchEvent(new CustomEvent('te-data', { detail: summary() })); } catch (_) { /* */ }
+    render();
+    return cache;
+  }
+  function summary() {
+    const ag = cache.agents || [], al = cache.alerts || [];
+    const sev = {}; al.forEach((x) => { const s = (x.severity || 'INFO').toUpperCase(); sev[s] = (sev[s] || 0) + 1; });
+    return {
+      loaded: !!cache.at,
+      agents: { total: ag.length, cloud: ag.filter((a) => a.agentType === 'cloud').length, enterprise: ag.filter((a) => a.agentType === 'enterprise').length },
+      tests: (cache.tests || []).length,
+      endpoints: (cache.endpoints || []).length,
+      alerts: { total: al.length, bySeverity: sev },
+      at: cache.at,
+    };
+  }
+
   window.TEConn = {
     on: () => state.status === 'on',
     account: () => state.acct,
     proxyHost: () => { try { return new URL(base()).host; } catch (_) { return ''; } },
     api,
+    refresh,
+    summary,
+    agents: () => cache.agents || [],
+    tests: () => cache.tests || [],
+    alerts: () => cache.alerts || [],
+    endpoints: () => cache.endpoints || [],
     async connect(proxy, token, persist) {
       state.proxy = (proxy || '').trim(); state.token = (token || '').trim(); state.persist = !!persist;
       const acct = await validate();            // throws on bad token / proxy
       state.acct = acct; state.status = 'on';
       save(state.proxy, state.token, state.persist);
       changed();
+      refresh(true);                            // pull tenant data in the background
       return acct;
     },
     disconnect() {
       state.token = ''; state.acct = null; state.status = 'off';
+      cache.at = 0; cache.agents = cache.tests = cache.alerts = cache.endpoints = null;
       wipe();
       changed();
     },
@@ -99,6 +146,16 @@
     const a = state.acct;
     if (state.status === 'on' && a) {
       card.dataset.state = 'on';
+      const s = summary();
+      const al = s.alerts.total, sev = s.alerts.bySeverity, crit = (sev.CRITICAL || 0) + (sev.MAJOR || 0);
+      const snap = !s.loaded
+        ? '<div class="tec-snap loading"><i></i>Loading your tenant…</div>'
+        : `<div class="tec-snap">
+            <div><b>${s.agents.total}</b><span>Agents</span><small>${s.agents.cloud} cloud · ${s.agents.enterprise} ent</small></div>
+            <div><b>${s.tests}</b><span>Tests</span></div>
+            <div><b>${s.endpoints}</b><span>Endpoints</span></div>
+            <div class="${al ? (crit ? 'bad' : 'warn') : 'ok'}"><b>${al}</b><span>Alerts</span>${al ? `<small>${crit ? crit + ' major+' : 'all minor'}</small>` : '<small>all clear</small>'}</div>
+          </div>`;
       card.querySelector('.tec-body').innerHTML = `
         <div class="tec-acct">
           <div class="tec-ok"><i></i>Connected</div>
@@ -106,8 +163,10 @@
           ${a.org ? `<span>${esc(a.org)}</span>` : ''}
           <small>${a.count > 1 ? a.count + ' account groups · ' : ''}via ${esc(TEConn.proxyHost())}</small>
         </div>
-        <button class="m-btn ghost" id="tecOff">Disconnect &amp; forget token</button>`;
+        ${snap}
+        <div class="tec-btns"><button class="m-btn ghost" id="tecRefresh">Refresh</button><button class="m-btn ghost" id="tecOff">Disconnect</button></div>`;
       $('tecOff').addEventListener('click', () => TEConn.disconnect());
+      const rf = $('tecRefresh'); if (rf) rf.addEventListener('click', () => { rf.textContent = 'Refreshing…'; refresh(true); });
       return;
     }
     card.dataset.state = state.status === 'form' ? 'form' : 'off';

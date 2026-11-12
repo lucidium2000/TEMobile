@@ -726,3 +726,14 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .ocr-prev em { font-style: normal; color: var(--ink-3); font-family: var(--font, system-ui); }
 .ocr-proc { flex-direction: column; }
 .ocr-proc span { font-size: .9em; }
+
+/* ThousandEyes tenant snapshot */
+.tec-snap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0; }
+.tec-snap > div { display: grid; justify-items: center; gap: 1px; padding: 10px 2px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--hair); text-align: center; }
+.tec-snap b { font-size: 1.25em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tec-snap span { font-size: .56em; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.tec-snap small { font-size: .62em; color: var(--ink-3); margin-top: 1px; }
+.tec-snap .ok b { color: #34d399; } .tec-snap .warn b { color: #fbbf24; } .tec-snap .bad b { color: #f43f5e; }
+.tec-snap .ok { border-color: rgba(52,211,153,.3); } .tec-snap .warn { border-color: rgba(251,191,36,.3); } .tec-snap .bad { border-color: rgba(244,63,94,.35); }
+.tec-snap.loading { grid-template-columns: 1fr; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink-3); font-size: .85em; padding: 18px; }
+.tec-snap.loading i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(22,189,235,.25); border-top-color: var(--app); animation: ocrSpin .8s linear infinite; }
