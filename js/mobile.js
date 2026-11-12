@@ -586,8 +586,66 @@
     ]);
   }
 
-  function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); }
+  function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); renderTEEndpoint(); }
   setInterval(() => { if (tab === 'phone') { refreshNet(); refreshLoc(); } }, 5000);
+
+  // ── Phone: match this device to its ThousandEyes Endpoint Agent ───────────
+  // The browser can't read the installed agent's ID, so the match is
+  // best-effort: same public IP, then the platform and most-recent heartbeat.
+  function deviceGuess() {
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return { k: 'ios', label: 'iPhone / iPad' };
+    if (/Android/.test(ua)) return { k: 'android', label: 'Android' };
+    if (/Macintosh|Mac OS X/.test(ua)) return { k: 'mac', label: 'Mac' };
+    if (/Windows/.test(ua)) return { k: 'windows', label: 'Windows' };
+    if (/CrOS/.test(ua)) return { k: 'chromeos', label: 'ChromeOS' };
+    return { k: '', label: 'This device' };
+  }
+  function sinceStr(iso) {
+    const t = Date.parse(iso); if (!isFinite(t)) return '';
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago'; return Math.round(s / 86400) + ' d ago';
+  }
+  const PLAT = { windows: 'Windows', mac: 'macOS', android: 'Android', ios: 'iOS', roomos: 'RoomOS', linux: 'Linux' };
+  function epRow(e, cls) {
+    const live = sinceStr(e.lastSeen), recent = Date.now() - Date.parse(e.lastSeen) < 15 * 60e3;
+    return `<div class="ep-row ${cls || ''}">
+      <span class="ep-dot ${recent ? 'on' : ''}"></span>
+      <div class="ep-main"><b>${esc(e.name || e.computerName || 'Agent')}</b><span>${esc(PLAT[e.platform] || e.platform || '')}${e.osVersion ? ' · ' + esc(e.osVersion) : ''}</span></div>
+      <div class="ep-meta"><span>${esc(e.locationName || '')}</span><small>${live ? 'seen ' + live : ''}</small></div>
+    </div>`;
+  }
+  function renderTEEndpoint() {
+    const host = $('phTEBody'); if (!host) return;
+    if (!window.TEConn || !TEConn.on()) {
+      host.innerHTML = '<p class="te-ep-hint">Connect your ThousandEyes tenant on the <b>Network</b> tab to match this device to its Endpoint Agent.</p>';
+      return;
+    }
+    TEConn.refresh();
+    const eps = TEConn.endpoints();
+    const ip = (netInfo && netInfo.ip) || (window.TEApp && TEApp.room() && TEApp.room().ip) || null;
+    if (!eps.length) { host.innerHTML = '<p class="te-ep-hint">No Endpoint Agents in this tenant, or still loading…</p>'; return; }
+    const dev = deviceGuess();
+    const sameIP = ip ? eps.filter((e) => e.publicIP && e.publicIP === ip) : [];
+    const bySeen = (a, b) => Date.parse(b.lastSeen || 0) - Date.parse(a.lastSeen || 0);
+    const platMatch = sameIP.filter((e) => e.platform === dev.k).sort(bySeen);
+    const best = platMatch[0] || null;
+    let html = '';
+    if (best) {
+      html += `<div class="ep-hdr"><span class="ep-tag ok">This device</span> matched by public IP and ${esc(dev.label)}</div>` + epRow(best, 'me');
+      const others = sameIP.filter((e) => e !== best);
+      if (others.length) html += `<div class="ep-sub">Others on this network (${esc(ip)})</div>` + others.sort(bySeen).map((e) => epRow(e)).join('');
+    } else if (sameIP.length) {
+      html += `<div class="ep-hdr">No <b>${esc(dev.label)}</b> agent on this network, but ${sameIP.length} other device${sameIP.length > 1 ? 's' : ''} at <b>${esc(ip)}</b>:</div>` + sameIP.sort(bySeen).map((e) => epRow(e)).join('');
+    } else {
+      html += `<div class="ep-hdr">No Endpoint Agent is reporting from this network${ip ? ' (<b>' + esc(ip) + '</b>)' : ''}. Install the ThousandEyes Endpoint Agent on this device to see it here.</div>`;
+      html += `<div class="ep-sub">${eps.length} endpoint agent${eps.length > 1 ? 's' : ''} in your tenant</div>` + eps.slice().sort(bySeen).slice(0, 4).map((e) => epRow(e)).join('');
+    }
+    host.innerHTML = html;
+  }
+  addEventListener('te-conn', () => { if (tab === 'phone') renderTEEndpoint(); });
+  addEventListener('te-data', () => { if (tab === 'phone') renderTEEndpoint(); });
 
   // ── Outages: the list is a sheet - folded to its counts, or open ──────
   {

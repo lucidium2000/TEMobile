@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=32">
+  <link rel="stylesheet" href="css/mobile.css?v=33">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -361,8 +361,12 @@
       <div class="sig"><div class="bars" id="phBars"><i></i><i></i><i></i><i></i><i></i></div><div><b id="phQual">&ndash;</b><span id="phType"></span></div></div>
       <div class="nc-tl ph-tl"><div class="ph-live"><span><i></i>Live &middot; every second</span><b id="phLiveMs">&ndash;</b></div><div class="nc-spark" id="phSpark"></div><div class="nc-axis"><span id="phT0"></span><span>now</span></div><div class="ph-lstats" id="phLStats"></div></div>
       <dl class="kv" id="phNetKv"></dl>
-      <p class="m-note">Wi-Fi scanning (nearby networks, channels, signal in dBm) needs a native app - phones don't share the radio with web pages. Everything here is measured: edge-measured round trip and resent packets come from Cloudflare's side of the connection.</p>
     </section>
+    <section class="m-card sec te-ep" id="phTE">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="10" ry="5"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/></svg><span class="sec-name">ThousandEyes Endpoint</span></h2>
+      <div id="phTEBody"></div>
+    </section>
+    <p class="m-note m-pad">Wi-Fi scanning (nearby networks, channels, signal in dBm) needs a native app - phones don't share the radio with web pages. Everything here is measured: edge-measured round trip and resent packets come from Cloudflare's side of the connection.</p>
     <section class="m-card sec" id="phBat">
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/></svg><span class="sec-name">Battery</span></h2>
       <div class="bat"><div class="bat-body"><i id="phBatFill"></i><b id="phBatPct">&ndash;</b></div><dl class="kv" id="phBatKv"></dl></div>
@@ -415,7 +419,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=4"></script>
-  <script src="js/mobile.js?v=18"></script>
+  <script src="js/mobile.js?v=19"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

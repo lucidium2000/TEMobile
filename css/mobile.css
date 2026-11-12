@@ -737,3 +737,23 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .tec-snap .ok { border-color: rgba(52,211,153,.3); } .tec-snap .warn { border-color: rgba(251,191,36,.3); } .tec-snap .bad { border-color: rgba(244,63,94,.35); }
 .tec-snap.loading { grid-template-columns: 1fr; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink-3); font-size: .85em; padding: 18px; }
 .tec-snap.loading i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(22,189,235,.25); border-top-color: var(--app); animation: ocrSpin .8s linear infinite; }
+
+/* ThousandEyes Endpoint match (Phone) */
+.te-ep-hint { margin: 0; color: var(--ink-2); font-size: .9em; line-height: 1.5; }
+.te-ep-hint b { color: var(--app); }
+.ep-hdr { font-size: .84em; color: var(--ink-2); line-height: 1.5; margin-bottom: 10px; }
+.ep-hdr b { color: var(--ink); }
+.ep-tag { display: inline-block; font-size: .82em; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; margin-right: 6px; }
+.ep-tag.ok { color: #04121a; background: #34d399; }
+.ep-sub { margin: 14px 0 8px; font-size: .62em; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.ep-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--hair); }
+.ep-row:first-of-type, .ep-hdr + .ep-row { border-top: 0; }
+.ep-row.me { background: rgba(22,189,235,.06); border: 1px solid rgba(22,189,235,.3); border-radius: 12px; padding: 10px; margin-top: 2px; }
+.ep-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.ep-dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
+.ep-main { min-width: 0; }
+.ep-main b { display: block; font-size: .92em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-main span { display: block; font-size: .72em; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-meta { text-align: right; flex: none; max-width: 42%; }
+.ep-meta span { display: block; font-size: .74em; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-meta small { display: block; font-size: .64em; color: var(--ink-3); }
