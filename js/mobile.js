@@ -737,7 +737,6 @@
     const act = os.filter((o) => o.active), win = h === 1 ? 'the last hour' : `the last ${h} hours`;
     const hero = $('hmHero');
     hero.dataset.state = !os.length && !A.outages ? 'wait' : act.length >= 5 ? 'bad' : act.length ? 'warn' : 'ok';
-    $('hmHeroTitle').textContent = act.length ? (act.length > 1 ? 'Outages in progress' : 'Outage in progress') : 'The internet looks healthy';
     renderHomeFeed();
     // Weather tile.
     const w = A.weather ? A.weather() : {}, c = w.now && w.now.current, room = A.room && A.room();

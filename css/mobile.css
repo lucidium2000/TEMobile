@@ -261,7 +261,7 @@ body { background: #03050a; }
 .hm-hero[data-state="warn"] { --c: #fbbf24; --c2: 251, 191, 36; }
 .hm-hero[data-state="bad"] { --c: var(--orange); --c2: 241, 94, 34; }
 .hero-row { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-.rings { position: relative; width: 184px; height: 184px; display: block; flex: none; margin: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
+.rings { position: relative; width: 206px; height: 206px; display: block; flex: none; margin: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
 .rings::before { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: radial-gradient(circle, rgba(var(--c2), .3), transparent 70%); animation: ringglow 3.2s ease-in-out infinite; }
 @keyframes ringglow { 50% { opacity: .4; transform: scale(.9); } }
 .rings-svg { position: relative; width: 100%; height: 100%; display: block; }
@@ -276,8 +276,8 @@ body { background: #03050a; }
 .rg-eye { width: 26px; height: auto; opacity: .55; filter: brightness(0) invert(1) drop-shadow(0 0 6px rgba(255, 255, 255, .3)); }
 .rg-center b { font-size: 2.5em; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: #fff; text-shadow: 0 0 26px rgba(var(--c2), .65); font-variant-numeric: tabular-nums; }
 .rg-center small { font-size: .62em; letter-spacing: .22em; text-transform: uppercase; color: var(--c); font-weight: 700; margin-top: 2px; }
-.rg-legend { display: flex; flex-direction: column; align-items: flex-start; gap: 11px; margin: 0; padding: 0; flex: none; }
-.rg-legend span { display: inline-flex; align-items: center; gap: 8px; font-size: .95em; font-weight: 800; white-space: nowrap; }
+.rg-legend { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin: 0; padding: 0; flex: none; }
+.rg-legend span { display: inline-flex; align-items: center; gap: 8px; font-size: 1.05em; font-weight: 800; white-space: nowrap; }
 .rg-legend i { width: 11px; height: 11px; border-radius: 50%; flex: none; box-shadow: 0 0 7px currentColor; }
 .rg-legend b { color: #fff; font-weight: 800; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .rings::before, .rg-val circle { animation: none; } }
