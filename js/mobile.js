@@ -840,7 +840,9 @@
     // Arc starts at 3 o'clock and draws clockwise for c%; its gap-mid is 180deg
     // from its arc-mid, so base rotation = 225 - 1.8*c keeps the gap at 4:30.
     el.style.setProperty('--rg-base', (225 - 1.8 * c).toFixed(1) + 'deg');
-    el.style.setProperty('--rg-dur', (0.8 + (100 - c) * 0.004).toFixed(2) + 's'); // fuller settles first
+    // Original per-ring spread (8 + 0.34*(100-c)) scaled to 1/5, so fuller rings
+    // spin clearly faster than emptier ones, at half the previous overall speed.
+    el.style.setProperty('--rg-dur', (1.6 + (100 - c) * 0.068).toFixed(2) + 's');
   }
   // Spin the rings one full turn, then let them rest. Re-runs each time Home opens.
   function spinRings() {
