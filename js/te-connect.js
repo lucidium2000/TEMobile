@@ -77,26 +77,29 @@
   const cache = { at: 0, agents: null, tests: null, alerts: null, endpoints: null, loading: false };
   function withAid(path) { const a = state.acct && state.acct.aid; return a ? path + (path.includes('?') ? '&' : '?') + 'aid=' + encodeURIComponent(a) : path; }
   function pick(d) { for (let i = 1; i < arguments.length; i++) { const k = arguments[i]; if (d && Array.isArray(d[k])) return d[k]; } return []; }
+  function fireData() { try { dispatchEvent(new CustomEvent('te-data', { detail: summary() })); } catch (_) { /* */ } render(); }
   async function refresh(force) {
     if (state.status !== 'on') return cache;
-    if (!force && cache.agents && Date.now() - cache.at < 45e3) return cache;
+    if (!force && cache.at && Date.now() - cache.at < 45e3) return cache;
     if (cache.loading) return cache;
     cache.loading = true;
     try {
-      const [ag, ts, al, ep] = await Promise.all([
-        api(withAid('/v7/agents')).catch(() => null),
-        api(withAid('/v7/tests')).catch(() => null),
+      // Fast, high-value data first (alerts, endpoints, tests) so the UI fills
+      // in quickly; everything is scoped to the current account group by aid.
+      const [al, ep, ts] = await Promise.all([
         api(withAid('/v7/alerts')).catch(() => null),
         api(withAid('/v7/endpoint/agents')).catch(() => null),
+        api(withAid('/v7/tests')).catch(() => null),
       ]);
-      if (ag) cache.agents = pick(ag, 'agents', 'result');
-      if (ts) cache.tests = pick(ts, 'tests', 'result');
       if (al) cache.alerts = pick(al, 'alerts', 'results', 'result');
-      if (ep) cache.endpoints = pick(ep, 'agents', 'results', 'result');
+      if (ep) cache.endpoints = pick(ep, 'agents', 'results', 'result', 'endpointAgents');
+      if (ts) cache.tests = pick(ts, 'tests', 'results', 'result');
       cache.at = Date.now();
+      fireData();
+      // Agents can be 1000+ (all the cloud vantage points): load in the
+      // background so it never blocks the first paint.
+      api(withAid('/v7/agents')).then((ag) => { if (ag) { cache.agents = pick(ag, 'agents', 'result'); fireData(); } }).catch(() => {});
     } finally { cache.loading = false; }
-    try { dispatchEvent(new CustomEvent('te-data', { detail: summary() })); } catch (_) { /* */ }
-    render();
     return cache;
   }
   function summary() {
@@ -161,7 +164,7 @@
           <div class="tec-ok"><i></i>Connected</div>
           <b>${esc(a.name)}</b>
           ${a.org ? `<span>${esc(a.org)}</span>` : ''}
-          <small>${a.count > 1 ? a.count + ' account groups · ' : ''}via ${esc(TEConn.proxyHost())}</small>
+          <small>via ${esc(TEConn.proxyHost())}</small>
         </div>
         ${snap}
         <div class="tec-btns"><button class="m-btn ghost" id="tecRefresh">Refresh</button><button class="m-btn ghost" id="tecOff">Disconnect</button></div>`;

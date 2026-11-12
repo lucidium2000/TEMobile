@@ -50,6 +50,21 @@
     const s = Math.max(0, (Date.now() - ms) / 1000);
     if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min'; if (s < 86400) return Math.round(s / 3600) + ' h'; return Math.round(s / 86400) + ' d';
   }
+  const sevCls = (sv) => { sv = (sv || '').toUpperCase(); return sv === 'CRITICAL' || sv === 'MAJOR' ? 'bad' : sv === 'MINOR' || sv === 'WARNING' ? 'warn' : 'info'; };
+  // Normalise an alert across the nested (test/rule/target) and flat
+  // (testName/ruleName/ruleExpression) shapes the API can return, and fall back
+  // to the tests list by id, so an alert always shows real detail - not just "Alert".
+  function normAlert(a) {
+    const t = a.test || {}, r = a.rule || {}, tg = a.target || {};
+    let name = t.name || a.testName || tg.name || a.targetName || '';
+    if (!name) { const tid = a.testId || t.id; if (tid && window.TEConn) { const tt = TEConn.tests().find((x) => String(x.testId || x.id) === String(tid)); if (tt) name = tt.testName || tt.name; } }
+    if (!name) name = r.name || a.ruleName || '';
+    const cond = r.expressionText || a.ruleExpression || a.expressionText || r.name || a.ruleName || '';
+    const type = t.type || r.type || a.alertType || a.type || '';
+    let start = a.start || a.dateStartMs || 0;
+    if (!start && a.dateStart) { const d = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(a.dateStart) ? a.dateStart : a.dateStart + 'Z'); if (isFinite(d)) start = d; }
+    return { sev: (a.severity || '').toUpperCase(), title: name || (type ? type + ' alert' : 'ThousandEyes alert'), cond, type, start, viol: a.violationCount || a.violations || 0 };
+  }
   // Two equivalent views in the outage sheet, one row of tabs: the global
   // "Around the World" and the user's own "My ThousandEyes" (shown only when
   // connected). Only one is visible at a time, so the sheet stays compact.
@@ -80,13 +95,12 @@
     const badge = $('oTenantBadge'); if (badge) { badge.textContent = alerts.length; badge.hidden = !alerts.length; badge.className = 'ot-badge' + (alerts.some((a) => ['CRITICAL', 'MAJOR'].includes((a.severity || '').toUpperCase())) ? '' : ' minor'); }
     const host = $('teAlerts'); if (!host) return;
     if (!alerts.length) { host.innerHTML = '<p class="te-clear">No active alerts in your tenant right now.</p>'; return; }
-    const cls = (sv) => { sv = (sv || '').toUpperCase(); return sv === 'CRITICAL' || sv === 'MAJOR' ? 'bad' : sv === 'MINOR' || sv === 'WARNING' ? 'warn' : 'info'; };
     host.innerHTML = alerts.slice(0, 40).map((a) => {
-      const t = a.test || {}, r = a.rule || {}, tg = a.target || {};
-      return `<div class="te-al ${cls(a.severity)}">
+      const n = normAlert(a);
+      return `<div class="te-al ${sevCls(n.sev)}">
         <span class="te-al-dot"></span>
-        <div class="te-al-main"><b>${esc(t.name || r.name || 'Alert')}</b><span>${esc(r.expressionText || r.name || '')}${tg.name ? ' · ' + esc(tg.name) : ''}</span></div>
-        <div class="te-al-meta"><span>${esc(t.type || r.type || '')}</span><small>${a.start ? alertSince(a.start) : ''}</small></div>
+        <div class="te-al-main"><b>${esc(n.title)}</b><span>${esc([n.cond, n.type].filter(Boolean).join(' · '))}</span></div>
+        <div class="te-al-meta"><span>${esc(n.sev || '')}</span><small>${n.start ? alertSince(n.start) : ''}${n.viol ? ' · ' + n.viol + '\u00d7' : ''}</small></div>
       </div>`;
     }).join('');
   }
@@ -658,6 +672,22 @@
     if (s < 86400) return Math.round(s / 3600) + ' h ago'; return Math.round(s / 86400) + ' d ago';
   }
   const PLAT = { windows: 'Windows', mac: 'macOS', android: 'Android', ios: 'iOS', roomos: 'RoomOS', linux: 'Linux' };
+  const cap = (v) => (v ? String(v).replace(/^./, (c) => c.toUpperCase()) : '');
+  function epDetail(e) {
+    const rows = [], add = (k, v) => { if (v) rows.push([k, v]); };
+    add('Operating system', [PLAT[e.platform] || e.platform, e.osVersion].filter(Boolean).join(' '));
+    add('Model', [e.manufacturer, e.model].filter(Boolean).join(' '));
+    add('Serial', e.serialNumber);
+    add('License', cap(e.licenseType));
+    add('Battery', cap(e.batteryLevel));
+    add('Network adapter', [e.nicModel, e.nicDriverVersion].filter(Boolean).join(' · '));
+    const dep = {}; (e.deploymentInfo || []).forEach((d) => { dep[d.key] = d.value; });
+    add('Deployment', [cap(dep.managementMode), dep.installMethod].filter(Boolean).join(' · '));
+    add('Public IP', e.publicIP);
+    add('Status', cap(e.status));
+    add('Last seen', e.lastSeen ? sinceStr(e.lastSeen) : '');
+    return rows.length ? '<dl class="ep-kv">' + rows.map((kv) => `<div><dt>${esc(kv[0])}</dt><dd>${esc(kv[1])}</dd></div>`).join('') + '</dl>' : '';
+  }
   function epRow(e, cls) {
     const live = sinceStr(e.lastSeen), recent = Date.now() - Date.parse(e.lastSeen) < 15 * 60e3;
     return `<div class="ep-row ${cls || ''}">
@@ -683,7 +713,7 @@
     const best = platMatch[0] || null;
     let html = '';
     if (best) {
-      html += `<div class="ep-hdr"><span class="ep-tag ok">This device</span> matched by public IP and ${esc(dev.label)}</div>` + epRow(best, 'me');
+      html += `<div class="ep-hdr"><span class="ep-tag ok">This device</span> matched by public IP and ${esc(dev.label)}</div>` + epRow(best, 'me') + epDetail(best);
       const others = sameIP.filter((e) => e !== best);
       if (others.length) html += `<div class="ep-sub">Others on this network (${esc(ip)})</div>` + others.sort(bySeen).map((e) => epRow(e)).join('');
     } else if (sameIP.length) {
@@ -814,7 +844,6 @@
   // security news (Hacker News Algolia, keyless, best-effort). ──────────────
   const ALERT_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
   const NEWS_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14H5a2 2 0 0 1-2-2V7M17 8h3v9a2 2 0 0 1-2 2M7 9h7M7 13h7"/></svg>';
-  const alertCls = (sv) => { sv = (sv || '').toUpperCase(); return sv === 'CRITICAL' || sv === 'MAJOR' ? 'bad' : sv === 'MINOR' || sv === 'WARNING' ? 'warn' : 'info'; };
   const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'news'; } };
   let homeNews = [], newsAt = 0;
   async function loadHomeNews() {
@@ -834,9 +863,9 @@
     const items = [];
     if (window.TEConn && TEConn.on()) {
       TEConn.alerts().forEach((a) => {
-        const t = a.test || {}, r = a.rule || {};
-        items.push({ pri: 0, sev: AL_SEV[(a.severity || '').toUpperCase()] || 0, t: a.start || 0,
-          html: `<li class="feed-alert sev-${alertCls(a.severity)}"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(t.name || r.name || 'Alert')}<small>${esc(r.expressionText || '')}${t.type || r.type ? ' \u00b7 ' + esc(t.type || r.type) : ''}</small></span><span class="ago"><em class="feed-tag tenant">Tenant</em>${a.start ? alertSince(a.start) : ''}</span></li>` });
+        const n = normAlert(a);
+        items.push({ pri: 0, sev: AL_SEV[n.sev] || 0, t: n.start || 0,
+          html: `<li class="feed-alert sev-${sevCls(n.sev)}"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}</span></li>` });
       });
     }
     const act = (A && A.outages ? A.outages() : []).filter((o) => o.active);

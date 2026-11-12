@@ -801,6 +801,9 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 /* Home feed: tenant alerts, active outages, news */
 .feed-tag { display: inline-block; font-size: .86em; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 6px; margin-right: 6px; vertical-align: 1px; }
 .feed-tag.tenant { color: #04121a; background: var(--app); }
+.feed-tag.sev-bad { color: #fff; background: #f43f5e; }
+.feed-tag.sev-warn { color: #1a1205; background: #fbbf24; }
+.feed-tag.sev-info { color: #04121a; background: #60a5fa; }
 .h-list .feed-alert .ico { background: rgba(244, 63, 94, .14); color: #f43f5e; }
 .h-list .feed-alert.sev-warn .ico { background: rgba(251, 191, 36, .14); color: #fbbf24; }
 .h-list .feed-alert.sev-info .ico { background: rgba(96, 165, 250, .14); color: #60a5fa; }
@@ -817,3 +820,9 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .ring-tip b { display: block; font-size: .95em; font-weight: 800; margin-bottom: 3px; }
 .ring-tip b span { color: var(--ink-3); font-weight: 700; margin-left: 6px; }
 .ring-tip p { margin: 0; font-size: .78em; line-height: 1.45; color: var(--ink-2); font-weight: 500; }
+
+/* Endpoint rich detail (matched device) */
+.ep-kv { margin: 11px 0 2px; }
+.ep-kv > div { display: flex; justify-content: space-between; gap: 12px; padding: .46em 0; border-top: 1px solid var(--hair); }
+.ep-kv dt { color: var(--ink-3); font-size: .82em; }
+.ep-kv dd { margin: 0; font-weight: 600; font-size: .85em; text-align: right; overflow-wrap: anywhere; }
