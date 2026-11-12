@@ -778,7 +778,29 @@
     $('hmBat').className = 't-bat' + (lv != null && lv <= 20 ? ' low' : '');
     $('hmBatV').innerHTML = lv != null ? `${lv}<small>%</small>` : (navigator.onLine ? 'Online' : 'Offline');
     $('hmPhSub').textContent = [lv != null && battery.charging ? 'Charging' : '', room ? room.city : ''].filter(Boolean).join(' · ');
+
+    // Hero rings (fuller = healthier): This Device, My Network (services, plus
+    // tenant if connected), Internet Insights network, and applications (outer).
+    const dev = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
+    let net = svcs.length ? Math.round((good / svcs.length) * 100) : null;
+    if (window.TEConn && TEConn.on()) {
+      const sm = TEConn.summary(), sv = sm.alerts.bySeverity || {}, maj = (sv.CRITICAL || 0) + (sv.MAJOR || 0);
+      const tenant = Math.max(0, 100 - (maj * 22 + (sm.alerts.total - maj) * 8));
+      net = net != null ? Math.round((net + tenant) / 2) : tenant;
+    }
+    if (net == null) net = 0;
+    const netOut = act.filter((o) => o.kind === 'network').length, appOut = act.filter((o) => o.kind !== 'network').length;
+    const iiNet = Math.max(0, 100 - Math.min(100, netOut * 12)), iiApp = Math.max(0, 100 - Math.min(100, appOut * 12));
+    setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
+    const tenantOn = !!(window.TEConn && TEConn.on());
+    $('hmRingLegend').innerHTML = [
+      ['#16bdeb', 'This Device', dev],
+      ['#34d399', tenantOn ? 'My Network + Tenant' : 'My Network', net],
+      ['#f7873a', 'Internet', iiNet],
+      ['#a78bfa', 'Applications', iiApp],
+    ].map((x) => `<span><i style="color:${x[0]};background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
   }
+  function setRing(id, v) { const el = $(id); if (el) el.style.strokeDashoffset = String(100 - Math.max(0, Math.min(100, v || 0))); }
   document.querySelectorAll('#viewHome [data-go]').forEach((el) => el.addEventListener('click', () => {
     if (window.Sfx) window.Sfx.play('tap');
     setTab(el.dataset.go);

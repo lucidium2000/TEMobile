@@ -260,16 +260,25 @@ body { background: #03050a; }
 .hm-hero { --c: var(--cyan); --c2: 22, 189, 235; position: relative; display: grid; justify-items: center; width: 100%; padding: 0 0 18px; text-align: center; color: inherit; }
 .hm-hero[data-state="warn"] { --c: #fbbf24; --c2: 251, 191, 36; }
 .hm-hero[data-state="bad"] { --c: var(--orange); --c2: 241, 94, 34; }
-.orb { position: relative; width: 196px; height: 196px; display: block; margin-bottom: -150px; }
-.orb i { position: absolute; inset: 0; border-radius: 50%; }
-.orb-core { inset: 34px !important; background: radial-gradient(circle at 50% 38%, rgba(var(--c2), .32), rgba(var(--c2), .06) 62%, transparent 72%);
-  box-shadow: 0 0 60px rgba(var(--c2), .25), inset 0 0 30px rgba(var(--c2), .25); border: 1px solid rgba(var(--c2), .35); }
-.orb-ring { border: 2px solid transparent; background: conic-gradient(from 0deg, transparent 0 55%, rgba(var(--c2), .9) 85%, transparent 86%) border-box;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
-  animation: orbspin 6s linear infinite; }
-.orb-ring.r2 { inset: 16px; opacity: .5; animation-duration: 10s; animation-direction: reverse; }
-@keyframes orbspin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .orb-ring { animation: none; } }
+.rings { position: relative; width: 214px; height: 214px; display: block; margin: 0 auto 4px; }
+.rings::before { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: radial-gradient(circle, rgba(var(--c2), .3), transparent 70%); animation: ringglow 3.2s ease-in-out infinite; }
+@keyframes ringglow { 50% { opacity: .4; transform: scale(.9); } }
+.rings-svg { position: relative; width: 100%; height: 100%; display: block; animation: ringspin 26s linear infinite; }
+.rg-track circle { fill: none; stroke: rgba(255, 255, 255, .06); stroke-width: 11; }
+.rg-val circle { fill: none; stroke-width: 11; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 100px 100px; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset 1.1s cubic-bezier(.22, 1, .36, 1); }
+.rg.r-dev   { stroke: #16bdeb; filter: drop-shadow(0 0 5px rgba(22, 189, 235, .75)); }
+.rg.r-net   { stroke: #34d399; filter: drop-shadow(0 0 5px rgba(52, 211, 153, .6)); }
+.rg.r-iinet { stroke: #f7873a; filter: drop-shadow(0 0 5px rgba(241, 94, 34, .6)); }
+.rg.r-app   { stroke: #a78bfa; filter: drop-shadow(0 0 5px rgba(139, 92, 246, .65)); }
+@keyframes ringspin { to { transform: rotate(360deg); } }
+.rg-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; pointer-events: none; }
+.rg-center b { font-size: 2.5em; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: #fff; text-shadow: 0 0 26px rgba(var(--c2), .65); font-variant-numeric: tabular-nums; }
+.rg-center small { font-size: .62em; letter-spacing: .22em; text-transform: uppercase; color: var(--c); font-weight: 700; margin-top: 2px; }
+.rg-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 14px; margin-top: 10px; padding: 0 8px; }
+.rg-legend span { display: inline-flex; align-items: center; gap: 6px; font-size: .74em; color: var(--ink-3); font-weight: 600; }
+.rg-legend i { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
+.rg-legend b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .rings-svg, .rings::before { animation: none; } }
 .hero-n { position: relative; display: grid; justify-items: center; height: 150px; align-content: center; }
 .hero-n b { font-size: 4em; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: #fff; text-shadow: 0 0 30px rgba(var(--c2), .6); font-variant-numeric: tabular-nums; }
 .hero-n small { font-size: .7em; letter-spacing: .22em; text-transform: uppercase; color: var(--c); font-weight: 700; }

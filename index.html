@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=35">
+  <link rel="stylesheet" href="css/mobile.css?v=36">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -266,11 +266,24 @@
   <!-- ── Mobile: Home (an overview of every tab), Weather, Tests, Phone ── -->
   <main class="view" id="viewHome" hidden>
     <header class="hm-top"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><p><b id="hmClock"></b><span id="hmDate"></span></p></header>
-    <button class="hm-hero" data-go="globe" id="hmHero">
-      <span class="orb" aria-hidden="true"><i class="orb-ring"></i><i class="orb-ring r2"></i><i class="orb-core"></i></span>
-      <span class="hero-n"><b id="hmHeroN">&ndash;</b><small id="hmHeroK">active</small></span>
+    <button class="hm-hero rings-hero" data-go="globe" id="hmHero">
+      <span class="rings" aria-hidden="true">
+        <svg class="rings-svg" viewBox="0 0 200 200">
+          <g class="rg-track">
+            <circle cx="100" cy="100" r="85"/><circle cx="100" cy="100" r="67"/><circle cx="100" cy="100" r="49"/><circle cx="100" cy="100" r="31"/>
+          </g>
+          <g class="rg-val">
+            <circle class="rg r-app"   id="rgIIApp"  cx="100" cy="100" r="85" pathLength="100"/>
+            <circle class="rg r-iinet" id="rgIINet"  cx="100" cy="100" r="67" pathLength="100"/>
+            <circle class="rg r-net"   id="rgNet"    cx="100" cy="100" r="49" pathLength="100"/>
+            <circle class="rg r-dev"   id="rgDevice" cx="100" cy="100" r="31" pathLength="100"/>
+          </g>
+        </svg>
+        <span class="rg-center"><b id="hmHeroN">&ndash;</b><small id="hmHeroK">active</small></span>
+      </span>
       <span class="hero-t" id="hmHeroTitle">Checking the internet&hellip;</span>
       <span class="hero-s" id="hmHeroSub"></span>
+      <span class="rg-legend" id="hmRingLegend"></span>
     </button>
     <div class="hm-grid">
       <button class="tile" data-go="weather" id="hmWx"><span class="t-k">Weather</span><canvas id="hmWxIcon" width="34" height="34"></canvas><b class="t-v" id="hmWxTemp">&ndash;</b><span class="t-s" id="hmWxSub"></span></button>
@@ -430,7 +443,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=4"></script>
-  <script src="js/mobile.js?v=21"></script>
+  <script src="js/mobile.js?v=22"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
