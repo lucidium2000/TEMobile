@@ -822,12 +822,12 @@
     const iiApp = Math.max(0, Math.min(100, 100 - aAct * 16 - Math.min(30, (appAll.length - aAct) * 2.5)));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
     const tenantOn = !!(window.TEConn && TEConn.on());
-    $('hmRingLegend').innerHTML = [
-      ['#00bceb', 'Apps', iiApp],
-      ['#f15e22', 'Internet', iiNet],
-      ['#78be20', tenantOn ? 'Network+' : 'Network', net],
-      ['#7c3aed', 'Device', dev],
-    ].map((x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
+    const legRow = (x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
+    // Apps + Internet are out on the public internet (external); Network and
+    // this Device are things you run (internal).
+    $('hmRingLegend').innerHTML =
+      `<div class="rg-grp"><em class="rg-cat">External</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
+      + `<div class="rg-grp"><em class="rg-cat">Internal</em>${[['#78be20', tenantOn ? 'Network+' : 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
     homeRings = {
       rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
       rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
