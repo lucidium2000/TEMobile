@@ -725,6 +725,7 @@
 
   // ── Home: one glance at every tab; each card opens its tab ──────────────
   const fmtAgo = (min) => (min < 60 ? `${Math.max(1, Math.round(min))}m ago` : min < 1440 ? `${Math.floor(min / 60)}h ${Math.round(min % 60)}m ago` : `${Math.round(min / 1440)}d ago`);
+  let homeRings = {};
   function refreshHome() {
     const A = window.TEApp;
     const now = new Date();
@@ -739,13 +740,7 @@
     $('hmHeroN').textContent = act.length;
     $('hmHeroK').textContent = 'active';
     $('hmHeroTitle').textContent = act.length ? (act.length > 1 ? 'Outages in progress' : 'Outage in progress') : 'The internet looks healthy';
-    $('hmHeroSub').textContent = act.length
-      ? act.slice(0, 2).map((o) => o.name).join(' · ') + (act.length > 2 ? ` +${act.length - 2}` : '')
-      : `${os.length} outage${os.length === 1 ? '' : 's'} seen and cleared in ${win}`;
-    $('hmList').innerHTML = os.length ? os.slice(0, 3).map((o) => `<li class="${o.kind}${o.active ? ' active' : ''}" data-id="${esc(o.id)}">`
-      + `<span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} · ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span>`
-      + `<span class="ago">${o.active ? 'Active' : fmtAgo((Date.now() - o.start) / 60e3)}</span></li>`).join('')
-      : '<li class="empty">No outages in ' + win + '</li>';
+    renderHomeFeed();
     // Weather tile.
     const w = A.weather ? A.weather() : {}, c = w.now && w.now.current, room = A.room && A.room();
     const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
@@ -798,23 +793,115 @@
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
     const tenantOn = !!(window.TEConn && TEConn.on());
     $('hmRingLegend').innerHTML = [
-      ['#7c3aed', 'This Device', dev],
-      ['#34d399', tenantOn ? 'My Network + Tenant' : 'My Network', net],
-      ['#f15e22', 'Internet', iiNet],
       ['#16bdeb', 'Applications', iiApp],
-    ].map((x) => `<span><i style="color:${x[0]};background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
+      ['#f15e22', 'Internet', iiNet],
+      ['#34d399', tenantOn ? 'My Network + Tenant' : 'My Network', net],
+      ['#7c3aed', 'This Device', dev],
+    ].map((x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`).join('');
+    homeRings = {
+      rgIIApp: { name: 'Applications', color: '#16bdeb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
+      rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
+      rgNet: { name: tenantOn ? 'My Network + Tenant' : 'My Network', color: '#34d399', val: net, desc: tenantOn ? 'Your service checks, plus active alerts in your ThousandEyes tenant.' : 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
+      rgDevice: { name: 'This Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
+    };
   }
   function setRing(id, v) { const el = $(id); if (el) el.style.strokeDashoffset = String(100 - Math.max(0, Math.min(100, v || 0))); }
+
+  // ── Home feed: current before past - tenant active alerts, then active
+  // Internet Insights outages (network + application), then recent network /
+  // security news (Hacker News Algolia, keyless, best-effort). ──────────────
+  const ALERT_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
+  const NEWS_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h13v14H5a2 2 0 0 1-2-2V7M17 8h3v9a2 2 0 0 1-2 2M7 9h7M7 13h7"/></svg>';
+  const alertCls = (sv) => { sv = (sv || '').toUpperCase(); return sv === 'CRITICAL' || sv === 'MAJOR' ? 'bad' : sv === 'MINOR' || sv === 'WARNING' ? 'warn' : 'info'; };
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'news'; } };
+  let homeNews = [], newsAt = 0;
+  async function loadHomeNews() {
+    if (homeNews.length && Date.now() - newsAt < 30 * 60e3) return;
+    newsAt = Date.now();
+    const since = Math.floor((Date.now() - 21 * 864e5) / 1000), qs = ['internet outage', 'cybersecurity'];
+    try {
+      const res = await Promise.all(qs.map((q) => fetch(`https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=6&numericFilters=created_at_i>${since},points>40&query=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)));
+      const seen = new Set(), out = [];
+      res.forEach((d) => d && d.hits && d.hits.forEach((h) => { if (h.title && h.url && !seen.has(h.title)) { seen.add(h.title); out.push({ title: h.title, url: h.url, t: (h.created_at_i || 0) * 1000 }); } }));
+      homeNews = out.sort((a, b) => b.t - a.t).slice(0, 4);
+      if (tab === 'home') renderHomeFeed();
+    } catch (_) { /* best-effort */ }
+  }
+  function renderHomeFeed() {
+    const A = window.TEApp, host = $('hmList'); if (!host) return;
+    const items = [];
+    if (window.TEConn && TEConn.on()) {
+      TEConn.alerts().forEach((a) => {
+        const t = a.test || {}, r = a.rule || {};
+        items.push({ pri: 0, sev: AL_SEV[(a.severity || '').toUpperCase()] || 0, t: a.start || 0,
+          html: `<li class="feed-alert sev-${alertCls(a.severity)}"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(t.name || r.name || 'Alert')}<small>${esc(r.expressionText || '')}${t.type || r.type ? ' \u00b7 ' + esc(t.type || r.type) : ''}</small></span><span class="ago"><em class="feed-tag tenant">Tenant</em>${a.start ? alertSince(a.start) : ''}</span></li>` });
+      });
+    }
+    const act = (A && A.outages ? A.outages() : []).filter((o) => o.active);
+    act.forEach((o) => items.push({ pri: 1, sev: o.kind === 'network' ? 2 : 1, t: o.start || 0,
+      html: `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>` }));
+    homeNews.slice(0, 2).forEach((n) => items.push({ pri: 2, sev: 0, t: n.t,
+      html: `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>` }));
+    items.sort((a, b) => a.pri - b.pri || b.sev - a.sev || b.t - a.t);
+    host.innerHTML = items.length ? items.map((i) => i.html).join('') : '<li class="empty">All clear \u2014 no active alerts or outages</li>';
+    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = items.some((i) => i.pri < 2) ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
+    loadHomeNews();
+  }
   document.querySelectorAll('#viewHome [data-go]').forEach((el) => el.addEventListener('click', () => {
     if (window.Sfx) window.Sfx.play('tap');
     setTab(el.dataset.go);
   }));
   $('hmList').addEventListener('click', (e) => {
-    const li = e.target.closest('li[data-id]');
-    if (!li || !window.TEApp) return;
+    const li = e.target.closest('li'); if (!li) return;
+    if (li.dataset.url) { window.open(li.dataset.url, '_blank', 'noopener'); return; }
     if (window.Sfx) window.Sfx.play('tap');
-    setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50);
+    if (li.dataset.id && window.TEApp) { setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50); return; }
+    if (li.classList.contains('feed-alert')) { setTab('globe'); setTimeout(() => { try { setOTab('tenant'); } catch (_) { /* */ } }, 60); }
   });
+  addEventListener('te-conn', () => { if (tab === 'home') renderHomeFeed(); });
+  addEventListener('te-data', () => { if (tab === 'home') renderHomeFeed(); });
+
+  // ── Home rings: press / hover a ring to see what it means; slide a finger
+  // across the rings and it follows to each one. ───────────────────────────
+  {
+    const ringsEl = document.querySelector('#hmHero .rings'), hero = $('hmHero');
+    if (ringsEl && hero) {
+      const BANDS = [['rgDevice', 31], ['rgNet', 49], ['rgIINet', 67], ['rgIIApp', 85]];
+      let tip = null, active = null, holding = false;
+      const ringAt = (cx, cy) => {
+        const r = ringsEl.getBoundingClientRect();
+        const d = Math.hypot(cx - (r.left + r.width / 2), cy - (r.top + r.height / 2)) * 200 / r.width;
+        if (d < 21 || d > 95) return null;
+        let best = null, bd = 1e9;
+        BANDS.forEach(([id, rad]) => { const g = Math.abs(d - rad); if (g < bd) { bd = g; best = id; } });
+        return best;
+      };
+      const show = (id, cx, cy) => {
+        const info = homeRings[id]; if (!info) return hide();
+        if (!tip) { tip = document.createElement('div'); tip.className = 'ring-tip'; hero.appendChild(tip); }
+        if (id !== active) {
+          tip.innerHTML = `<b style="color:${info.color}">${esc(info.name)}<span>${info.val}%</span></b><p>${esc(info.desc)}</p>`;
+          ringsEl.querySelectorAll('.rg-val circle').forEach((c) => c.classList.toggle('rg-hot', c.id === id));
+          active = id;
+        }
+        const h = hero.getBoundingClientRect();
+        tip.style.left = Math.max(92, Math.min(h.width - 92, cx - h.left)) + 'px';
+        tip.style.top = Math.max(2, cy - h.top - 96) + 'px';
+        tip.classList.add('on'); ringsEl.classList.add('inspect');
+      };
+      const hide = () => { if (tip) tip.classList.remove('on'); ringsEl.classList.remove('inspect'); ringsEl.querySelectorAll('.rg-hot').forEach((c) => c.classList.remove('rg-hot')); active = null; };
+      ringsEl.addEventListener('pointerdown', (e) => { const id = ringAt(e.clientX, e.clientY); if (id) { holding = true; try { ringsEl.setPointerCapture(e.pointerId); } catch (_) { /* */ } e.preventDefault(); e.stopPropagation(); show(id, e.clientX, e.clientY); } });
+      ringsEl.addEventListener('pointermove', (e) => {
+        if (holding) { e.preventDefault(); const id = ringAt(e.clientX, e.clientY); id ? show(id, e.clientX, e.clientY) : hide(); return; }
+        if (e.pointerType === 'mouse') { const id = ringAt(e.clientX, e.clientY); id ? show(id, e.clientX, e.clientY) : hide(); }
+      });
+      const end = () => { holding = false; hide(); };
+      ringsEl.addEventListener('pointerup', end);
+      ringsEl.addEventListener('pointercancel', end);
+      ringsEl.addEventListener('pointerleave', () => { if (!holding) hide(); });
+      ringsEl.addEventListener('click', (e) => e.stopPropagation());   // rings inspect, never navigate
+    }
+  }
   addEventListener('te-outages', () => tab === 'home' && refreshHome());
   addEventListener('te-weather', () => {
     if (tab === 'home') refreshHome();

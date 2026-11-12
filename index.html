@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=178">
-  <link rel="stylesheet" href="css/mobile.css?v=37">
+  <link rel="stylesheet" href="css/mobile.css?v=39">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -282,17 +282,16 @@
         <span class="rg-center"><b id="hmHeroN">&ndash;</b><small id="hmHeroK">active</small></span>
       </span>
       <span class="hero-t" id="hmHeroTitle">Checking the internet&hellip;</span>
-      <span class="hero-s" id="hmHeroSub"></span>
       <span class="rg-legend" id="hmRingLegend"></span>
     </button>
     <div class="hm-grid">
-      <button class="tile" data-go="weather" id="hmWx"><span class="t-k">Weather</span><canvas id="hmWxIcon" width="34" height="34"></canvas><b class="t-v" id="hmWxTemp">&ndash;</b><span class="t-s" id="hmWxSub"></span></button>
       <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection</span><span class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
       <button class="tile" data-go="tests" id="hmSvc"><span class="t-k">Services</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
       <button class="tile" data-go="phone" id="hmPh"><span class="t-k">Battery</span><span class="t-bat" id="hmBat"><i></i></span><b class="t-v" id="hmBatV">&ndash;</b><span class="t-s" id="hmPhSub"></span></button>
+      <button class="tile" data-go="weather" id="hmWx"><span class="t-k">Weather</span><canvas id="hmWxIcon" width="34" height="34"></canvas><b class="t-v" id="hmWxTemp">&ndash;</b><span class="t-s" id="hmWxSub"></span></button>
     </div>
     <section class="hm-latest">
-      <button class="hm-label" data-go="globe"><span>Latest outages</span><em>See all</em></button>
+      <button class="hm-label" data-go="globe"><span id="hmFeedLabel">Happening now</span><em>See all</em></button>
       <ol class="h-list" id="hmList"></ol>
     </section>
   </main>
@@ -443,7 +442,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=4"></script>
-  <script src="js/mobile.js?v=23"></script>
+  <script src="js/mobile.js?v=25"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
