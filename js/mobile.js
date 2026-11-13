@@ -650,10 +650,36 @@
 
   // ── Phone: battery (Chrome on Android; not Safari) ───────────────────────
   let battery = null;
+  // Time left: the browser's own figure when it gives one; otherwise estimated
+  // from how fast the level has been dropping (logged across reloads while on
+  // battery, cleared on charging).
+  let batLog = [];
+  try { batLog = JSON.parse(localStorage.getItem('te-batlog') || '[]').filter((x) => Date.now() - x.t < 6 * 3600e3); } catch (_) { batLog = []; }
+  function logBattery() {
+    if (!battery) return;
+    if (battery.charging) { batLog = []; } else {
+      const l = battery.level, last = batLog[batLog.length - 1];
+      if (last && l > last.l) batLog = [];                       // went up: unplugged after a charge - start over
+      if (!last || last.l !== l) batLog.push({ t: Date.now(), l });
+      while (batLog.length > 30) batLog.shift();
+    }
+    try { localStorage.setItem('te-batlog', JSON.stringify(batLog)); } catch (_) { /* */ }
+  }
+  function batteryLeft() {                                      // seconds, or null if not known yet
+    if (!battery || battery.charging) return null;
+    if (isFinite(battery.dischargingTime) && battery.dischargingTime > 0) return battery.dischargingTime;
+    if (batLog.length < 2) return null;
+    const a = batLog[0], b = batLog[batLog.length - 1], drop = a.l - b.l, secs = (b.t - a.t) / 1000;
+    return drop > 0 && secs >= 120 ? battery.level / (drop / secs) : null;
+  }
   if (navigator.getBattery) {
     navigator.getBattery().then((b) => {
       battery = b;
-      ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'].forEach((ev) => b.addEventListener(ev, () => { if (tab === 'phone') refreshBattery(); else if (tab === 'home') refreshHome(); }));
+      logBattery();
+      ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'].forEach((ev) => b.addEventListener(ev, () => {
+        if (ev === 'levelchange' || ev === 'chargingchange') logBattery();
+        if (tab === 'phone') refreshBattery(); else if (tab === 'home') refreshHome();
+      }));
       if (tab === 'phone') refreshBattery(); else if (tab === 'home') refreshHome();
     }).catch(() => {});
   }
@@ -672,7 +698,7 @@
     $('phBat').classList.toggle('charging', battery.charging);
     kv($('phBatKv'), [
       ['State', battery.charging ? (lv >= 100 ? 'Full' : 'Charging') : 'On battery'],
-      [battery.charging ? 'Full in' : 'Time left', fmtDur(battery.charging ? battery.chargingTime : battery.dischargingTime)],
+      [battery.charging ? 'Full in' : 'Time left', battery.charging ? fmtDur(battery.chargingTime) : (fmtDur(batteryLeft()) || 'Estimating\u2026')],
     ]);
   }
 
@@ -944,10 +970,6 @@
     cell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20v-3M9 20v-6M14 20v-9M19 20V5"/></svg>',
     eth: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="8" width="12" height="9" rx="1.5"/><path d="M9.5 8V5h5v3M10 17v3M14 17v3"/></svg>',
   };
-  function milesBetween(la1, lo1, la2, lo2) {
-    const r = Math.PI / 180, a = Math.sin(((la2 - la1) * r) / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(((lo2 - lo1) * r) / 2) ** 2;
-    return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
   // The device essentials: model (or OS when the model is hidden) and a short
   // spec line - OS version, cores, memory.
   function deviceSummary() {
@@ -987,36 +1009,32 @@
       bat.hidden = false;
       bat.firstElementChild.style.width = lv + '%';
       bat.className = 't-bat' + (lv <= 20 ? ' low' : '') + (battery.charging ? ' chg' : '');
-      const left = fmtDur(battery.charging ? battery.chargingTime : battery.dischargingTime);
-      $('hmDevBatTxt').textContent = `${lv}%` + (battery.charging ? (lv >= 100 ? ' · full' : left ? ` · full in ${left}` : ' · charging') : left ? ` · ${left} left` : '');
+      const full = fmtDur(battery.chargingTime), left = fmtDur(batteryLeft());
+      $('hmDevBatTxt').textContent = battery.charging
+        ? `${lv}% · ${lv >= 100 ? 'charged' : full ? `full in ${full}` : 'charging'}`
+        : `${lv}% · ${left ? `${left} left` : 'estimating time left'}`;
     } else { bat.hidden = true; $('hmDevBatTxt').textContent = ''; }
     // 2) Connection: quality + round trip, with a Wi-Fi / cellular icon.
     const ct = conn && conn.type, ck = ct === 'wifi' ? 'wifi' : ct === 'cellular' ? 'cell' : ct === 'ethernet' ? 'eth' : '';
     $('hmNetIco').innerHTML = ck ? NET_ICO[ck] : '';
     $('hmBars').className = 'bars q' + q.bars;
     $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
-    $('hmNetSub').textContent = [q.label, { wifi: 'Wi-Fi', cell: 'Cellular', eth: 'Ethernet' }[ck], lastSpeed ? `${Math.round(lastSpeed.down)} Mbps` : ''].filter(Boolean).join(' · ');
-    // 3) Internet: Internet Insights network issues near you - 5 bars when
-    //    there are none within 2,000 mi, losing a bar per 500 mi closer.
-    const room = A.room && A.room();
-    let near = null;
-    if (room && isFinite(room.lat)) {
-      for (const o of os) {
-        if (o.kind !== 'network' || !o.active) continue;
-        for (const l of o.locations) { const d = milesBetween(room.lat, room.lon, l.lat, l.lon); if (!near || d < near.d) near = { d, o, l }; }
-      }
-    }
-    const ib = !room ? 0 : !near || near.d >= 2000 ? 5 : Math.max(1, Math.floor(near.d / 500) + 1);
-    $('hmInetBars').className = 'bars q' + ib;
+    const typeWord = { wifi: 'Wi-Fi', cell: 'Cellular', eth: 'Ethernet' }[ck] || (conn && conn.effectiveType ? conn.effectiveType.toUpperCase() + '-class' : '');
+    $('hmNetSub').textContent = [q.label, typeWord].filter(Boolean).join(' · ');
+    const edgeC = window.RoomNet && window.RoomNet.edge && window.RoomNet.edge.colo, rm = A.room && A.room();
+    const isp = rm && rm.org ? String(rm.org).replace(/^AS\d+\s+/, '').replace(/,?\s*(Inc|LLC|Ltd|Corporation|Corp|Communications)\.?$/i, '') : '';
+    const speed = lastSpeed ? `${Math.round(lastSpeed.down)} Mbps` : conn && conn.downlink ? `~${conn.downlink} Mbps` : '';
+    $('hmNetSub2').textContent = [isp, edgeC ? `${edgeC} edge` : '', speed].filter(Boolean).join(' · ');
+    // 3) Global Outages: the Internet Insights headline numbers - active now,
+    //    then application vs network outages in the window, and what's active.
+    const hW = A.windowH ? A.windowH() : 24, since = Date.now() - hW * 3600e3;
+    const inWin = os.filter((o) => o.start >= since), nApp = inWin.filter((o) => o.kind !== 'network').length, nNetO = inWin.length - nApp;
+    const live = os.filter((o) => o.active).sort((a, b) => b.locations.length - a.locations.length);
     const inet = $('hmInet');
-    inet.dataset.oid = near && near.d < 2000 ? near.o.id : '';
-    if (!room) { $('hmInetV').innerHTML = '–'; $('hmInetSub').textContent = 'Locating…'; }
-    else if (ib === 5) { $('hmInetV').innerHTML = 'Clear'; $('hmInetSub').textContent = 'No known issues nearby'; }
-    else {
-      $('hmInetV').innerHTML = `${Math.round(near.d).toLocaleString()}<small>mi</small>`;
-      $('hmInetSub').textContent = `${near.o.name} · ${near.l.label || near.l.name}`;
-    }
-    inet.dataset.state = ib <= 1 ? 'bad' : ib <= 2 ? 'warn' : 'ok';
+    $('hmInetV').innerHTML = `${live.length}<small>active</small>`;
+    $('hmInetSub').textContent = `${nApp} app · ${nNetO} network · ${hW}h`;
+    $('hmInetSub2').textContent = live.length ? [...new Set(live.map((o) => o.name))].slice(0, 2).join(', ') + (live.length > 2 ? ` +${live.length - 2}` : '') : 'Nothing active now';
+    inet.dataset.state = live.length >= 5 ? 'bad' : live.length ? 'warn' : 'ok';
     // 4) SaaS: the service checks at a glance (details on Network).
     const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
       name: (r.querySelector('.svc-name') || {}).textContent || '', lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
@@ -1025,7 +1043,13 @@
     const avg = lat.length ? Math.round(lat.reduce((x, y) => x + y, 0) / lat.length) : null;
     $('hmSvcDots').innerHTML = svcs.map((x) => `<i class="svc-${x.lvl}"></i>`).join('');
     $('hmSvcV').innerHTML = svcs.length ? `${good}<small>/${svcs.length}</small>` : '–';
-    $('hmSvcSub').textContent = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : `All reachable${avg != null ? ` · ${avg} ms avg` : ''}`;
+    const probes = (window.RoomNet && window.RoomNet.probes) || [], hr = Date.now() - 3600e3;
+    let tot = 0, okN = 0; probes.forEach((p) => (p.samples || []).forEach((x) => { if (x.t >= hr) { tot++; if (x.ms != null) okN++; } }));
+    const up = tot ? (okN / tot) * 100 : null;
+    const status = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : 'All reachable';
+    $('hmSvcSub').textContent = [status, avg != null ? `${avg} ms avg` : '', up != null ? `${up >= 99.95 ? 100 : up.toFixed(1)}% up` : ''].filter(Boolean).join(' · ');
+    const ranked = probes.filter((p) => p.last != null).sort((a, b) => a.last - b.last);
+    $('hmSvcSub2').textContent = ranked.length > 1 ? `Fastest ${ranked[0].name} ${Math.round(ranked[0].last)} ms · slowest ${ranked[ranked.length - 1].name} ${Math.round(ranked[ranked.length - 1].last)} ms` : '';
     $('hmSvc').dataset.state = bad.length ? 'bad' : warn.length ? 'warn' : 'ok';
 
     // Hero rings (fuller = healthier), each tied directly to what it measures:

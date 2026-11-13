@@ -347,16 +347,20 @@ body { background: #03050a; }
 /* Home flow cards: Device -> Connection -> Internet -> SaaS */
 .hm-flow { margin-bottom: 14px; }
 .hm-flow .t-s { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
-.tile-dev { grid-template-areas: "k i" "v v" "s s" "b b"; }
+.hm-flow .tile { grid-template-areas: "k i" "v v" "s s" "b b"; align-content: start; }
+#hmNetSub2, #hmSvcSub2 { color: var(--ink-3); font-weight: 500; }
 .tile-dev .t-v { font-size: 1.3em; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tile .t-s2 { grid-area: b; margin-top: 2px; color: var(--ink-2); font-weight: 600; }
 .t-bat.chg i { background: var(--cyan, #16bdeb); box-shadow: 0 0 6px rgba(22, 189, 235, .6); }
 .t-k .t-ico { display: inline-flex; vertical-align: -2px; margin-left: 6px; color: var(--cyan, #16bdeb); }
 .t-k .t-ico svg { width: 13px; height: 13px; }
 .t-k .t-ico:empty { display: none; }
-#hmInet .t-v { font-size: 1.9em; }
-#hmInet[data-state="bad"] .t-s { color: var(--bad); }
-#hmInet[data-state="warn"] .t-s { color: var(--warn); }
+#hmInet .t-v small { margin-left: 5px; }
+.t-glb { color: var(--orange, #f15e22); display: grid; }
+#hmInet .t-k { letter-spacing: .1em; white-space: nowrap; }
+#hmInet[data-state="ok"] .t-glb { color: var(--ok); }
+#hmInet[data-state="bad"] .t-s2 { color: var(--bad); }
+#hmInet[data-state="warn"] .t-s2 { color: var(--warn); }
 /* Detail views reached from a card (Network, Device): back to Home */
 .view-back { display: inline-flex; align-items: center; margin: 0 0 6px -2px; padding: .3em .75em .3em .55em; border-radius: 99px; border: 1px solid var(--hair); background: rgba(255, 255, 255, .05); color: var(--cyan, #16bdeb); font-weight: 700; font-size: .8em; cursor: pointer; }
 .t-bat { position: relative; width: 30px; height: 15px; border: 1.5px solid rgba(226, 232, 240, .5); border-radius: 4px; padding: 1.5px; }
