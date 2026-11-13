@@ -494,15 +494,20 @@
 
   /* ── Last path trace for a test, drawn left to right like ThousandEyes ──
    * /v7/test-results/{test}/path-vis lists each agent's recent rounds; the
-   * newest round for each agent is then fetched hop by hop from
-   * /path-vis/agent/{agent}/round/{round}. The pop-up goes full screen and
-   * stacks up to PT_MAX agents, alerting agents first, so you just scroll. */
+   * newest round for each of up to PT_MAX agents (alerting ones first) is
+   * fetched hop by hop from /path-vis/agent/{agent}/round/{round} and all of
+   * them are merged into ONE graph: every agent on the left, hops shared by
+   * several agents drawn once, the target on the right. Full screen, and the
+   * phone can be turned sideways to see more of it. */
   const PT_MAX = 10;
   let ptState = null;
   function ptApi(path) {
     const a = TEConn.account && TEConn.account(), aid = a && a.aid;
     return TEConn.api(aid ? path + (path.includes('?') ? '&' : '?') + 'aid=' + encodeURIComponent(aid) : path);
   }
+  // The app stays portrait; the trace may rotate (where the browser allows it).
+  const orient = (lock) => { try { const o = screen.orientation; if (!o) return; if (lock) { const p = o.lock && o.lock('portrait'); if (p && p.catch) p.catch(() => {}); } else if (o.unlock) o.unlock(); } catch (_) { /* */ } };
+  orient(true);
   function ptModal() {
     let m = $('ptModal');
     if (m) return m;
@@ -511,7 +516,7 @@
       <header class="pt-head"><div><h3 id="ptTitle"></h3><p id="ptSub"></p></div><button type="button" class="pt-x" aria-label="Close">×</button></header>
       <div class="pt-body" id="ptBody"></div></div>`;
     document.body.appendChild(m);
-    const close = () => { m.classList.remove('show'); setTimeout(() => { m.hidden = true; }, 220); ptState = null; if (window.Sfx) window.Sfx.play('close'); };
+    const close = () => { m.classList.remove('show'); setTimeout(() => { m.hidden = true; }, 220); ptState = null; orient(true); if (window.Sfx) window.Sfx.play('close'); };
     m.addEventListener('click', (e) => {
       if (e.target === m || e.target.closest('.pt-x')) return close();
       const nd = e.target.closest('[data-ptn]'); if (nd && ptState) { if (window.Sfx) window.Sfx.play('tap'); return ptInfo(ptState.sel === nd.dataset.ptn ? null : nd.dataset.ptn); }
@@ -521,13 +526,13 @@
   }
   async function openTrace(testId, title, seen) {
     const m = ptModal();
-    $('ptTitle').textContent = 'Last path trace';
+    $('ptTitle').innerHTML = 'Last path trace<span class="pt-rot"> \u00b7 turn sideways for more</span>';
     $('ptSub').textContent = title || 'Test ' + testId;
     $('ptBody').innerHTML = '<p class="pt-msg">Fetching the latest round…</p>';
-    $('ptBody').scrollTop = 0;
     m.hidden = false; requestAnimationFrame(() => m.classList.add('show'));
+    orient(false);
     if (window.Sfx) window.Sfx.play('open');
-    const st = ptState = { testId, seen: new Set(seen.map((x) => x.id).filter(Boolean)), agents: [], blocks: [], sel: null };
+    const st = ptState = { testId, seen: new Set(seen.map((x) => x.id).filter(Boolean)), agents: [], total: 0, rounds: [], done: 0, sel: null, nodes: new Map() };
     try {
       let rows = [];
       for (const w of ['15m', '2h', '12h']) {   // tests run every 1 to 60 min
@@ -544,19 +549,18 @@
         if (!cur || (r.roundId || 0) > (cur.roundId || 0)) by.set(id, { id, name: (r.agent && r.agent.agentName) || 'Agent ' + id, loc: (r.agent && r.agent.location) || '', roundId: r.roundId, date: r.date, server: r.server, serverIp: r.serverIp, sourceIp: r.sourceIp });
       }
       const all = [...by.values()].sort((a, b) => (st.seen.has(b.id) - st.seen.has(a.id)) || a.name.localeCompare(b.name));
-      st.agents = all.slice(0, PT_MAX);
-      // One section per agent, filled in as each round arrives.
-      $('ptBody').innerHTML = st.agents.map((a, i) => `<section class="pt-sec" id="ptSec${i}"><header class="pt-sh">${st.seen.has(a.id) ? '<i class="hot" title="Raised the alert"></i>' : ''}<b>${esc(a.name)}</b>${a.loc ? `<small>${esc(a.loc)}</small>` : ''}</header><div class="pt-sb"><p class="pt-msg">Fetching hops…</p></div></section>`).join('')
-        + `<p class="pt-foot">${all.length > PT_MAX ? `Showing ${PT_MAX} of ${all.length} agents${st.seen.size ? ', alerting ones first' : ''} · ` : `${all.length} agent${all.length === 1 ? '' : 's'} · `}tap a node for details · link labels are the delay each hop adds · newest round per agent, may be after the alert started</p>`;
+      st.total = all.length; st.agents = all.slice(0, PT_MAX);
+      $('ptBody').innerHTML = `<p class="pt-msg">Fetching hops from ${st.agents.length} agent${st.agents.length === 1 ? '' : 's'}…</p>`;
       let next = 0;
       const worker = async () => { while (next < st.agents.length && ptState === st) await ptLoadRound(st, next++); };
       await Promise.all([worker(), worker(), worker(), worker()]);
+      if (ptState === st && !st.rounds.some(Boolean)) $('ptBody').innerHTML = '<p class="pt-msg">The latest rounds have no hop data.</p>';
     } catch (e) {
       if (ptState === st) $('ptBody').innerHTML = `<p class="pt-msg">Couldn’t load the trace${e && e.message ? ': ' + esc(e.message) : ''}.</p>`;
     }
   }
   async function ptLoadRound(st, i) {
-    const ag = st.agents[i], box = () => { const s = $('ptSec' + i); return s && s.querySelector('.pt-sb'); };
+    const ag = st.agents[i];
     try {
       const d = await ptApi(`/v7/test-results/${encodeURIComponent(st.testId)}/path-vis/agent/${encodeURIComponent(ag.id)}/round/${encodeURIComponent(ag.roundId)}`);
       if (ptState !== st) return;
@@ -564,95 +568,139 @@
       let tr = r.pathTraces || r.paths || [];
       if (!Array.isArray(tr)) tr = [tr];
       const traces = tr.filter((t) => t && Array.isArray(t.hops) && t.hops.length);
-      const el = box(); if (!el) return;
-      if (!traces.length) { el.innerHTML = '<p class="pt-msg">This round has no hop data.</p>'; return; }
-      const g = ptGraph(i, ag, r, traces);
-      st.blocks[i] = { ag, r, traces, nodes: g.nodes };
-      el.innerHTML = g.html;
-    } catch (e) {
-      const el = ptState === st && box();
-      if (el) el.innerHTML = `<p class="pt-msg">Couldn’t load the hops${e && e.message ? ': ' + esc(e.message) : ''}.</p>`;
-    }
+      if (traces.length) st.rounds[i] = { ag, r, traces };
+    } catch (_) { /* one agent failing still leaves the rest */ }
+    if (ptState !== st) return;
+    st.done++;
+    if (st.rounds.some(Boolean)) ptRender();
   }
-  function ptGraph(bi, ag, r, traces) {
-    // Build one graph from every path in the round (ThousandEyes style): a
-    // column per hop number, one node per IP in that column, so paths that
-    // split and rejoin are drawn that way. Links carry the delay added.
-    const target = r.serverIp || ag.serverIp || traces[0].ipAddress || '', when = r.date || ag.date;
+  const ptNum = (v) => { const n = typeof v === 'string' ? parseFloat(v) : v; return typeof n === 'number' && isFinite(n) ? n : null; };
+  function ptRender() {
+    const st = ptState; if (!st) return;
+    const rounds = st.rounds.filter(Boolean);
     const nodes = new Map(), edges = new Map();
-    const node = (key, col, o) => { let n = nodes.get(key); if (!n) { n = { key, col, ...o, paths: 0 }; nodes.set(key, n); } return n; };
-    const src = node('src', 0, { kind: 'src', label: ag.name, ip: r.sourceIp || ag.sourceIp || '', sub: ag.loc, ms: 0 });
-    let maxCol = 1, reachedAny = false;
-    traces.forEach((t, ti) => {
-      const hops = t.hops.slice().sort((a, b) => (a.hop || 0) - (b.hop || 0));
-      let prev = src, prevMs = 0;
-      src.paths++;
-      hops.forEach((h, hi) => {
-        const ip = h.ipAddress || h.ip || '', col = h.hop || hi + 1, ms = h.responseTime != null ? h.responseTime : h.delay;
-        const isT = ip && ip === target;
-        const n = node(isT ? 'dst' : col + '|' + (ip || '*' + ti), col, isT
-          ? { kind: 'dst', label: r.server || ag.server || target, ip: target, rdns: h.rdns, net: h.network || h.networkName, loc: h.location, ms }
-          : { kind: ip ? 'hop' : 'none', ip, rdns: h.rdns && h.rdns !== ip ? h.rdns : '', net: h.network || h.networkName || '', loc: h.location || '', prefix: h.prefix || '', ms });
-        if (isT) { reachedAny = true; n.col = Math.max(n.col, col); }
-        n.paths++; maxCol = Math.max(maxCol, col);
-        const ek = prev.key + '>' + n.key, e = edges.get(ek) || { a: prev, b: n, d: [] };
-        if (ms != null && ip) { e.d.push(Math.max(0, ms - prevMs)); prevMs = Math.max(prevMs, ms); }
-        edges.set(ek, e); prev = n;
+    const node = (key, o) => { let n = nodes.get(key); if (!n) { n = { key, ...o, ms: [], agents: new Set(), loss: new Map(), thru: 0 }; nodes.set(key, n); } return n; };
+    const targets = new Set();
+    for (const { ag, r, traces } of rounds) {
+      const target = r.serverIp || ag.serverIp || '';
+      const src = node('src|' + ag.id, { kind: 'src', label: ag.name, ip: r.sourceIp || ag.sourceIp || '', sub: ag.loc, hot: st.seen.has(ag.id), agent: ag });
+      src.agents.add(ag.name);
+      const thru = new Map(), ended = new Map();   // per agent: traces through / stopping at each node
+      traces.forEach((t) => {
+        const hops = t.hops.slice().sort((a, b) => (a.hop || 0) - (b.hop || 0));
+        let prev = src, prevMs = 0;
+        hops.forEach((h, hi) => {
+          const ip = h.ipAddress || h.ip || '', col = h.hop || hi + 1, ms = ptNum(h.responseTime != null ? h.responseTime : h.delay);
+          const isT = ip && ip === target;
+          const key = isT ? 'dst|' + target : ip ? 'ip|' + ip : '*|' + ag.id + '|' + col;
+          const n = node(key, isT
+            ? { kind: 'dst', label: r.server || ag.server || target, ip: target }
+            : { kind: ip ? 'hop' : 'none', ip, rdns: h.rdns && h.rdns !== ip ? h.rdns : '', net: h.network || h.networkName || '', loc: h.location || '', prefix: h.prefix || '' });
+          if (isT) targets.add(key);
+          if (!n.rdns && h.rdns && h.rdns !== ip) n.rdns = h.rdns;
+          n.agents.add(ag.name);
+          if (ms != null && ip) n.ms.push(ms);
+          thru.set(key, (thru.get(key) || 0) + 1);
+          // Loss reported on the hop itself, if the API gives it.
+          const lx = ptNum(h.loss != null ? h.loss : h.forwardingLoss != null ? h.forwardingLoss : h.lossPercentage);
+          if (lx != null && lx > 0) n.loss.set(ag.name, Math.max(n.loss.get(ag.name) || 0, lx));
+          const ek = prev.key + '>' + key, e = edges.get(ek) || { a: prev, b: n, d: [] };
+          if (ms != null && ip) { e.d.push(Math.max(0, ms - prevMs)); prevMs = Math.max(prevMs, ms); }
+          edges.set(ek, e); prev = n;
+        });
+        if (prev.kind !== 'dst') {   // stopped short: count it against that node, dashed link on to the target
+          ended.set(prev.key, (ended.get(prev.key) || 0) + 1);
+          const dk = 'dst|' + (target || '?'), dst = node(dk, { kind: 'dst', label: r.server || ag.server || target, ip: target });
+          targets.add(dk);
+          const ek = prev.key + '>' + dk; edges.set(ek, edges.get(ek) || { a: prev, b: dst, d: [], gap: true });
+        }
       });
-      if (prev.kind !== 'dst') {   // stopped short: a dashed link on to the target
-        const dst = node('dst', 0, { kind: 'dst', label: r.server || ag.server || target, ip: target, unreached: true });
-        const ek = prev.key + '>dst'; edges.set(ek, edges.get(ek) || { a: prev, b: dst, d: [], gap: true });
+      // Forwarding loss, as ThousandEyes infers it: the share of this agent's
+      // traces through a node that stopped there.
+      for (const [k, c] of ended) {
+        const n = nodes.get(k), pct = Math.round((c / (thru.get(k) || c)) * 100);
+        if (n && pct > 0) n.loss.set(ag.name, Math.max(n.loss.get(ag.name) || 0, pct));
       }
+    }
+    for (const k of targets) { const n = nodes.get(k); n.reached = [...edges.values()].some((e) => e.b === n && !e.gap); }
+    // Columns: longest path from any agent, so shared hops line up; targets last.
+    const col = new Map([...nodes.keys()].map((k) => [k, 0]));
+    const el = [...edges.values()];
+    for (let pass = 0, moved = true; moved && pass < nodes.size; pass++) {
+      moved = false;
+      for (const e of el) if (!targets.has(e.a.key) && col.get(e.b.key) < col.get(e.a.key) + 1) { col.set(e.b.key, col.get(e.a.key) + 1); moved = true; }
+    }
+    const last = Math.max(1, ...[...nodes.keys()].filter((k) => !targets.has(k)).map((k) => col.get(k) + 1));
+    for (const k of targets) col.set(k, last);
+    const cols = []; for (const n of nodes.values()) { const c = col.get(n.key); (cols[c] = cols[c] || []).push(n); }
+    // Order each column by where its predecessors sit (fewer crossings).
+    const pos = new Map(), preds = new Map();
+    for (const e of el) { if (!preds.has(e.b.key)) preds.set(e.b.key, []); preds.get(e.b.key).push(e.a.key); }
+    cols.forEach((list, c) => {
+      if (!list) return;
+      if (c > 0) list.sort((a, b) => avgPos(a) - avgPos(b));
+      list.forEach((n, j) => pos.set(n.key, j - (list.length - 1) / 2));
     });
-    const dst = nodes.get('dst');
-    if (dst) { dst.col = Math.max(dst.col, maxCol + (reachedAny ? 0 : 1)); if (reachedAny) dst.unreached = false; }
-    // Lay out: columns left to right, nodes in a column stacked and centred.
-    const cols = new Map();
-    for (const n of nodes.values()) { if (!cols.has(n.col)) cols.set(n.col, []); cols.get(n.col).push(n); }
-    const colKeys = [...cols.keys()].sort((a, b) => a - b), CW = 96, RH = 58, PADX = 46;
-    const rows = Math.max(1, ...[...cols.values()].map((c) => c.length)), H = Math.max(120, rows * RH + 56), W = PADX * 2 + (colKeys.length - 1) * CW;
-    colKeys.forEach((c, i) => { const list = cols.get(c); list.forEach((n, j) => { n.x = PADX + i * CW; n.y = H / 2 + (j - (list.length - 1) / 2) * RH; }); });
+    function avgPos(n) { const p = (preds.get(n.key) || []).filter((k) => pos.has(k)); return p.length ? p.reduce((s, k) => s + pos.get(k), 0) / p.length : 0; }
+    const CW = 104, RH = 56, PADX = 56, PADY = 40;
+    const rows = Math.max(1, ...cols.filter(Boolean).map((l) => l.length)), H = rows * RH + PADY * 2, W = PADX * 2 + last * CW;
+    for (const n of nodes.values()) { n.x = PADX + col.get(n.key) * CW; n.y = H / 2 + pos.get(n.key) * RH; }
     const sev = (d) => d >= 40 ? 'bad' : d >= 15 ? 'warn' : '';
-    let svg = `<svg class="pt-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Path from ${esc(ag.name)} to ${esc(target)}">`;
-    for (const e of edges.values()) {
+    const cut = (x, k) => (x && x.length > k ? x.slice(0, k - 1) + '…' : x || '');
+    let svg = `<svg class="pt-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Combined path trace">`;
+    for (const e of el) {
       const d = e.d.length ? e.d.reduce((x, y) => x + y, 0) / e.d.length : null, c = e.gap ? 'gap' : d != null ? sev(d) : '';
       svg += `<line class="pt-l ${c}" x1="${e.a.x}" y1="${e.a.y}" x2="${e.b.x}" y2="${e.b.y}"/>`;
-      if (d != null && !e.gap) {
-        const mx = (e.a.x + e.b.x) / 2, my = (e.a.y + e.b.y) / 2, txt = d < 1 ? '<1 ms' : Math.round(d) + ' ms';
-        svg += `<g class="pt-dl ${c}"><rect x="${mx - 19}" y="${my - 8}" width="38" height="16" rx="8"/><text x="${mx}" y="${my + 4}">${txt}</text></g>`;
-      }
+    }
+    for (const e of el) {   // labels over every line
+      const d = e.d.length ? e.d.reduce((x, y) => x + y, 0) / e.d.length : null;
+      if (d == null || e.gap) continue;
+      const mx = (e.a.x + e.b.x) / 2, my = (e.a.y + e.b.y) / 2, txt = d < 1 ? '<1 ms' : Math.round(d) + ' ms';
+      svg += `<g class="pt-dl ${sev(d)}"><rect x="${mx - 19}" y="${my - 8}" width="38" height="16" rx="8"/><text x="${mx}" y="${my + 4}">${txt}</text></g>`;
     }
     for (const n of nodes.values()) {
-      const big = n.kind === 'src' || n.kind === 'dst', rad = big ? 13 : 8;
-      const cut = (x, k) => (x && x.length > k ? x.slice(0, k - 1) + '…' : x || '');
+      const big = n.kind === 'src' || n.kind === 'dst', rad = big ? 12 : 8, loss = n.loss.size ? Math.max(...n.loss.values()) : 0;
       const lab = n.kind === 'src' ? cut(n.label, 16) : n.kind === 'dst' ? cut(n.ip || n.label, 16) : n.kind === 'none' ? 'no reply' : cut(n.ip, 15);
-      svg += `<g class="pt-nd ${n.kind}${n.unreached ? ' unreached' : ''}" data-ptn="${bi}:${esc(n.key)}"><circle cx="${n.x}" cy="${n.y}" r="${rad + 12}" class="hit"/><circle cx="${n.x}" cy="${n.y}" r="${rad}"/>`
+      svg += `<g class="pt-nd ${n.kind}${n.kind === 'dst' && !n.reached ? ' unreached' : ''}${n.hot ? ' hot' : ''}${loss ? ' loss' : ''}" data-ptn="${esc(n.key)}"><circle cx="${n.x}" cy="${n.y}" r="${rad + 12}" class="hit"/><circle cx="${n.x}" cy="${n.y}" r="${rad}"/>`
         + (n.kind === 'src' ? `<path d="M${n.x - 5} ${n.y + 4}h10M${n.x - 3} ${n.y}a3 3 0 1 1 6 0v4h-6z" class="ic"/>` : n.kind === 'dst' ? `<circle cx="${n.x}" cy="${n.y}" r="4" class="ic"/>` : '')
+        + (loss ? `<text class="pt-ls" x="${n.x}" y="${n.y - rad - 6}">${Math.round(loss)}%</text>` : '')
         + `<text x="${n.x}" y="${n.y + rad + 14}">${esc(lab)}</text></g>`;
     }
     svg += '</svg>';
-    const nHops = Math.max(...traces.map((t) => t.hops.length)), rt = traces[0].responseTime;
-    const html = `<div class="pt-meta"><span>→ <b>${esc(r.server || target)}</b></span><span>${traces.length > 1 ? traces.length + ' paths · ' : ''}${nHops} hops${rt != null ? ' · ' + Math.round(rt) + ' ms' : ''}${dst && dst.unreached ? ' · <em class="bad">didn’t reach target</em>' : ''}${when ? ' · ' + new Date(when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span></div>`
-      + `<div class="pt-scroll">${svg}</div><div class="pt-info" id="ptInfo${bi}" hidden></div>`;
-    return { html, nodes };
+    st.nodes = nodes;
+    const lossy = [...nodes.values()].filter((n) => n.loss.size).length;
+    const stopped = new Set(el.filter((e) => e.gap).map((e) => e.a.key)).size;
+    const tgt = [...targets].map((k) => nodes.get(k)), tname = tgt.length === 1 ? (tgt[0].label || tgt[0].ip) : tgt.length + ' targets';
+    // Keep the scroll position while later agents fill in.
+    const sc = document.querySelector('#ptBody .pt-scroll'), sl = sc ? sc.scrollLeft : 0, stp = sc ? sc.scrollTop : 0;
+    $('ptBody').innerHTML = `<div class="pt-meta"><span><b>${rounds.length}</b> agent${rounds.length === 1 ? '' : 's'} → <b>${esc(tname)}</b></span><span>${nodes.size - rounds.length - tgt.length} hops${lossy ? ` · <em class="bad">loss at ${lossy} node${lossy === 1 ? '' : 's'}</em>` : ''}${stopped ? ` · <em class="bad">${stopped} path${stopped === 1 ? '' : 's'} stopped short</em>` : ''}${st.done < st.agents.length ? ` · loading ${st.done}/${st.agents.length}…` : ''}</span></div>`
+      + `<div class="pt-scroll">${svg}</div><div class="pt-info" id="ptInfo" hidden></div>`
+      + `<p class="pt-foot">${st.total > PT_MAX ? `${PT_MAX} of ${st.total} agents${st.seen.size ? ', alerting ones first' : ''} · ` : ''}Tap a node for details · link labels are the delay each hop adds · red % is forwarding loss (highest any agent saw) · newest round per agent</p>`;
+    const sc2 = document.querySelector('#ptBody .pt-scroll'); if (sc2) { sc2.scrollLeft = sl; sc2.scrollTop = stp; }
+    ptInfo(st.sel && nodes.get(st.sel) ? st.sel : null);
   }
-  function ptInfo(sel) {
-    const st = ptState; if (!st) return;
-    st.sel = sel;
-    document.querySelectorAll('#ptBody .pt-nd').forEach((g) => g.classList.toggle('sel', g.dataset.ptn === sel));
-    document.querySelectorAll('#ptBody .pt-info').forEach((x) => { x.hidden = true; x.innerHTML = ''; });
-    if (!sel) return;
-    const cut = sel.indexOf(':'), bi = +sel.slice(0, cut), key = sel.slice(cut + 1);
-    const blk = st.blocks[bi], el = $('ptInfo' + bi), n = blk && blk.nodes.get(key);
-    if (!n || !el) return;
+  function ptInfo(key) {
+    const st = ptState, el = $('ptInfo'); if (!st || !el) return;
+    st.sel = key;
+    document.querySelectorAll('#ptBody .pt-nd').forEach((g) => g.classList.toggle('sel', g.dataset.ptn === key));
+    const n = key && st.nodes.get(key);
+    if (!n) { el.innerHTML = ''; el.hidden = true; return; }
     el.hidden = false;
     const kv = (k, v) => v || v === 0 ? `<div><dt>${k}</dt><dd>${esc(String(v))}</dd></div>` : '';
+    const ms = n.ms.length ? (() => { const lo = Math.min(...n.ms), hi = Math.max(...n.ms); return Math.round(lo) === Math.round(hi) ? Math.round(lo) + ' ms' : Math.round(lo) + '–' + Math.round(hi) + ' ms'; })() : '';
+    const ags = [...n.agents], agTxt = n.kind === 'src' ? '' : ags.length + (ags.length === 1 ? ' agent: ' : ' agents: ') + ags.slice(0, 4).join(', ') + (ags.length > 4 ? ' +' + (ags.length - 4) : '');
+    let lossTxt = '';
+    if (n.loss.size) {
+      // Same loss from several agents is one figure, confirmed; otherwise the highest.
+      const v = [...n.loss.entries()].sort((a, b) => b[1] - a[1]), top = Math.round(v[0][1]);
+      lossTxt = top + '%' + (v.length > 1 ? ` · confirmed by ${v.length} agents` + (v.some(([, x]) => Math.round(x) !== top) ? ` (${v.map(([a, x]) => esc(a) + ' ' + Math.round(x) + '%').join(', ')})` : '') : ` · seen by ${v[0][0]}`);
+    }
     el.innerHTML = `<b>${esc(n.kind === 'src' ? n.label : n.kind === 'dst' ? n.label : n.kind === 'none' ? 'No reply' : (n.rdns || n.ip))}</b><dl class="al-kv">`
+      + (lossTxt ? `<div class="bad"><dt>Loss</dt><dd>${lossTxt}</dd></div>` : '')
       + kv('IP', n.ip) + kv('Reverse DNS', n.rdns) + kv('Prefix', n.prefix) + kv('Network', n.net) + kv('Location', n.loc || n.sub)
-      + kv('Response', n.ms != null && n.kind !== 'src' ? Math.round(n.ms) + ' ms' : '') + (blk.traces.length > 1 && n.kind === 'hop' ? kv('On paths', n.paths + ' of ' + blk.traces.length) : '')
-      + (n.kind === 'none' ? kv('Note', 'This hop didn’t answer the probe') : '') + (n.unreached ? kv('Note', 'The trace stopped before reaching it') : '') + '</dl>';
-    const body = $('ptBody'), er = el.getBoundingClientRect(), br = body.getBoundingClientRect();
-    if (er.bottom > br.bottom) body.scrollBy({ top: er.bottom - br.bottom + 12, behavior: 'smooth' });
+      + kv('Response', n.kind !== 'src' ? ms : '') + kv('Seen by', agTxt)
+      + (n.hot ? kv('Note', 'This agent raised the alert') : '')
+      + (n.kind === 'none' ? kv('Note', 'This hop didn’t answer the probe') : '') + (n.kind === 'dst' && !n.reached ? kv('Note', 'No trace reached it') : '') + '</dl>';
   }
 
   addEventListener('te-data', () => { if (tab === 'tenant') renderTenant(); });
