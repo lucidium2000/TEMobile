@@ -4249,7 +4249,7 @@
       const t = performance.now();
       if (t - BOUNCE.lastKick < 900 || S.dragging) return;
       BOUNCE.lastKick = t;
-      BOUNCE.v -= 3 * Math.max(0.25, Math.min(1, strength)) * DROP_K;   // size fraction per second
+      BOUNCE.v -= 15 * Math.max(0.25, Math.min(1, strength)) * DROP_K;  // log-size per second (5x the first try)
     },
   };
   function onDrop(e) {
@@ -4260,7 +4260,7 @@
     const ux = g.x - a.x, uy = g.y - a.y, uz = g.z - a.z, um = Math.hypot(ux, uy, uz);
     if (um < 6) return;                                  // free fall or nonsense: no reliable "up"
     const up = (a.x * ux + a.y * uy + a.z * uz) / um;    // m/s^2 along up; negative = pushed down
-    if (up < -6) window.Drop.kick((-up - 4) / 10);   // a deliberate push; walking stays under this
+    if (up < -3) window.Drop.kick((-up - 2) / 5);    // a firm push (half the old -6 m/s^2)
   }
   if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
   function stepBounce(dt) {
@@ -4270,7 +4270,7 @@
       const s4 = h / 4, acc = -DROP_W * DROP_W * BOUNCE.x - 2 * DROP_Z * DROP_W * BOUNCE.v;
       BOUNCE.v += acc * s4; BOUNCE.x += BOUNCE.v * s4;
     }
-    BOUNCE.x = Math.max(-0.45, Math.min(0.35, BOUNCE.x));
+    BOUNCE.x = Math.max(-2.2, Math.min(1.4, BOUNCE.x));
     if (Math.abs(BOUNCE.x) < 0.0005 && Math.abs(BOUNCE.v) < 0.005) BOUNCE.x = BOUNCE.v = 0;
   }
   function frame(t) {
@@ -4296,7 +4296,7 @@
       if (!glr) drawSky();   // (also covers WebGL having been dropped mid-run)
       perfMark('sky');
       stepBounce(dt);
-      if (BOUNCE.x) { const z = view.zoom; view.zoom = z * (1 + BOUNCE.x); try { drawGlobe(t, layout()); } finally { view.zoom = z; } }
+      if (BOUNCE.x) { const z = view.zoom; view.zoom = z * Math.exp(BOUNCE.x); try { drawGlobe(t, layout()); } finally { view.zoom = z; } }
       else drawGlobe(t, layout());
       updateFloat();
       updateSheen();
