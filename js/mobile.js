@@ -41,7 +41,7 @@
     try { sessionStorage.setItem('te-m-tab', name); } catch (_) { /* */ }
     if (name === 'globe' || name === 'weather' || name === 'home') window.dispatchEvent(new Event('resize'));
     if (name === 'home') requestAnimationFrame(() => placeHomeGlobe(false));
-    if (name === 'globe') requestAnimationFrame(reportGlobeArea);
+    if (name === 'globe') requestAnimationFrame(() => { if (sheetToMid) sheetToMid(); reportGlobeArea(); });   // Outages always opens half up
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
     if (name === 'home') { refreshHome(); spinRings(); }
@@ -866,6 +866,7 @@
   // ── Outages: a draggable bottom-sheet drawer. Grab anywhere on the header
   // and slide up / down; it snaps to collapsed / half / tall. The outage detail
   // card lives INSIDE the drawer (not floating over the globe). ──────────────
+  var sheetToMid = null;   // var: setTab can run before this block
   {
     const panel = $('panel'), grab = document.createElement('button');
     grab.className = 'sheet-grab'; grab.setAttribute('aria-label', 'Drag to resize the outage list');
@@ -881,7 +882,27 @@
       const t = $('oTabs'), st = $('owSection') && $('owSection').querySelector('.stats');
       return Math.max(120, (grab.offsetHeight || 22) + (t ? t.offsetHeight : 0) + (st ? st.offsetHeight : 0) + 38);
     }
-    const snaps = () => ({ min: minH(), mid: Math.round(vh() * 0.54), max: Math.round(vh() * 0.86) });
+    // Half up = level with the top of the Home cards, so the globe sits in the
+    // same space on Home and Outages. (Measured off the Home screen, even when
+    // it's hidden; falls back to 54% of the screen.)
+    let midCache = 0, midVh = 0;
+    function midH() {
+      if (midCache && midVh === vh()) return midCache;
+      const v = $('viewHome'), f = v && v.querySelector('.hm-flow');
+      let top = 0;
+      if (f) {
+        const hid = v.hidden;
+        if (hid) { v.style.visibility = 'hidden'; v.hidden = false; }
+        top = f.getBoundingClientRect().top + v.scrollTop;
+        if (hid) { v.hidden = true; v.style.visibility = ''; }
+      }
+      const bottom = panel.getBoundingClientRect().bottom || (vh() - 64);
+      const h = Math.round(bottom - top);
+      midVh = vh();
+      midCache = top > 0 && h > 200 && h < vh() * 0.8 ? h : Math.round(vh() * 0.54);
+      return midCache;
+    }
+    const snaps = () => ({ min: minH(), mid: midH(), max: Math.round(vh() * 0.86) });
     let curH = null;
     function applyH(px, animate) {
       const s = snaps();
@@ -922,9 +943,9 @@
       }, dur + 20);
     }
     function snapTo(name) { const cur = shownH(); hold(cur); settle(name, cur, 0); }
-    let saved = 'min'; try { saved = localStorage.getItem('te-m-sheet') || 'min'; } catch (_) { /* */ }
-    if (!['min', 'mid', 'max'].includes(saved)) saved = saved === 'open' ? 'mid' : 'min';
-    requestAnimationFrame(() => { applyH(snaps()[saved], false); reportGlobeArea(); });
+    // Always opens half up (see setTab).
+    sheetToMid = () => { clearTimeout(settleT); panel.style.transition = 'none'; panel.style.transform = ''; midCache = 0; applyH(snaps().mid, false); };
+    requestAnimationFrame(() => { sheetToMid(); reportGlobeArea(); });
 
     // Grab it anywhere: the header always moves the drawer; in the list, pushing
     // up expands it first (then the list scrolls), and pulling down at the top
@@ -980,14 +1001,14 @@
     panel.addEventListener('click', (e) => { if (eatClick) { e.stopPropagation(); e.preventDefault(); } }, true);
     // Tap the grab toggles collapsed <-> half.
     grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min'); });
-    // Selecting an outage opens the drawer (only if collapsed) so its inline
-    // detail is visible; if already open, leave the user's height alone.
+    // Selecting an outage: the drawer sits half up (opening it if collapsed,
+    // leaving it if pulled taller) with the detail card scrolled to the top.
     list.addEventListener('click', (e) => {
       if (!e.target.closest('.row[data-id]')) return;
       setTimeout(() => {
         const sel = list.querySelector('.row.sel'); if (!sel) return;
         const s = snaps();
-        if (shownH() < s.max - 4) snapTo('max');     // room for the expanded card
+        if (shownH() < s.mid - 4) snapTo('mid');
         setTimeout(() => { list.scrollTo({ top: Math.max(0, sel.offsetTop - list.offsetTop - 6), behavior: 'smooth' }); }, 300);
       }, 30);
     });
