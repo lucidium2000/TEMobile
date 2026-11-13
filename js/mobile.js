@@ -114,12 +114,12 @@
     if (n.rule && n.rule !== n.title) rows.push(['Alert rule', n.rule]);
     if (n.target && n.target !== n.title) rows.push(['Target', n.target]);
     if (n.start) rows.push(['Started', new Date(n.start).toLocaleString()]);
-    rows.push(['Status', n.active ? `Active · ${alertSince(n.start)} so far` : (n.end ? `Cleared ${alertSince(n.end)} ago` : 'Cleared')]);
+    rows.push(['Status', n.active ? `Active · ${alertSince(n.start)} so far` : (n.end ? `Cleared ${alertSince(n.end)} ago` : 'Cleared'), n.active ? '' : 'clr']);
     if (n.viol) rows.push(['Violations', String(n.viol)]);
     if (n.agents) rows.push(['Agents affected', String(n.agents)]);
     if (n.testId) rows.push(['Test ID', n.testId]);
     if (n.id) rows.push(['Alert ID', String(n.id)]);
-    return `<dl class="al-kv">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`
+    return `<dl class="al-kv">${rows.map(([k, v, c]) => `<div${c ? ` class="${c}"` : ''}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`
       + (n.perma && /^https:\/\/app\.thousandeyes\.com\//.test(n.perma) ? `<a class="al-open" href="${esc(n.perma)}" target="_blank" rel="noopener">View in ThousandEyes ›</a> ` : '')
       + (withOpen ? `<button type="button" class="al-open" data-act="tenant">Open in My ThousandEyes ›</button>` : '');
   }
@@ -195,7 +195,12 @@
   });
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
   // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
-  const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];   // Network / Device are detail views, not tabs
+  const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];
+  // Open a view; for Outages, optionally show just SaaS ('application') or ISPs ('network').
+  function goFiltered(name, filter) {
+    setTab(name);
+    if (name === 'globe' && window.TEApp && window.TEApp.setFilter) window.TEApp.setFilter(filter || 'all');
+  }   // Network / Device are detail views, not tabs
   // ── Seamless pager: drag left/right and the screens follow your finger (hold
   // and they hold), release to complete or snap back. Arrows / taps animate the
   // same way. A view slides over / off the globe, which stays as the backdrop.
@@ -934,62 +939,115 @@
     function applyH(px, animate) {
       const s = snaps();
       px = Math.max(s.min, Math.min(s.max, px));
-      curH = px;
+      curH = px; visH = px;
       panel.style.transition = animate ? 'height .3s cubic-bezier(.22,1,.36,1)' : 'none';
       panel.style.height = px + 'px';
       document.body.classList.toggle('sheet-min', px <= s.min + 8);
       document.body.classList.toggle('sheet-tall', px > vh() * 0.6);   // globe buttons would sit on the list
       document.documentElement.style.setProperty('--sheet-px', px + 'px');
     }
-    function snapTo(name, animate) {
-      applyH(snaps()[name] || snaps().min, animate !== false);
-      try { localStorage.setItem('te-m-sheet', name); } catch (_) { /* */ }
-      setTimeout(() => dispatchEvent(new Event('resize')), 320);
+    // Fluid motion: while moving, the panel is held at full height and slid with
+    // a GPU transform (no list re-layout per frame); when it settles, the real
+    // height is committed and the transform dropped.
+    let maxPx = 0, settleT = 0, visH = 0;
+    const shownH = () => visH || panel.offsetHeight;
+    function hold(fromH) {
+      clearTimeout(settleT);
+      maxPx = snaps().max;
+      document.body.classList.remove('sheet-min');
+      panel.style.transition = 'none';
+      panel.style.height = maxPx + 'px';
+      panel.style.transform = `translateY(${maxPx - fromH}px)`; visH = fromH;
     }
+    function settle(name, fromH, v) {
+      const to = snaps()[name] || snaps().min, dist = Math.abs(to - fromH);
+      const dur = Math.round(Math.max(170, Math.min(420, dist * 0.9 - Math.abs(v || 0) * 60)));
+      void panel.offsetWidth;
+      panel.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
+      panel.style.transform = `translateY(${maxPx - to}px)`; visH = to;
+      clearTimeout(settleT);
+      settleT = setTimeout(() => {
+        panel.style.transition = 'none'; panel.style.transform = '';
+        applyH(to, false);
+        try { localStorage.setItem('te-m-sheet', name); } catch (_) { /* */ }
+        dispatchEvent(new Event('resize'));
+      }, dur + 20);
+    }
+    function snapTo(name) { const cur = shownH(); hold(cur); settle(name, cur, 0); }
     let saved = 'min'; try { saved = localStorage.getItem('te-m-sheet') || 'min'; } catch (_) { /* */ }
     if (!['min', 'mid', 'max'].includes(saved)) saved = saved === 'open' ? 'mid' : 'min';
     requestAnimationFrame(() => applyH(snaps()[saved], false));
 
-    // Drag from anywhere on the header (grab / tabs / stats background), but not
-    // from a button, the scrolling list, or the card.
-    const NODRAG = '.list, #card, .te-alerts, .ot-tab, .win-btn, .stat, .filter-all, button, input, textarea';
-    let dragging = false, startY = 0, startH = 0, lastY = 0, lastT = 0, vel = 0, moved = false;
-    panel.addEventListener('pointerdown', (e) => {
-      if (e.target !== grab && e.target.closest(NODRAG)) return;
-      dragging = true; moved = false; startY = e.clientY; startH = panel.offsetHeight; lastY = e.clientY; lastT = performance.now(); vel = 0;
-      try { panel.setPointerCapture(e.pointerId); } catch (_) { /* */ }
-    });
-    panel.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
-      const dy = startY - e.clientY;
-      if (Math.abs(dy) > 4) moved = true;
-      if (moved) { applyH(startH + dy, false); e.preventDefault(); }
-      const now = performance.now();
-      if (now - lastT > 16) { vel = (lastY - e.clientY) / (now - lastT); lastY = e.clientY; lastT = now; }
-    });
-    const endDrag = () => {
-      if (!dragging) return; dragging = false;
-      if (!moved) return;                         // a tap, not a drag - leave height, let click fire
-      const s = snaps(), h = curH;
-      let t;
-      if (vel > 0.45) t = h < s.mid ? 'mid' : 'max';
-      else if (vel < -0.45) t = h > s.mid ? 'mid' : 'min';
-      else { const d = { min: Math.abs(h - s.min), mid: Math.abs(h - s.mid), max: Math.abs(h - s.max) }; t = Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a)); }
-      snapTo(t, true);
-    };
-    panel.addEventListener('pointerup', endDrag);
-    panel.addEventListener('pointercancel', endDrag);
+    // Grab it anywhere: the header always moves the drawer; in the list, pushing
+    // up expands it first (then the list scrolls), and pulling down at the top
+    // of the list collapses it. It follows the finger, rubber-bands at the ends,
+    // and a flick carries it to the next stop.
+    const list = $('list');
+    const NOGRAB = 'input, textarea, select, .rdrop-menu';
+    let g = null, eatClick = false;
+    function gBegin(y, target) {
+      if (target && target.closest && target.closest(NOGRAB)) { g = null; return; }
+      g = { y0: y, last: y, t: performance.now(), v: 0, h0: shownH(), h: shownH(), inList: !!(target && target.closest && target.closest('#list')), on: false };
+    }
+    function gMove(y, ev) {
+      if (!g) return;
+      const dy = g.y0 - y;                                       // + = finger moving up
+      if (!g.on) {
+        if (Math.abs(dy) < 2) return;
+        if (g.inList) {
+          const s = snaps();
+          const take = dy > 0 ? g.h0 < s.max - 4 : list.scrollTop <= 0;
+          if (!take) { g = null; return; }                        // let the list scroll
+        }
+        g.on = true; g.y0 = y; hold(g.h0);
+      }
+      if (ev && ev.cancelable) ev.preventDefault();
+      const now = performance.now(), dt = Math.max(1, now - g.t);
+      g.v = 0.75 * ((g.last - y) / dt) + 0.25 * g.v; g.last = y; g.t = now;
+      const s = snaps();
+      let h = g.h0 + (g.y0 - y);
+      if (h < s.min) h = s.min - Math.min(70, (s.min - h) * 0.35);  // rubber-band
+      if (h > s.max) h = s.max + Math.min(14, (h - s.max) * 0.2);
+      g.h = h; visH = h;
+      panel.style.transform = `translateY(${maxPx - h}px)`;
+    }
+    function gEnd() {
+      if (!g) return;
+      const G = g; g = null;
+      if (!G.on) return;                                         // a tap: let the click through
+      eatClick = true; setTimeout(() => { eatClick = false; }, 60);
+      const s = snaps(), land = G.h + G.v * 220;                 // where a flick would carry it
+      const stops = [['min', s.min], ['mid', s.mid], ['max', s.max]];
+      settle(stops.reduce((a, b) => (Math.abs(b[1] - land) < Math.abs(a[1] - land) ? b : a))[0], G.h, G.v);
+    }
+    // Touch drives it on phones (so a list drag can be claimed before the list
+    // scrolls); the mouse uses pointer events.
+    panel.addEventListener('touchstart', (e) => { if (e.touches.length === 1) gBegin(e.touches[0].clientY, e.target); else g = null; }, { passive: true });
+    panel.addEventListener('touchmove', (e) => { if (g && e.touches.length === 1) gMove(e.touches[0].clientY, e); }, { passive: false });
+    panel.addEventListener('touchend', gEnd); panel.addEventListener('touchcancel', gEnd);
+    panel.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; gBegin(e.clientY, e.target); if (g) g.mouse = true; });
+    addEventListener('pointermove', (e) => { if (g && g.mouse) gMove(e.clientY, e); });
+    addEventListener('pointerup', (e) => { if (g && g.mouse) gEnd(); });
+    // A drag shouldn't also count as a tap on whatever it started on.
+    panel.addEventListener('click', (e) => { if (eatClick) { e.stopPropagation(); e.preventDefault(); } }, true);
     // Tap the grab toggles collapsed <-> half.
-    grab.addEventListener('click', () => { if (moved) return; if (window.Sfx) window.Sfx.play('tap'); snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min', true); });
+    grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min'); });
     // Selecting an outage opens the drawer (only if collapsed) so its inline
     // detail is visible; if already open, leave the user's height alone.
-    $('list').addEventListener('click', (e) => { if (e.target.closest('.row:not(.row-detail)') && document.body.classList.contains('sheet-min')) snapTo('mid', true); });
-    if (card) new MutationObserver(() => { if (!card.hidden && document.body.classList.contains('sheet-min')) snapTo('mid', true); }).observe(card, { attributes: true, attributeFilter: ['hidden'] });
+    list.addEventListener('click', (e) => {
+      if (!e.target.closest('.row[data-id]')) return;
+      setTimeout(() => {
+        const sel = list.querySelector('.row.sel'); if (!sel) return;
+        const s = snaps();
+        if (shownH() < s.max - 4) snapTo('max');     // room for the expanded card
+        setTimeout(() => { list.scrollTo({ top: Math.max(0, sel.offsetTop - list.offsetTop - 6), behavior: 'smooth' }); }, 300);
+      }, 30);
+    });
     const oTabsEl = $('oTabs');
     if (oTabsEl) oTabsEl.addEventListener('click', (e) => { const b = e.target.closest('.ot-tab'); if (b) { if (window.Sfx) window.Sfx.play('tap'); setOTab(b.dataset.otab); } });
     updateOTabs();
     // A count (filter) or the section title opens it when collapsed.
-    panel.addEventListener('click', (e) => { if (!moved && document.body.classList.contains('sheet-min') && e.target.closest('.stats, .ot-tab')) snapTo('mid', true); });
+    panel.addEventListener('click', (e) => { if (document.body.classList.contains('sheet-min') && e.target.closest('.stats, .ot-tab')) snapTo('mid'); });
   }
 
   // ── Home: one glance at every tab; each card opens its tab ──────────────
@@ -1109,11 +1167,11 @@
     const outScore = (n) => Math.max(0, Math.round(100 - Math.min(100, (n / full) * 100)));
     const iiNet = outScore(count('network')), iiApp = outScore(count('application'));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
-    const legRow = (x) => `<span class="rg-go" data-go="${x[3]}" style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
+    const legRow = (x) => `<span class="rg-go" data-go="${x[3]}"${x[4] ? ` data-filter="${x[4]}"` : ''} style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
     // Apps + Internet are out on the public internet (external); Network and
     // this Device are things you run (internal).
     $('hmRingLegend').innerHTML =
-      `<div class="rg-grp"><em class="rg-cat">Global Health (${hW}h)</em>${[['#00bceb', 'SaaS', iiApp, 'globe'], ['#f15e22', 'ISPs', iiNet, 'globe']].map(legRow).join('')}</div>`
+      `<div class="rg-grp"><em class="rg-cat">Global Health (${hW}h)</em>${[['#00bceb', 'SaaS', iiApp, 'globe', 'application'], ['#f15e22', 'ISPs', iiNet, 'globe', 'network']].map(legRow).join('')}</div>`
       + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net, 'tests'], ['#7c3aed', 'Device', dev, 'phone']].map(legRow).join('')}</div>`;
     homeRings = {
       rgIIApp: { name: 'SaaS', color: '#00bceb', val: iiApp, desc: `Global SaaS outages in the last ${hW} hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.` },
@@ -1260,6 +1318,7 @@
   document.querySelectorAll('#viewHome [data-go], #viewNews [data-go]').forEach((el) => el.addEventListener('click', () => {
     if (window.Sfx) window.Sfx.play('tap');
     setTab(el.dataset.go);
+    if (el.dataset.filter && window.TEApp && window.TEApp.setFilter) window.TEApp.setFilter(el.dataset.filter);
     if (el.dataset.oid && window.TEApp) setTimeout(() => window.TEApp.selectOutage(el.dataset.oid), 60);
     if (el.dataset.scroll) setTimeout(() => { const t = $(el.dataset.scroll); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 80);
   }));
@@ -1321,10 +1380,10 @@
         if (e.pointerType === 'mouse') { const id = ringAt(e.clientX, e.clientY); id ? show(id, e.clientX, e.clientY) : hide(); }
       });
       const end = () => { holding = false; hide(); };
-      const RING_GO = { rgDevice: 'phone', rgNet: 'tests', rgIINet: 'globe', rgIIApp: 'globe' };
+      const RING_GO = { rgDevice: 'phone', rgNet: 'tests', rgIINet: 'globe', rgIIApp: 'globe' }, RING_FILTER = { rgIINet: 'network', rgIIApp: 'application' };
       ringsEl.addEventListener('pointerup', (e) => {
         const t = tap; tap = null; end();
-        if (t && Date.now() - t.t < 300 && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 10 && RING_GO[t.id]) { if (window.Sfx) window.Sfx.play('tap'); setTab(RING_GO[t.id]); }
+        if (t && Date.now() - t.t < 300 && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 10 && RING_GO[t.id]) { if (window.Sfx) window.Sfx.play('tap'); goFiltered(RING_GO[t.id], RING_FILTER[t.id]); }
       });
       ringsEl.addEventListener('pointercancel', end);
       ringsEl.addEventListener('pointerleave', () => { if (!holding) hide(); });
@@ -1332,7 +1391,7 @@
       // Legend entries go to their own screen (not the hero's default, Outages).
       $('hmRingLegend').addEventListener('click', (e) => {
         const g = e.target.closest('.rg-go'); if (!g) return;
-        e.stopPropagation(); if (window.Sfx) window.Sfx.play('tap'); setTab(g.dataset.go);
+        e.stopPropagation(); if (window.Sfx) window.Sfx.play('tap'); goFiltered(g.dataset.go, g.dataset.filter);
       });
     }
   }

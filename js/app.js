@@ -1638,11 +1638,35 @@
       + (!exp && locs.length > 8 ? `<li class="loc-more">+${locs.length - 8} more</li>` : '');
   }
 
+  // One-line read on the most probable cause, from the outage's shape: an app
+  // failing at the same time and place as a network outage is probably
+  // downstream of it; one failing everywhere at once is probably the service
+  // itself; a network outage spread across many cities points at backbone or
+  // peering; power cuts nearby are called out; very short ones are blips.
+  function probableCause(o) {
+    const locs = o.locations.slice().sort((a, b) => b.n - a.n), n = locs.length, top = locs[0] ? (locs[0].label || String(locs[0].name).split(',')[0]) : '';
+    const brief = !o.active && (o.durationS || 0) < 600;
+    const pwr = locs.map((l) => nearestPower(l.lon, l.lat)).find(Boolean);
+    const near = (x) => Math.abs(x.start - o.start) < 45 * 60e3 || (x.active && o.active);
+    const as = o.asn ? ` (AS${o.asn})` : '';
+    if (pwr) return `Possibly power-related \u2014 customers are without power near ${pwr.name}, ${pwr.state}.`;
+    if (o.kind === 'application') {
+      const names = new Set(locs.map((l) => l.name));
+      const net = S.outages.find((x) => x !== o && x.kind === 'network' && near(x) && x.locations.some((l) => names.has(l.name)));
+      if (net) { const at = net.locations.find((l) => names.has(l.name)); return `Likely downstream of the ${net.name} network outage${at ? ` in ${at.label || at.name}` : ''} \u2014 a path problem, not ${o.name} itself.`; }
+      if (brief) return `A short blip at ${o.name} \u2014 likely a brief server or deploy hiccup that recovered on its own.`;
+      if (n >= 5) return `Likely a ${o.name} service-side failure \u2014 ${o.servers || 'its'} server${o.servers === 1 ? '' : 's'} failing from ${n} places at once points at the app, not one network.`;
+      return `Likely a localized ${o.name} server or front-end problem near ${top}${o.servers ? ` (${o.servers} server${o.servers === 1 ? '' : 's'})` : ''}.`;
+    }
+    if (brief) return `A short blip inside ${o.name}${as} \u2014 likely a brief routing change or link flap.`;
+    if (n >= 4) return `Likely a backbone or peering problem inside ${o.name}${as} \u2014 ${o.interfaces || 'many'} interfaces failing across ${n} locations.`;
+    return `Likely a routing or link failure in ${o.name}${as} near ${top}${o.interfaces ? `, ${o.interfaces} interface${o.interfaces === 1 ? '' : 's'} affected` : ''}.`;
+  }
   // The selected outage's detail, expanded inline right under its row (instead
   // of a separate card above the totals).
   function outageDetailHtml(o) {
     const locs = o.locations.slice().sort((a, b) => b.n - a.n);
-    S.rdLocs = locs.slice(0, 10);
+    S.rdLocs = locs.slice(0, 6);
     const metrics = [
       [fmtTime(o.start), 'Started'],
       [fmtDur(o.durationS), o.active ? 'Ongoing' : 'Duration'],
@@ -1654,14 +1678,15 @@
     if (o.fullName && o.fullName !== o.name) kv.push(['Provider', o.fullName]);
     if (o.appId) kv.push(['Service', o.appId]);
     if (o.domains && o.domains.length) kv.push(['Domains', o.domains.slice(0, 6).join(', ')]);
-    if (!o.active && o.endRound) kv.push(['Cleared', clearedAgo(o)]);
+    if (!o.active && o.endRound) kv.push(['Cleared', clearedAgo(o), 'clr']);
     const pwrNear = o.locations.map((l) => nearestPower(l.lon, l.lat)).find(Boolean);
     if (pwrNear) kv.push(['Power out nearby', `${pwrNear.name}, ${pwrNear.state} · ${Math.round(pwrNear.out).toLocaleString('en-US')}`]);
     return `<li class="row-detail ${o.kind}" data-detail="${esc(o.id)}">`
+      + `<p class="rd-cause"><b>Likely cause</b> ${esc(probableCause(o))}</p>`
       + `<div class="rd-metrics">${metrics.map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join('')}</div>`
-      + (kv.length ? `<dl class="rd-kv">${kv.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '')
+      + (kv.length ? `<dl class="rd-kv">${kv.map(([k, v, c]) => `<div${c ? ` class="${c}"` : ''}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '')
       + `<div class="rd-h">Top locations <span>${locs.length}</span></div>`
-      + `<ul class="rd-locs">${S.rdLocs.map((l, i) => `<li data-rdloc="${i}" title="Show on the globe">${esc(l.label || l.name)} <b>${l.n}</b></li>`).join('')}${locs.length > 10 ? `<li class="rd-more">+${locs.length - 10} more</li>` : ''}</ul>`
+      + `<ul class="rd-locs">${S.rdLocs.map((l, i) => `<li data-rdloc="${i}" title="Show on the globe">${esc(l.label || l.name)} <b>${l.n}</b></li>`).join('')}${locs.length > 6 ? `<li class="rd-more">+${locs.length - 6} more</li>` : ''}</ul>`
       + '</li>';
   }
   function renderList() {
@@ -1674,7 +1699,7 @@
       let h = `<li class="row ${o.kind}${o.active ? ' active' : ''}${sel ? ' sel' : ''}" data-id="${esc(o.id)}">`
         + `<div class="ico">${iconHtml(o)}</div>`
         + `<div><div class="nm">${esc(o.name)}</div><div class="meta">${esc(where)} · ${fmtDur(o.durationS)}</div></div>`
-        + `<div class="ago">${o.active ? 'ACTIVE' : fmtAgo(o.ageMin)}</div></li>`;
+        + `<div class="ago">${o.active ? 'ACTIVE' : `<span class="ago-clr">Cleared</span>${fmtAgo(o.ageMin)}`}</div></li>`;
       if (sel) h += outageDetailHtml(o);
       return h;
     }).join('');
@@ -2759,14 +2784,17 @@
   // Filters: the Apps and Network totals are the buttons (tap the one that's
   // on again for all), plus a small All on the line between them.
   const filterEls = document.querySelectorAll('.stats [data-filter]');
-  filterEls.forEach((c) => c.addEventListener('click', () => {
-    sfx('tap');
-    userInput();
-    S.filter = c.dataset.filter === S.filter ? 'all' : c.dataset.filter;
+  function setFilter(f) {
+    S.filter = f;
     filterEls.forEach((x) => x.classList.toggle('on', x.dataset.filter === S.filter));
     document.querySelector('.stats').classList.toggle('filtered', S.filter !== 'all');
     if (S.selected && !outageVisible(S.selected)) select(null);
     renderList();
+  }
+  filterEls.forEach((c) => c.addEventListener('click', () => {
+    sfx('tap');
+    userInput();
+    setFilter(c.dataset.filter === S.filter ? 'all' : c.dataset.filter);
   }));
 
   el.cardClose.addEventListener('click', () => { userInput(); select(null); });
@@ -3978,6 +4006,8 @@
       else if (mode === 'weather') Object.assign(view, r && isFinite(r.lat) ? { lon: r.lon, lat: Math.max(-55, Math.min(55, r.lat)), zoom: 2.3 } : { lon: -95, lat: 38, zoom: 1.5 });
     },
     selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
+    /** Show only one kind of outage on the globe and list: 'application' (SaaS), 'network' (ISPs) or 'all'. */
+    setFilter(f) { if (['all', 'application', 'network', 'active', 'locations'].includes(f)) { userInput(); setFilter(f); } },
   };
 
   // Credits, for anyone who goes looking: tap the LIVE badge five times

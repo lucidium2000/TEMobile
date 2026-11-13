@@ -208,18 +208,18 @@ body.sheet-min .panel .list, body.sheet-min .panel .te-alerts { display: none; }
 .list .row.sel { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .list .row.network.sel { border-color: rgba(241, 94, 34, .55); border-bottom-color: transparent; }
 .list .row.application.sel { border-color: rgba(22, 189, 235, .55); border-bottom-color: transparent; }
-.row-detail { --k: 241, 94, 34; display: block; list-style: none; margin: 0 0 12px; padding: 16px 16px 16px 18px;
+.row-detail { --k: 241, 94, 34; display: block; list-style: none; margin: 0 0 12px; padding: 12px 14px 14px 16px;
   border: 1px solid rgba(var(--k), .55); border-top: 0; border-radius: 0 0 12px 12px;
   background: linear-gradient(180deg, rgba(var(--k), .12), rgba(var(--k), .03) 60%, rgba(255, 255, 255, .015));
   box-shadow: inset 3px 0 0 rgba(var(--k), .8), 0 10px 24px rgba(0, 0, 0, .35); animation: rdIn .22s ease; }
 .row-detail.application { --k: 22, 189, 235; }
 @keyframes rdIn { from { opacity: 0; transform: translateY(-6px); } }
-.rd-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; margin: 0 0 14px; }
+.rd-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; margin: 0 0 12px; }
 .rd-metrics div { min-width: 0; }
-.rd-metrics div b { display: block; font-size: 1.35em; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-metrics div b { display: block; font-size: 1.22em; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rd-metrics div span { display: block; margin-top: 4px; font-size: .64em; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); }
-.rd-kv { margin: 0 0 14px; padding: 2px 12px; display: grid; border-radius: 10px; background: rgba(0, 0, 0, .22); border: 1px solid var(--hair); }
-.rd-kv > div { display: flex; justify-content: space-between; gap: 1em; font-size: .86em; padding: .55em 0; border-top: 1px solid var(--hair); }
+.rd-kv { margin: 0 0 12px; padding: 0 12px; display: grid; border-radius: 10px; background: rgba(0, 0, 0, .22); border: 1px solid var(--hair); }
+.rd-kv > div { display: flex; justify-content: space-between; gap: 1em; font-size: .86em; padding: .45em 0; border-top: 1px solid var(--hair); }
 .rd-kv > div:first-child { border-top: 0; }
 .rd-kv dt { margin: 0; color: var(--ink-3); } .rd-kv dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
 .rd-h { display: flex; justify-content: space-between; margin: 0 0 8px; font-size: .64em; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
@@ -996,3 +996,15 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 /* Drawer pulled up high: hide the globe's floating buttons so they don't sit on the list. */
 body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity .2s; }
 .zoomctl { transition: opacity .2s; }
+
+/* One-line likely cause at the top of an expanded outage */
+.rd-cause { margin: 0 0 12px; padding: 9px 11px; border-radius: 10px; background: rgba(var(--k), .14); border: 1px solid rgba(var(--k), .3); font-size: .86em; line-height: 1.35; color: var(--ink); }
+.rd-cause b { display: block; margin-bottom: 2px; font-size: .74em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--k)); }
+/* Cleared reads green - on outage rows, their detail, and tenant alerts */
+.rd-kv .clr dt, .rd-kv .clr dd, .al-kv .clr dd { color: var(--ok) !important; }
+.list .row .ago .ago-clr { display: block; font-size: .78em; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ok); }
+.te-al-meta .clr, .feed-alert .clr { color: var(--ok); font-weight: 800; }
+#list { overscroll-behavior: contain; }
+
+/* Half the gap between the stats row and the first outage */
+#owSection .stats { margin-bottom: 5px !important; }
