@@ -46,6 +46,7 @@
     if (name === 'weather') refreshWeather();
     if (name === 'globe') updateOTabs();
     if (name === 'tenant') renderTenant();
+    updateFlowArrows();
   }
 
   // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
@@ -170,6 +171,37 @@
     const b = e.target.closest('[data-tab]');
     if (b && b.dataset.tab !== tab) { if (window.Sfx) window.Sfx.play('tap'); setTab(b.dataset.tab); }
   });
+  // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
+  // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
+  const TAB_ORDER = ['home', 'tests', 'globe', 'tenant', 'weather'];
+  function goTab(dir) {
+    const i = TAB_ORDER.indexOf(tab), j = i + dir;
+    if (i < 0 || j < 0 || j >= TAB_ORDER.length) return;
+    if (window.Sfx) window.Sfx.play('tap');
+    setTab(TAB_ORDER[j]);
+  }
+  function updateFlowArrows() {
+    const i = TAB_ORDER.indexOf(tab), prev = $('flowPrev'), next = $('flowNext');
+    if (prev) prev.hidden = i <= 0;
+    if (next) next.hidden = i < 0 || i >= TAB_ORDER.length - 1;
+  }
+  $('flowPrev').addEventListener('click', () => goTab(-1));
+  $('flowNext').addEventListener('click', () => goTab(1));
+  // Swipe left = next, swipe right = previous. Ignore gestures that begin on the
+  // globe, the outage drawer, a live chart or a form control (they own the drag).
+  let swX = 0, swY = 0, swT = 0, swOk = false;
+  const NOSWIPE = '#globe, #panel, .flow-arrow, .nc-spark, .rn-spark, .sp-graph, .tl-chart, #timeline, canvas, input, textarea, select, [contenteditable]';
+  addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) { swOk = false; return; }
+    const t = e.target;
+    if (t && t.closest && t.closest(NOSWIPE)) { swOk = false; return; }
+    swX = e.clientX; swY = e.clientY; swT = Date.now(); swOk = true;
+  }, { passive: true });
+  addEventListener('pointerup', (e) => {
+    if (!swOk) return; swOk = false;
+    const dx = e.clientX - swX, dy = e.clientY - swY;
+    if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy) * 1.7 && Date.now() - swT < 700) goTab(dx < 0 ? 1 : -1);
+  }, { passive: true });
   // A service row opens its path trace - on the globe.
   $('roomNetRows').addEventListener('click', (e) => {
     if (e.target.closest('.svc-edit, .svc-grip') || $('services').classList.contains('editing')) return;

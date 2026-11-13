@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=179">
-  <link rel="stylesheet" href="css/mobile.css?v=56">
+  <link rel="stylesheet" href="css/mobile.css?v=59">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -422,6 +422,10 @@
     <button data-tab="tenant"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>Tenant</span></button>
     <button data-tab="weather"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.5 1.5A3.75 3.75 0 0 1 17.5 18Z"/><path d="M9 21l1-2M13 21l1-2"/></svg><span>Weather</span></button>
   </nav>
+  <!-- Flow arrows: the tabs follow the traffic - This Device -> Network ->
+       Outages -> Tenant -> Weather. Tap, or swipe left/right. -->
+  <button class="flow-arrow flow-prev" id="flowPrev" aria-label="Previous section" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="flow-arrow flow-next" id="flowNext" aria-label="Next section" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
   <div class="toast" id="toast" hidden></div>
   <!-- iPhone / iPad Safari can't be asked to install a web app, so show how (once). -->
   <div class="ios-hint" id="iosHint" role="dialog" aria-label="Install this app" hidden>
@@ -451,7 +455,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=42"></script>
+  <script src="js/mobile.js?v=44"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
