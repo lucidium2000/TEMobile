@@ -146,7 +146,14 @@
   };
 
   // ── State ────────────────────────────────────────────────────────────────
-  const DEFAULT_ZOOM = Math.max(0.3, Math.min(3, num('zoom', 0.6)));   // half the old 1.2
+  // Mobile: one globe shared by Home / Outages / Weather, resting at the size
+  // Home was tuned to (its hero box, 25% closer). Elsewhere: half the old 1.2.
+  const PHONE_Z = (() => {
+    if (!document.getElementById('hmGlobe')) return 0;
+    const w = window.innerWidth, h = window.innerHeight, base = Math.min(w, h * 0.62) * 0.41;
+    return (Math.min(0.86 * w, 340) / 2 * 0.94 * 1.25) / base;
+  })();
+  const DEFAULT_ZOOM = Math.max(0.3, Math.min(3, num('zoom', PHONE_Z || 0.6)));
   const view = { lon: -40, lat: 22, zoom: DEFAULT_ZOOM };   // centre of the visible face
   // Render resolution scale: 1 = full device resolution. Lowered automatically
   // if the device can't keep up (see adaptScale), or fixed with ?scale=.
@@ -185,17 +192,18 @@
   }
   function invalidateLayout(snap) { layoutCache = null; if (snap) layCur = null; }
   function measureLayout() {
-    // Mobile Home: the globe sits in the box the Home screen reserves for it.
-    if (HOMEV() && S.homeBox) { const b = S.homeBox; return { cx: b.cx, cy: b.cy, base: b.r / DEFAULT_ZOOM }; }
     const panelOnSide = window.innerWidth > 900 && !S.free;
     const panelW = panelOnSide ? el.panel.getBoundingClientRect().width + 32 : 0;
     const w = window.innerWidth, h = window.innerHeight;
     const availW = w - panelW;
     const availH = panelOnSide || S.free ? h : h * 0.62;
     const base = Math.min(availW, availH) * 0.41;
+    // Mobile: one globe, one size on Home / Outages / Weather - only its centre
+    // moves (eased) to suit each screen. Home: the box the Home screen reserves.
+    if (HOMEV() && S.homeBox) return { cx: S.homeBox.cx, cy: S.homeBox.cy, base };
     // Mobile Outages: centre the globe in the space between the header and the
     // drawer (the phone tells us that space when the drawer is down or half up).
-    if (!panelOnSide && !S.free && !WXV() && S.globeArea) return { cx: availW / 2, cy: (S.globeArea.top + S.globeArea.bottom) / 2, base };
+    if (!panelOnSide && !S.free && !WXV() && !HOMEV() && S.globeArea) return { cx: availW / 2, cy: (S.globeArea.top + S.globeArea.bottom) / 2, base };
     return { cx: availW / 2, cy: availH / 2 + (panelOnSide ? -h * 0.02 : 0), base };
   }
 
@@ -2676,7 +2684,7 @@
         else if (d < bdN) { bdN = d; bestNet = h.o; }
       }
       if (bestNet && bestPwr && bdP + 6 < bdN) openPowerCard(bestPwr);
-      else if (bestNet) { closePowerCard(); select(bestNet); }
+      else if (bestNet) { closePowerCard(); select(bestNet); if (HOMEV()) goTab('globe'); }   // Home: open it on Outages
       else if (bestPwr) openPowerCard(bestPwr);
       else { closePowerCard(); select(null); }
     }
@@ -3995,16 +4003,12 @@
       if (mode !== 'globe' && mode !== 'weather' && mode !== 'home') return;
       const cur = S.viewMode || 'globe';
       if (mode === cur) return;
-      S.views = S.views || {};
-      S.views[cur] = { lon: view.lon, lat: view.lat, zoom: view.zoom };
+      // One persistent globe: the camera (turn, tilt, zoom) carries across
+      // Home / Outages / Weather - each screen only changes what's drawn on it
+      // (Outages: Internet Insights; Weather: radar; Home: both).
       S.viewMode = mode;
-      S.flight = null; S.spin = null; S.vel = { lon: 0, lat: 0 };
       if (mode === 'weather' || mode === 'home') { if (S.touring) setTour(false); closePowerCard(); }
-      if (mode === 'home') { if (S.selected) select(null); if (S.getRadarMode && S.getRadarMode() === 'off' && S.setRadarMode) S.setRadarMode('loop'); }
-      const v = S.views[mode], r = S.room;
-      if (v) Object.assign(view, v);
-      else if (mode === 'weather') Object.assign(view, r && isFinite(r.lat) ? { lon: r.lon, lat: Math.max(-55, Math.min(55, r.lat)), zoom: 2.3 } : { lon: -95, lat: 38, zoom: 1.5 });
-      else if (mode === 'home') Object.assign(view, { lon: r && isFinite(r.lon) ? r.lon : -40, lat: r && isFinite(r.lat) ? Math.max(-40, Math.min(50, r.lat)) : 25, zoom: DEFAULT_ZOOM * 1.25 });   // Home sits 25% closer
+      if (mode === 'home' && S.getRadarMode && S.getRadarMode() === 'off' && S.setRadarMode) S.setRadarMode('loop');
     },
     selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
     /** Mobile Home: the box (centre + radius, in px) to draw the globe in. */

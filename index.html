@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=180">
-  <link rel="stylesheet" href="css/mobile.css?v=84">
+  <link rel="stylesheet" href="css/mobile.css?v=85">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -269,7 +269,7 @@
   <main class="view" id="viewHome" hidden>
     <header class="hm-top"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><div class="hm-clock"><p><b id="hmClock"></b><span id="hmDate"></span></p><button class="hm-wx" type="button" data-go="weather" id="hmWx" aria-label="Weather here - open the forecast"><canvas id="hmWxIcon" width="26" height="26"></canvas><b id="hmWxT">&ndash;</b><span class="hm-wx-txt"><em id="hmWxC"></em><i id="hmWxP"></i></span></button></div></header>
     <div class="hm-body">
-    <button class="hm-hero rings-hero" data-go="globe" id="hmHero" aria-label="Live outages and weather - open Outages">
+    <button class="hm-hero rings-hero" id="hmHero" tabindex="-1" aria-label="Live outages and weather globe">
       <!-- The live globe (outages + weather radar) is drawn here by the shared globe
            canvas behind the page; the rings below are kept but hidden. -->
       <span class="hm-globe" id="hmGlobe"></span>
@@ -461,7 +461,7 @@
   <script src="js/glglobe.js?v=28"></script>
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
-  <script src="js/app.js?v=245"></script>
+  <script src="js/app.js?v=246"></script>
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=6"></script>

@@ -1024,3 +1024,7 @@ body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity
 #viewHome { background: none !important; }
 #hmHero .hero-row { display: none; }
 .hm-globe { display: block; width: 100%; height: min(86vw, 340px); pointer-events: none; }
+/* Home: the globe behind the page is live - touches in the hero fall through
+   to it (drag to turn, pinch to zoom, tap an outage to open it). */
+#viewHome, #viewHome .hm-body, #hmHero { pointer-events: none; }
+#viewHome .hm-top, #viewHome .hm-flow { pointer-events: auto; }
