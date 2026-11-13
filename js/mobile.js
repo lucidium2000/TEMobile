@@ -717,6 +717,22 @@
 
   // ── Phone: connection ────────────────────────────────────────────────────
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  /* 5G / 4G / 3G beside the Home bars. No browser tells a web page which radio
+   * generation the phone is on, so this is a best estimate from what can be
+   * measured: the last speed test, the round trip to the nearest edge, and
+   * Chrome's effectiveType (which tops out at "4g"). On known Wi-Fi it says so. */
+  function netGen(q, ck) {
+    if (ck === 'wifi') return { label: 'Wi-Fi', how: 'Connected over Wi-Fi' };
+    if (ck === 'eth') return null;
+    const et = conn && conn.effectiveType, rtt = q && q.rtt, down = lastSpeed && lastSpeed.at && Date.now() - lastSpeed.at < 20 * 60e3 ? lastSpeed.down : null;   // a speed test from another network an hour ago says nothing
+    if (!navigator.onLine || (rtt == null && !down && !et)) return null;
+    let g;
+    if (et === '2g' || et === 'slow-2g' || et === '3g') g = '3G';
+    else if (down != null) g = down >= 100 || (down >= 50 && rtt != null && rtt < 30) ? '5G' : down >= 3 ? '4G' : '3G';
+    else if (rtt != null) g = rtt < 30 ? '5G' : rtt < 150 ? '4G' : '3G';
+    else g = '4G';
+    return { label: g, how: `Estimated from measured speed and latency (${g}-class) - browsers don't report the radio type` };
+  }
   function quality() {
     // 0-5 bars from what's measured: the edge round trip first, then the
     // browser's own estimate, then the last speed test.
@@ -1335,8 +1351,11 @@
     const ct = conn && conn.type, ck = ct === 'wifi' ? 'wifi' : ct === 'cellular' ? 'cell' : ct === 'ethernet' ? 'eth' : '';
     $('hmNetIco').innerHTML = ck ? NET_ICO[ck] : '';
     $('hmBars').className = 'bars q' + q.bars;
+    const gen = netGen(q, ck), gEl = $('hmGen');
+    gEl.hidden = !gen; gEl.textContent = gen ? gen.label : '';
+    if (gen) gEl.title = gen.how;
     $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
-    const typeWord = { wifi: 'Wi-Fi', cell: 'Cellular', eth: 'Ethernet' }[ck] || (conn && conn.effectiveType ? conn.effectiveType.toUpperCase() + '-class' : '');
+    const typeWord = { wifi: 'Wi-Fi', cell: 'Cellular', eth: 'Ethernet' }[ck] || (!gen && conn && conn.effectiveType ? conn.effectiveType.toUpperCase() + '-class' : '');   // the badge already says 5G / 4G / 3G
     $('hmNetSub').textContent = [q.label, typeWord].filter(Boolean).join(' · ');
     const edgeC = window.RoomNet && window.RoomNet.edge && window.RoomNet.edge.colo, rm = A.room && A.room();
     const isp = rm && rm.org ? String(rm.org).replace(/^AS\d+\s+/, '').replace(/,?\s*(Inc|LLC|Ltd|Corporation|Corp|Communications)\.?$/i, '') : '';
