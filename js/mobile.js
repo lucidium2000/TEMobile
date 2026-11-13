@@ -133,19 +133,11 @@
   // This Device = the old Home + the phone merged: the live connection timeline
   // and per-service timelines sit under the hero, device detail under the feed.
   (function buildThisDevice() {
-    const hero = $('hmHero'), phNet = $('phNet'), extra = $('hmDeviceExtra');
-    // Connection timeline under the hero; the detailed service list stays on
-    // Network - This Device gets a compact overview chart instead.
-    if (hero && phNet) hero.after(phNet);
+    // Front screen shows summary tiles (Connection, Services); the connection
+    // and service timelines live on the Network tab. Only the device detail
+    // (battery / location / device) moves under "Happening now" here.
+    const extra = $('hmDeviceExtra');
     if (extra) ['phBat', 'phLoc', 'phDev'].forEach((id) => { const el = $(id); if (el) extra.appendChild(el); });
-    // Connection card: compact (status + timeline); "More details" reveals the
-    // stats row and the full key/value list.
-    if (phNet && !$('phMore')) {
-      const b = document.createElement('button');
-      b.id = 'phMore'; b.className = 'conn-more'; b.type = 'button'; b.textContent = 'More details'; b.setAttribute('aria-expanded', 'false');
-      const kv = $('phNetKv'); if (kv) phNet.insertBefore(b, kv); else phNet.appendChild(b);
-      b.addEventListener('click', () => { const exp = phNet.classList.toggle('conn-exp'); b.setAttribute('aria-expanded', exp ? 'true' : 'false'); b.textContent = exp ? 'Less detail' : 'More details'; });
-    }
   })();
   function renderTenantOutages() {
     if (!window.TEConn || !TEConn.on()) return;
@@ -510,7 +502,7 @@
     const [v4, v6] = await Promise.all([reach('https://1.1.1.1/cdn-cgi/trace'), reach('https://[2606:4700:4700::1111]/cdn-cgi/trace')]);
     info.v4 = v4; info.v6 = v6;
     netInfo = info;
-    if (tab === 'home') refreshNet();
+    if (tab === 'phone') refreshNet();
   }
   async function refreshNet() {
     loadNetInfo();
@@ -552,7 +544,7 @@
   const live = [];
   let liveBusy = false, liveWarm = false, liveL4 = null;
   async function livePing() {
-    if (liveBusy || tab !== 'home' || document.hidden) return;
+    if (liveBusy || tab !== 'phone' || document.hidden) return;
     liveBusy = true;
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 3000);
     let ms = null;
@@ -622,9 +614,9 @@
   }
   setInterval(livePing, 1000);
 
-  if (conn && conn.addEventListener) conn.addEventListener('change', () => { if (tab === 'home') refreshNet(); });
-  addEventListener('online', () => tab === 'home' && refreshNet());
-  addEventListener('offline', () => tab === 'home' && refreshNet());
+  if (conn && conn.addEventListener) conn.addEventListener('change', () => { if (tab === 'home') refreshHome(); });
+  addEventListener('online', () => tab === 'home' && refreshHome());
+  addEventListener('offline', () => tab === 'home' && refreshHome());
 
   // ── Phone: battery (Chrome on Android; not Safari) ───────────────────────
   let battery = null;
@@ -757,7 +749,7 @@
   }
 
   function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); renderTEEndpoint(); }
-  setInterval(() => { if (tab === 'home') { refreshNet(); refreshLoc(); } }, 5000);
+  setInterval(() => { if (tab === 'home') refreshLoc(); }, 5000);
 
   // ── Phone: match this device to its ThousandEyes Endpoint Agent ───────────
   // The browser can't read the installed agent's ID, so the match is
@@ -921,15 +913,21 @@
     const hero = $('hmHero');
     hero.dataset.state = !os.length && !A.outages ? 'wait' : act.length >= 5 ? 'bad' : act.length ? 'warn' : 'ok';
     renderHomeFeed();
-    // This Device now hosts the live phone sections in place: the per-second
-    // connection timeline, the per-service timelines, battery, location, device.
+    // Device detail (battery / location / device) lives under the feed.
     const q = quality();
-    refreshNet(); refreshBattery(); refreshLoc(); refreshDev();
-    renderSvcOverview();
-    // Service health feeds the Network ring (from the live service rows).
+    refreshBattery(); refreshLoc(); refreshDev();
+    // Connection summary tile.
+    $('hmBars').className = 'bars q' + q.bars;
+    $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
+    $('hmNetSub').textContent = q.label + (lastSpeed ? ` · ${Math.round(lastSpeed.down)} Mbps` : '');
+    // Services summary tile (from the live service rows).
     const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
-      lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
-    const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length;
+      name: (r.querySelector('.svc-name') || {}).textContent || '', lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
+    const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length, bad = svcs.filter((x) => x.lvl === 'bad'), warn = svcs.filter((x) => x.lvl === 'warn');
+    $('hmSvcDots').innerHTML = svcs.map((x) => `<i class="svc-${x.lvl}"></i>`).join('');
+    $('hmSvcV').innerHTML = svcs.length ? `${good}<small>/${svcs.length}</small>` : '–';
+    $('hmSvcSub').textContent = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : 'All reachable';
+    $('hmSvc').dataset.state = bad.length ? 'bad' : warn.length ? 'warn' : 'ok';
 
     // Hero rings (fuller = healthier), each tied directly to what it measures:
     //  Device  = this phone's own connection quality.
@@ -1054,17 +1052,22 @@
   function renderHomeFeed() {
     const A = window.TEApp, host = $('hmList'); if (!host) return;
     // Tenant alerts now live in the dedicated Tenant tab, not here.
-    // Active Internet Insights outages, network first then newest.
+    // Active Internet Insights outages, biggest (most locations) first so a
+    // major outage like a Microsoft one reads as the top headline.
     const act = (A && A.outages ? A.outages() : []).filter((o) => o.active)
-      .sort((a, b) => (b.kind === 'network') - (a.kind === 'network') || (b.start || 0) - (a.start || 0));
-    const outRows = act.map((o) => outageRow(o, A));
+      .sort((a, b) => (b.locations.length - a.locations.length) || (b.start || 0) - (a.start || 0));
     // Recent news, newest first.
     const news = homeNews.slice(0, 4).slice().sort((a, b) => b.t - a.t);
 
     const parts = [];
-    const nNet = act.filter((o) => o.kind === 'network').length, nApp = act.length - nNet;
-    const oSub = [nNet ? `${nNet} network` : '', nApp ? `${nApp} application` : ''].filter(Boolean).join(' \u00b7 ');
-    parts.push(feedGroup('outages', 'g-outage', OUTAGE_ICO, outRows, 'active outages', oSub, `<em class="feed-tag count">${outRows.length}</em>`));
+    // Show the top few outages as named headlines; roll any overflow.
+    const TOP = 4, lead = act.slice(0, TOP), rest = act.slice(TOP);
+    lead.forEach((o) => parts.push(outageRow(o, A)));
+    if (rest.length) {
+      const nNet = rest.filter((o) => o.kind === 'network').length, nApp = rest.length - nNet;
+      const oSub = [nNet ? `${nNet} network` : '', nApp ? `${nApp} application` : ''].filter(Boolean).join(' \u00b7 ');
+      parts.push(feedGroup('outages', 'g-outage', OUTAGE_ICO, rest.map((o) => outageRow(o, A)), 'more active outages', oSub, `<em class="feed-tag count">${rest.length}</em>`));
+    }
     const nSub = news.length ? news[0].title : '';
     parts.push(feedGroup('news', 'g-news', NEWS_ICO, news.map(newsRow), 'news stories', nSub, `<em class="feed-tag count">${news.length}</em>`));
 

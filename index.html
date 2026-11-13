@@ -287,13 +287,12 @@
         <span class="rg-legend" id="hmRingLegend"></span>
       </span>
     </button>
-    <!-- The live connection timeline (#phNet) is moved in under the hero by
-         mobile.js; the compact service-checks overview sits here. -->
-    <section class="m-card sec hm-svcc" id="hmSvcChart">
-      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3l2-5 4 10 2-5h3M18 12h3"/></svg><span class="sec-name">Service checks</span><button class="svcc-btn" id="hmSvcMore" type="button" data-go="tests">Details &rsaquo;</button></h2>
-      <div class="svcc-grid" id="hmSvccGrid"></div>
-      <div class="svcc-legend" id="hmSvccLegend"></div>
-    </section>
+    <!-- Front screen = summary cards. Connection + Services are glances that
+         open the Network tab for the full timelines. -->
+    <div class="hm-grid hm-grid-2">
+      <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection</span><span class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
+      <button class="tile" data-go="tests" id="hmSvc"><span class="t-k">Services</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
+    </div>
     <section class="hm-latest">
       <button class="hm-label" data-go="globe"><span id="hmFeedLabel">Happening now</span><em>See all</em></button>
       <ol class="h-list" id="hmList"></ol>
@@ -460,7 +459,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=49"></script>
+  <script src="js/mobile.js?v=50"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
