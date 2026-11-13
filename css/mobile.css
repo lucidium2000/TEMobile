@@ -1017,3 +1017,10 @@ body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity
   background: #f15e22; box-shadow: 0 0 0 2px rgba(5, 8, 15, .95), 0 0 10px rgba(241, 94, 34, .8); animation: tabDot 2s ease-in-out infinite; }
 @keyframes tabDot { 50% { box-shadow: 0 0 0 2px rgba(5, 8, 15, .95), 0 0 2px rgba(241, 94, 34, .3); } }
 @media (prefers-reduced-motion: reduce) { .tabbar button.dot::after { animation: none; } }
+
+/* ══ Home: the live globe (outages + weather radar) replaces the rings. The
+   shared globe canvas is drawn behind this page, inside #hmGlobe, so Home's
+   own background is see-through. The rings stay in the page, hidden. ══ */
+#viewHome { background: none !important; }
+#hmHero .hero-row { display: none; }
+.hm-globe { display: block; width: 100%; height: min(86vw, 340px); pointer-events: none; }

@@ -77,7 +77,8 @@
   const goTab = (t) => { if (window.TEMobile) window.TEMobile.setTab(t); };
   // Two globes on one renderer: Outages (outages only) and Weather (radar, US
   // power and this device's place only), each keeping its own view.
-  const WXV = () => document.body.dataset.tab === 'weather';   // leave the globe where the user put it for a while
+  const WXV = () => document.body.dataset.tab === 'weather';
+  const HOMEV = () => document.body.dataset.tab === 'home';   // the small live globe on the mobile Home screen
 
   // Friendly labels + match terms for the "Your services" strip.
   const WATCH_PRESETS = {
@@ -184,12 +185,18 @@
   }
   function invalidateLayout(snap) { layoutCache = null; if (snap) layCur = null; }
   function measureLayout() {
+    // Mobile Home: the globe sits in the box the Home screen reserves for it.
+    if (HOMEV() && S.homeBox) { const b = S.homeBox; return { cx: b.cx, cy: b.cy, base: b.r / DEFAULT_ZOOM }; }
     const panelOnSide = window.innerWidth > 900 && !S.free;
     const panelW = panelOnSide ? el.panel.getBoundingClientRect().width + 32 : 0;
     const w = window.innerWidth, h = window.innerHeight;
     const availW = w - panelW;
     const availH = panelOnSide || S.free ? h : h * 0.62;
-    return { cx: availW / 2, cy: availH / 2 + (panelOnSide ? -h * 0.02 : 0), base: Math.min(availW, availH) * 0.41 };
+    const base = Math.min(availW, availH) * 0.41;
+    // Mobile Outages: centre the globe in the space between the header and the
+    // drawer (the phone tells us that space when the drawer is down or half up).
+    if (!panelOnSide && !S.free && !WXV() && S.globeArea) return { cx: availW / 2, cy: (S.globeArea.top + S.globeArea.bottom) / 2, base };
+    return { cx: availW / 2, cy: availH / 2 + (panelOnSide ? -h * 0.02 : 0), base };
   }
 
   function wrapLon(l) { return ((l + 540) % 360) - 180; }
@@ -450,7 +457,7 @@
       const sy = (view.lat / 90) * S.h * 0.175 + (cam.E[1] - L.cy);
       glTry('render', () => glr.render({
         eye: cam.E.map((v) => v * pr), ctr: cam.C.map((v) => v * pr), Rw: cam.Rw * pr, R: R * pr,
-        lon: view.lon, lat: view.lat, sun: unitVec(sun.lon, sun.lat), starX: -sx * pr, starY: -sy * pr, px: pr, noWx: !WXV(),
+        lon: view.lon, lat: view.lat, sun: unitVec(sun.lon, sun.lat), starX: -sx * pr, starY: -sy * pr, px: pr, noWx: !(WXV() || HOMEV()),
       }));
     }
     if (!glr) {
@@ -1231,7 +1238,7 @@
 
     // Tour: start when idle, advance on a timer.
     const tourOff = CFG.tour === '0' && !CFG.signage;
-    if (!S.touring && !tourOff && !WXV() && !S.guideOpen && !S.pathOpen && S.outages.length && now - S.lastInput > CFG.idleMs) setTour(true);
+    if (!S.touring && !tourOff && !WXV() && !HOMEV() && !S.guideOpen && !S.pathOpen && S.outages.length && now - S.lastInput > CFG.idleMs) setTour(true);
     if (S.touring && !S.spin) {
       const frac = (now - S.tourT0) / CFG.dwellMs;
       el.cardProgress.style.transform = floatProgress.style.transform = `scaleX(${Math.min(1, frac).toFixed(4)})`;
@@ -2508,7 +2515,7 @@
       const o = fresh.sort((a, b) => b.start - a.start)[0];
       toast(`New ${o.kind} outage: ${o.name} · ${o.locations[0].name}`);
       sfx('alert');
-      if (!WXV() && (now() - S.lastInput > 10000 || S.touring)) { select.quiet = true; select(o, { fromTour: S.touring }); select.quiet = false; }
+      if (!WXV() && !HOMEV() && (now() - S.lastInput > 10000 || S.touring)) { select.quiet = true; select(o, { fromTour: S.touring }); select.quiet = false; }
       speakOutage(o, true);
     }
   }
@@ -3985,19 +3992,25 @@
     iconHtml: (o) => iconHtml(o),
     /** Switch the globe between its Outages and Weather views. */
     enterView(mode) {
-      if (mode !== 'globe' && mode !== 'weather') return;
+      if (mode !== 'globe' && mode !== 'weather' && mode !== 'home') return;
       const cur = S.viewMode || 'globe';
       if (mode === cur) return;
       S.views = S.views || {};
       S.views[cur] = { lon: view.lon, lat: view.lat, zoom: view.zoom };
       S.viewMode = mode;
       S.flight = null; S.spin = null; S.vel = { lon: 0, lat: 0 };
-      if (mode === 'weather') { if (S.touring) setTour(false); closePowerCard(); }
+      if (mode === 'weather' || mode === 'home') { if (S.touring) setTour(false); closePowerCard(); }
+      if (mode === 'home') { if (S.selected) select(null); if (S.getRadarMode && S.getRadarMode() === 'off' && S.setRadarMode) S.setRadarMode('loop'); }
       const v = S.views[mode], r = S.room;
       if (v) Object.assign(view, v);
       else if (mode === 'weather') Object.assign(view, r && isFinite(r.lat) ? { lon: r.lon, lat: Math.max(-55, Math.min(55, r.lat)), zoom: 2.3 } : { lon: -95, lat: 38, zoom: 1.5 });
+      else if (mode === 'home') Object.assign(view, { lon: r && isFinite(r.lon) ? r.lon : -40, lat: r && isFinite(r.lat) ? Math.max(-40, Math.min(50, r.lat)) : 25, zoom: DEFAULT_ZOOM });
     },
     selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
+    /** Mobile Home: the box (centre + radius, in px) to draw the globe in. */
+    setHomeBox(box, snap) { S.homeBox = box; invalidateLayout(!!snap); },
+    /** Mobile Outages: the visible band (px) between the header and the drawer. */
+    setGlobeArea(top, bottom) { S.globeArea = bottom > top + 80 ? { top, bottom } : null; invalidateLayout(false); },
     /** Show only one kind of outage on the globe and list: 'application' (SaaS), 'network' (ISPs) or 'all'. */
     setFilter(f) { if (['all', 'application', 'network', 'active', 'locations'].includes(f)) { userInput(); setFilter(f); } },
   };
@@ -4036,11 +4049,12 @@
   function frame(t) {
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
     requestAnimationFrame(frame);
-    // Mobile: the globe only draws while its tab is showing (saves battery).
-    if (document.body.dataset.tab && document.body.dataset.tab !== 'globe' && document.body.dataset.tab !== 'weather') return;
+    // Mobile: the globe only draws while a tab that shows it is up (saves battery).
+    const vt = document.body.dataset.tab;
+    if (vt && vt !== 'globe' && vt !== 'weather' && vt !== 'home') return;
     // While the camera is on, render at 30: the globe shares the GPU with the
     // hand/face models, and a slow-turning globe looks nearly the same at 30.
-    const cap = window.Glass && window.Glass.on ? 30 : frameCap;
+    const cap = (window.Glass && window.Glass.on) || vt === 'home' ? 30 : frameCap;   // Home's small globe is fine at 30
     if (cap === 30 && t - lastDraw < 1000 / 30 - 4) return;
     lastDraw = t;
     adaptScale(t);   // before drawing: a resized (wiped) canvas is redrawn this same frame

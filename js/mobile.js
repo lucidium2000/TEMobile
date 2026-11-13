@@ -33,13 +33,15 @@
     // Keep the device Back button / swipe inside the app: each tab change is a
     // history entry, so Back returns to the previous tab instead of leaving.
     if (!fromPop && name !== tab) { try { history.pushState({ teTab: name }, ''); } catch (_) { /* */ } }
-    if ((name === 'globe' || name === 'weather') && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
+    if ((name === 'globe' || name === 'weather' || name === 'home') && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
     tab = name;
     document.body.dataset.tab = name;
     for (const [k, v] of Object.entries(views)) v.hidden = k !== name;
     document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     try { sessionStorage.setItem('te-m-tab', name); } catch (_) { /* */ }
-    if (name === 'globe' || name === 'weather') window.dispatchEvent(new Event('resize'));
+    if (name === 'globe' || name === 'weather' || name === 'home') window.dispatchEvent(new Event('resize'));
+    if (name === 'home') requestAnimationFrame(() => placeHomeGlobe(false));
+    if (name === 'globe') requestAnimationFrame(reportGlobeArea);
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
     if (name === 'home') { refreshHome(); spinRings(); }
@@ -195,6 +197,25 @@
   });
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
   // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
+  // Home: tell the globe where its box is (it's drawn by the shared canvas
+  // behind the page). Snap while scrolling so it moves with the page.
+  function placeHomeGlobe(snap) {
+    const b = $('hmGlobe'); if (!b || tab !== 'home' || !window.TEApp || !window.TEApp.setHomeBox) return;
+    const r = b.getBoundingClientRect();
+    window.TEApp.setHomeBox({ cx: r.left + r.width / 2, cy: r.top + r.height / 2, r: Math.min(r.width, r.height) / 2 * 0.94 }, snap);
+  }
+  addEventListener('resize', () => { if (tab === 'home') placeHomeGlobe(true); });
+  if ($('viewHome')) $('viewHome').addEventListener('scroll', () => placeHomeGlobe(true), { passive: true });
+  // Outages: centre the globe in the band between the header and the drawer
+  // when the drawer is down or half up; left alone when it's pulled all the way up.
+  function reportGlobeArea() {
+    if (tab !== 'globe' || !window.TEApp || !window.TEApp.setGlobeArea) return;
+    const panel = $('panel'); if (!panel) return;
+    const pr = panel.getBoundingClientRect();
+    if (pr.height > innerHeight * 0.62) return;                 // all the way up: you can't see the globe anyway
+    const br = document.querySelector('.brand');
+    window.TEApp.setGlobeArea(br ? br.getBoundingClientRect().bottom : 0, pr.top);
+  }
   const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];
   // Open a view; for Outages, optionally show just SaaS ('application') or ISPs ('network').
   function goFiltered(name, filter) {
@@ -971,12 +992,13 @@
         applyH(to, false);
         try { localStorage.setItem('te-m-sheet', name); } catch (_) { /* */ }
         dispatchEvent(new Event('resize'));
+        reportGlobeArea();
       }, dur + 20);
     }
     function snapTo(name) { const cur = shownH(); hold(cur); settle(name, cur, 0); }
     let saved = 'min'; try { saved = localStorage.getItem('te-m-sheet') || 'min'; } catch (_) { /* */ }
     if (!['min', 'mid', 'max'].includes(saved)) saved = saved === 'open' ? 'mid' : 'min';
-    requestAnimationFrame(() => applyH(snaps()[saved], false));
+    requestAnimationFrame(() => { applyH(snaps()[saved], false); reportGlobeArea(); });
 
     // Grab it anywhere: the header always moves the drawer; in the list, pushing
     // up expands it first (then the list scrolls), and pulling down at the top
