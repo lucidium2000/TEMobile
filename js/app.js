@@ -4261,7 +4261,7 @@
       BOUNCE.ph = 1;
     },
   };
-  let lastLift = 0, dropCand = null;
+  let lastLift = 0, dropT = 0, dropV = 0, dropJolt = null;
   function onDrop(e) {
     const a = e.acceleration, g = e.accelerationIncludingGravity;
     if (!a || !g || a.x == null || g.x == null) return;
@@ -4270,21 +4270,21 @@
     const ux = g.x - a.x, uy = g.y - a.y, uz = g.z - a.z, um = Math.hypot(ux, uy, uz);
     if (um < 6) return;                                  // free fall or nonsense: no reliable "up"
     const up = (a.x * ux + a.y * uy + a.z * uz) / um;    // m/s^2 along up; negative = pushed down
-    // A lift is an upward surge, then a downward one as it stops - that stop
-    // must not count as a push. Only a downward surge that comes first does.
-    // So: a downward surge with no upward motion just before it is only a
-    // candidate; it counts once the phone is stopped (an upward surge) soon
-    // after - the shape of a push down. A lift has those the other way round.
-    const t = performance.now();
-    if (up > 1.2 && !dropCand) lastLift = t;
-    if (dropCand && t - dropCand.t > 600) dropCand = null;
-    if (up < -3 && t - lastLift > 1000) {
-      if (!dropCand) dropCand = { t, peak: -up };
-      else dropCand.peak = Math.max(dropCand.peak, -up);
-    } else if (dropCand && up > 2 && t - dropCand.t > 40) {
-      const k = (dropCand.peak - 2) / 5; dropCand = null; lastLift = t;   // its own stop isn't a new lift
-      window.Drop.kick(k);
+    // Which way is the phone actually moving? A leaky running total of the
+    // up/down acceleration is its vertical speed. A push down jolts downward
+    // while moving down -> bounce, at once. A lift jolts downward too as it
+    // stops, but it's still moving UP then, so that never counts.
+    const t = performance.now(), dt = dropT ? Math.min(0.1, (t - dropT) / 1000) : 0.016; dropT = t;
+    if (up < -3) {
+      // Judged once, as the jolt starts: was the phone already moving up?
+      if (!dropJolt) dropJolt = { ok: dropV < 0.12 && t - lastLift > 250, peak: -up };
+      else dropJolt.peak = Math.max(dropJolt.peak, -up);
+    } else if (dropJolt) {                                // jolt over: bounce, sized by its peak
+      if (dropJolt.ok) window.Drop.kick((dropJolt.peak - 2) / 5);
+      dropJolt = null;
     }
+    dropV = dropV * Math.exp(-dt / 1.0) + up * dt;
+    if (up > 3) lastLift = t;
   }
   if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
   function stepBounce(dt) {
