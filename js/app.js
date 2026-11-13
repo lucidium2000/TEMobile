@@ -79,6 +79,7 @@
   // power and this device's place only), each keeping its own view.
   const WXV = () => document.body.dataset.tab === 'weather';
   const HOMEV = () => document.body.dataset.tab === 'home';   // the small live globe on the mobile Home screen
+  const TENV = () => document.body.dataset.tab === 'tenant';  // the user's own ThousandEyes alerts, by location
 
   // Friendly labels + match terms for the "Your services" strip.
   const WATCH_PRESETS = {
@@ -952,12 +953,71 @@
    *  desk sizing shrank labels to ~9 px on a small screen. */
   function labelK(R) { return Math.max(innerWidth < 700 ? 1.2 : 0.7, Math.min(1.6, R / 430)); }
 
+  // ── Tenant: the user's own alerts at the agents that saw them ───────────
+  // One pin per location, coloured by the worst severity there, pulsing; the
+  // busiest places are labelled (city · alerts). Tapping one picks it.
+  const TN_RGB = { CRITICAL: '239,68,68', MAJOR: '241,94,34', MINOR: '251,191,36', WARNING: '251,191,36', INFO: '22,189,235' };
+  function drawTenant(now, R) {
+    const k = labelK(R), pts = S.tnPoints || [], sel = S.tnSel;
+    S.tnHits = [];
+    const shown = [];
+    const mk = innerWidth <= 900 ? 0.62 : 1;
+    // Selected: dashed links to every other place sharing one of its alerts.
+    const sp = sel && pts.find((p) => p.key === sel);
+    if (sp && sp.links && sp.links.length) {
+      ctx.save(); ctx.setLineDash([5 * k, 8 * k]); ctx.lineDashOffset = -(now / 40) % 1000; ctx.lineCap = 'round';
+      const rgb = TN_RGB[sp.sev] || TN_RGB.INFO;
+      for (const [w, a] of [[4, 0.22], [1.4, 0.9]]) {
+        ctx.beginPath();
+        for (const q of sp.links) proj.arc([sp.lon, sp.lat], [q.lon, q.lat]);
+        ctx.strokeStyle = `rgba(${rgb},${a})`; ctx.lineWidth = w * k; ctx.stroke();
+      }
+      ctx.restore();
+    }
+    for (const p0 of pts) {
+      const p = proj.point(p0.lon, p0.lat, p0.v); if (!p) continue;
+      const rgb = TN_RGB[p0.sev] || TN_RGB.INFO, isSel = sel === p0.key, dim = sel && !isSel ? 0.45 : 1;
+      const r = (4 + Math.sqrt(p0.count) * 2.2) * k * mk * (isSel ? 1.35 : 1);
+      const period = isSel ? 1400 : 2300;
+      ctx.lineWidth = 2 * k;
+      for (let i = 0; i < 2; i++) {
+        const t = ((((now + i * period / 2 + (p0.lon * 37 | 0)) % period) + period) % period) / period;
+        ctx.strokeStyle = `rgba(${rgb},${((1 - t) * 0.75 * dim).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(p[0], p[1], r + t * 24 * k * mk, 0, 2 * Math.PI); ctx.stroke();
+      }
+      const gr = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], r * 2.6);
+      gr.addColorStop(0, `rgba(255,255,255,${0.95 * dim})`); gr.addColorStop(0.22, `rgba(${rgb},${0.95 * dim})`);
+      gr.addColorStop(0.55, `rgba(${rgb},${0.32 * dim})`); gr.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(p[0], p[1], r * 2.6, 0, 2 * Math.PI); ctx.fill();
+      if (isSel) { ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2.2 * k; ctx.beginPath(); ctx.arc(p[0], p[1], r * 1.5, 0, 2 * Math.PI); ctx.stroke(); }
+      S.tnHits.push({ x: p[0], y: p[1], r: Math.max(22, r * 2.4), key: p0.key });
+      shown.push({ p0, p, isSel });
+    }
+    // Labels: the picked place first, then the busiest; never overlapping.
+    ctx.font = `600 ${Math.round(12 * k)}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+    ctx.textBaseline = 'middle';
+    const placed = [];
+    shown.sort((a, b) => (b.isSel - a.isSel) || (b.p0.count - a.p0.count));
+    for (const { p0, p, isSel } of shown) {
+      if (placed.length >= (sel ? 4 : 7) && !isSel) break;
+      const txt = p0.label + (p0.count > 1 ? `  ${p0.count}` : '');
+      const w = ctx.measureText(txt).width, x = p[0] + 13 * k, y = p[1];
+      if (placed.some((q) => Math.abs(q.y - y) < 20 * k && x < q.x + q.w + 10 * k && x + w > q.x - 10 * k)) continue;
+      placed.push({ x, y, w });
+      ctx.fillStyle = isSel ? 'rgba(5,7,13,0.9)' : 'rgba(5,7,13,0.72)';
+      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - 6 * k, y - 11 * k, w + 12 * k, 22 * k, 6 * k); else ctx.rect(x - 6 * k, y - 11 * k, w + 12 * k, 22 * k); ctx.fill();
+      ctx.fillStyle = `rgb(${TN_RGB[p0.sev] || TN_RGB.INFO})`; ctx.fillRect(x - 6 * k, y - 11 * k, 2.5 * k, 22 * k);
+      ctx.fillStyle = '#e6edf7'; ctx.fillText(txt, x, y + 0.5);
+    }
+  }
+
   function drawOutages(now, R) {
     S.hits = [];
     // Weather label boxes: this frame's become the next frame's hover test.
     S.wxBoxes = S.wxBoxesNext || new Map(); S.wxBoxesNext = new Map();
     S.wxOffer = S.wxOfferNext || null; S.wxOfferNext = null; S.wxTaps = [];
     if (WXV()) { drawPower(now, labelK(R)); return; }
+    if (TENV()) { drawTenant(now, R); return; }
     drawPath(now, R);
     const k = labelK(R);
     const sel = S.selected;
@@ -1291,7 +1351,7 @@
 
     // Tour: start when idle, advance on a timer.
     const tourOff = CFG.tour === '0' && !CFG.signage;
-    if (!S.touring && !tourOff && !WXV() && !HOMEV() && !S.guideOpen && !S.pathOpen && S.outages.length && now - S.lastInput > CFG.idleMs) setTour(true);
+    if (!S.touring && !tourOff && !WXV() && !HOMEV() && !TENV() && !S.guideOpen && !S.pathOpen && S.outages.length && now - S.lastInput > CFG.idleMs) setTour(true);
     if (S.touring && !S.spin) {
       const frac = (now - S.tourT0) / CFG.dwellMs;
       el.cardProgress.style.transform = floatProgress.style.transform = `scaleX(${Math.min(1, frac).toFixed(4)})`;
@@ -2568,7 +2628,7 @@
       const o = fresh.sort((a, b) => b.start - a.start)[0];
       toast(`New ${o.kind} outage: ${o.name} · ${o.locations[0].name}`);
       sfx('alert');
-      if (!WXV() && !HOMEV() && (now() - S.lastInput > 10000 || S.touring)) { select.quiet = true; select(o, { fromTour: S.touring }); select.quiet = false; }
+      if (!WXV() && !HOMEV() && !TENV() && (now() - S.lastInput > 10000 || S.touring)) { select.quiet = true; select(o, { fromTour: S.touring }); select.quiet = false; }
       speakOutage(o, true);
     }
   }
@@ -2719,6 +2779,15 @@
         return;
       }
       S.roomPick = 0;
+      // Tenant: a tap picks the nearest alert location (or clears the pick).
+      if (TENV()) {
+        let best = null, bd = Infinity;
+        for (const h of S.tnHits || []) { const d = Math.hypot(h.x - e.clientX, h.y - e.clientY); if (d < h.r && d < bd) { bd = d; best = h.key; } }
+        S.tnSel = best; if (best) sfx('select');
+        try { dispatchEvent(new CustomEvent('te-tenant-pick', { detail: { key: best } })); } catch (_) { /* */ }
+        down = null; S.dragging = false;
+        return;
+      }
       // Tap: the nearest internet outage, else a power county (when that
       // layer's on), else clear the selection.
       let bestNet = null, bestPwr = null, bdN = Infinity, bdP = Infinity;
@@ -4045,15 +4114,23 @@
     iconHtml: (o) => iconHtml(o),
     /** Switch the globe between its Outages and Weather views. */
     enterView(mode) {
-      if (mode !== 'globe' && mode !== 'weather' && mode !== 'home') return;
+      if (mode !== 'globe' && mode !== 'weather' && mode !== 'home' && mode !== 'tenant') return;
       const cur = S.viewMode || 'globe';
       if (mode === cur) return;
       // One persistent globe: the camera (turn, tilt, zoom) carries across
       // Home / Outages / Weather - each screen only changes what's drawn on it
       // (Outages: Internet Insights; Weather: radar; Home: both).
       S.viewMode = mode;
-      if (mode === 'weather' || mode === 'home') { if (S.touring) setTour(false); closePowerCard(); }
+      if (mode !== 'globe') { if (S.touring) setTour(false); closePowerCard(); }
       if (mode === 'home' && S.getRadarMode && S.getRadarMode() === 'off' && S.setRadarMode) S.setRadarMode('loop');
+    },
+    /** Tenant: the alert locations to pin [{key, label, lat, lon, sev, count, links:[{lon,lat}]}]. */
+    setTenantPoints(list) { S.tnPoints = (list || []).filter((p) => isFinite(p.lat) && isFinite(p.lon)).map((p) => ({ ...p, v: unitVec(p.lon, p.lat) })); if (S.tnSel && !S.tnPoints.some((p) => p.key === S.tnSel)) S.tnSel = null; },
+    /** Tenant: pick a location (or null) and turn the globe to it. */
+    focusTenant(key, fly) {
+      S.tnSel = key || null;
+      const p = key && (S.tnPoints || []).find((x) => x.key === key);
+      if (p && fly !== false) { userInput(); zoomTo(Math.max(view.zoom, DEFAULT_ZOOM * 1.6), [p.lon, p.lat]); }
     },
     selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
     /** Mobile Home: the box (centre + radius, in px) to draw the globe in. */
@@ -4100,7 +4177,7 @@
     requestAnimationFrame(frame);
     // Mobile: the globe only draws while a tab that shows it is up (saves battery).
     const vt = document.body.dataset.tab;
-    if (vt && vt !== 'globe' && vt !== 'weather' && vt !== 'home') return;
+    if (vt && vt !== 'globe' && vt !== 'weather' && vt !== 'home' && vt !== 'tenant') return;
     // While the camera is on, render at 30: the globe shares the GPU with the
     // hand/face models, and a slow-turning globe looks nearly the same at 30.
     const cap = (window.Glass && window.Glass.on) || vt === 'home' ? 30 : frameCap;   // Home's small globe is fine at 30

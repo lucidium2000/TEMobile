@@ -96,6 +96,20 @@
       if (ts) cache.tests = pick(ts, 'tests', 'results', 'result');
       cache.at = Date.now();
       fireData();
+      // Each alert's details name the agents that saw it (and their numbers),
+      // which is what puts alerts on the globe. A few at a time, kept 3 min.
+      cache.details = cache.details || {};
+      const need = (cache.alerts || []).slice(0, 40).filter((a) => a.id && (!cache.details[a.id] || Date.now() - cache.details[a.id].at > 180e3));
+      if (need.length) {
+        (async () => {
+          for (let i = 0; i < need.length; i += 5) {
+            await Promise.all(need.slice(i, i + 5).map((a) => api(withAid('/v7/alerts/' + encodeURIComponent(a.id)))
+              .then((d) => { cache.details[a.id] = { at: Date.now(), list: (d && (d.details || d.agents)) || [] }; })
+              .catch(() => { cache.details[a.id] = { at: Date.now(), list: [] }; })));
+            fireData();
+          }
+        })();
+      }
       // Agents can be 1000+ (all the cloud vantage points): load in the
       // background so it never blocks the first paint.
       api(withAid('/v7/agents')).then((ag) => { if (ag) { cache.agents = pick(ag, 'agents', 'result'); fireData(); } }).catch(() => {});
@@ -144,6 +158,9 @@
     endpoints: () => cache.endpoints || [],
     rules: () => (cache.rules || []).concat(cache.epRules || []),
     epTests: () => cache.epTests || [],
+    /** The agents behind one alert: [{id, name, type, state, start: {metrics}}], or null until loaded. */
+    details: (id) => (cache.details && cache.details[id] ? cache.details[id].list : null),
+    updatedAt: () => cache.at || 0,
     async connect(proxy, token, persist) {
       state.proxy = (proxy || '').trim(); state.token = (token || '').trim(); state.persist = !!persist;
       const acct = await validate();            // throws on bad token / proxy
@@ -155,7 +172,7 @@
     },
     disconnect() {
       state.token = ''; state.acct = null; state.status = 'off';
-      cache.at = 0; cache.rulesAt = 0; cache.agents = cache.tests = cache.alerts = cache.endpoints = cache.rules = cache.epTests = cache.epRules = null;
+      cache.at = 0; cache.rulesAt = 0; cache.agents = cache.tests = cache.alerts = cache.endpoints = cache.rules = cache.epTests = cache.epRules = cache.details = null;
       wipe();
       changed();
     },

@@ -30,13 +30,14 @@
   // ── Morph between Home / Outages / Weather: the cards and the drawers share
   // one top line. A light-line strikes out from the centre of that line, the
   // new surface unfolds from it, and its contents rise in, one after another.
-  const MORPH_TABS = ['home', 'globe', 'weather'];
+  const GLOBE_TABS = ['home', 'globe', 'weather', 'tenant'];   // tabs drawn over the shared globe
+  const MORPH_TABS = GLOBE_TABS;
   const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let morphT = 0;
   function morphIn(name) {
     if (reduceMotion()) return;
     requestAnimationFrame(() => requestAnimationFrame(() => {   // after the drawer has taken its half-up height
-      const el = name === 'globe' ? $('panel') : name === 'weather' ? $('viewWeather') : document.querySelector('#viewHome .hm-flow');
+      const el = name === 'globe' ? $('panel') : name === 'weather' ? $('viewWeather') : name === 'tenant' ? $('viewTenant') : document.querySelector('#viewHome .hm-flow');
       if (!el) return;
       let line = $('morphLine');
       if (!line) { line = document.createElement('div'); line.id = 'morphLine'; line.setAttribute('aria-hidden', 'true'); line.innerHTML = '<i></i>'; document.body.appendChild(line); }
@@ -55,7 +56,7 @@
     // Keep the device Back button / swipe inside the app: each tab change is a
     // history entry, so Back returns to the previous tab instead of leaving.
     if (!fromPop && name !== tab) { try { history.pushState({ teTab: name }, ''); } catch (_) { /* */ } }
-    if ((name === 'globe' || name === 'weather' || name === 'home') && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
+    if (GLOBE_TABS.includes(name) && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
     const prevTab = tab;
     tab = name;
     if (prevTab !== name && MORPH_TABS.includes(prevTab) && MORPH_TABS.includes(name)) morphIn(name);
@@ -63,10 +64,11 @@
     for (const [k, v] of Object.entries(views)) v.hidden = k !== name;
     document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     try { sessionStorage.setItem('te-m-tab', name); } catch (_) { /* */ }
-    if (name === 'globe' || name === 'weather' || name === 'home') window.dispatchEvent(new Event('resize'));
+    if (GLOBE_TABS.includes(name)) window.dispatchEvent(new Event('resize'));
     if (name === 'home') requestAnimationFrame(() => { placeHomeGlobe(false); if (homeMeasure) homeMeasure(); });
     if (name === 'globe') requestAnimationFrame(() => { if (sheetToMid) sheetToMid(); reportGlobeArea(); });   // Outages always opens half up
     if (name === 'weather') requestAnimationFrame(() => { if (wxToMid) wxToMid(); });                          // so does Weather
+    if (name === 'tenant') requestAnimationFrame(() => { if (tnToMid) tnToMid(); });                            // and Tenant
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
     if (name === 'home') { refreshHome(); spinRings(); }
@@ -178,15 +180,183 @@
   // endpoint match (moved here from Network / Outages / This Device).
   (function buildTenant() {
     const root = $('tnRoot'); if (!root) return;
-    ['teConnCard', 'teTenant', 'phTE'].forEach((id) => { const el = $(id); if (el) root.appendChild(el); });
+    ['teConnCard', 'phTE'].forEach((id) => { const el = $(id); if (el) root.appendChild(el); });
+    const al = $('teTenant'), sec = $('tnAlSec'); if (al && sec) sec.appendChild(al);
   })();
   function renderTenant() {
     const on = !!(window.TEConn && TEConn.on());
     const t = $('teTenant'), ep = $('phTE');
     if (t) t.hidden = !on;
     if (ep) ep.hidden = !on;
-    if (on) { TEConn.refresh(); renderTenantOutages(); renderTEEndpoint(); }
+    ['tnStats', 'tnLocSec', 'tnAlSec', 'tnAgSec', 'tnTsSec', 'tnLive'].forEach((id) => { const el = $(id); if (el) el.hidden = !on; });
+    if (!on) {
+      if (window.TEApp && TEApp.setTenantPoints) TEApp.setTenantPoints([]);
+      $('tnAcct').textContent = 'Connect your tenant to see your alerts on the globe';
+      return;
+    }
+    TEConn.refresh(); renderTenantMore(); renderTenantOutages(); renderTEEndpoint();
   }
+
+  // ── Tenant: where the alerts are. Each alert's details name the agents that
+  // saw it; an agent's "City, Region, CC" is geocoded once (Open-Meteo, cached
+  // on the device) and every alert at a place becomes one pin on the globe.
+  let geo = {};
+  try { geo = JSON.parse(localStorage.getItem('te-geo1') || '{}') || {}; } catch (_) { geo = {}; }
+  const geoQ = []; let geoBusy = false;
+  function geoLookup(loc) {
+    if (!loc) return null;
+    if (Object.prototype.hasOwnProperty.call(geo, loc)) return geo[loc] || null;
+    if (!geoQ.includes(loc)) { geoQ.push(loc); pumpGeo(); }
+    return null;
+  }
+  async function pumpGeo() {
+    if (geoBusy) return; geoBusy = true;
+    let got = 0;
+    while (geoQ.length) {
+      const loc = geoQ.shift();
+      const parts = String(loc).split(',').map((x) => x.trim()).filter(Boolean);
+      const city = (parts[0] || '').replace(/\s*\(.*\)\s*$/, '');
+      const cc = parts.length > 1 && /^[A-Z]{2}$/.test(parts[parts.length - 1]) ? parts[parts.length - 1] : '';
+      const region = parts.length > 2 ? parts[1] : (parts.length === 2 && !cc ? parts[1] : '');
+      let hit = null;
+      try {
+        const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name=' + encodeURIComponent(city));
+        const res = ((r.ok ? await r.json() : null) || {}).results || [];
+        const reg = (x) => !region || x.admin1 === region || (x.admin1_code || '').toUpperCase() === region.toUpperCase() || (x.admin1 || '').toLowerCase().startsWith(region.toLowerCase());
+        hit = res.find((x) => (!cc || x.country_code === cc) && reg(x)) || res.find((x) => !cc || x.country_code === cc) || res[0] || null;
+      } catch (_) { continue; }   // offline: try again next time
+      geo[loc] = hit ? { lat: hit.latitude, lon: hit.longitude } : 0;
+      got++;
+      if (got % 6 === 0) renderTenant();
+    }
+    try { localStorage.setItem('te-geo1', JSON.stringify(geo)); } catch (_) { /* */ }
+    geoBusy = false;
+    if (got) renderTenant();
+  }
+  const MET = { loss: ['Loss', '%'], avgLatency: ['Latency', ' ms'], latency: ['Latency', ' ms'], jitter: ['Jitter', ' ms'], responseTime: ['Response', ' ms'],
+    availability: ['Availability', '%'], reachability: ['Reachability', '%'], pageLoadTime: ['Page load', ' ms'], totalTime: ['Total time', ' ms'],
+    connectTime: ['Connect', ' ms'], dnsTime: ['DNS', ' ms'], waitTime: ['Wait', ' ms'], throughput: ['Throughput', ' Mbps'], errorType: ['Error', ''], probDetail: ['Error', ''] };
+  function fmtMetrics(m) {
+    return Object.entries(m || {}).filter(([, v]) => v !== '' && v != null).slice(0, 2).map(([k, v]) => {
+      const d = MET[k], n = parseFloat(v), val = isFinite(n) && /^-?[\d.]+$/.test(String(v)) ? String(Math.round(n * 10) / 10) : String(v);
+      return d ? `${d[0]} ${val}${isFinite(n) && val === String(Math.round(n * 10) / 10) ? d[1] : ''}` : `${k.replace(/([A-Z])/g, ' $1').toLowerCase()} ${val}`;
+    }).join(' · ');
+  }
+  const SEV_ORDER = ['CRITICAL', 'MAJOR', 'MINOR', 'WARNING', 'INFO'];
+  let tnModel = { list: [], byAlert: new Map() }, tnPick = null;
+  function tenantModel() {
+    const TC = window.TEConn;
+    const agents = new Map(TC.agents().map((a) => [String(a.agentId || a.id), a]));
+    const eps = new Map(TC.endpoints().map((a) => [String(a.agentId || a.id), a]));
+    const pts = new Map(), byAlert = new Map();
+    for (const a of TC.alerts()) {
+      const n = normAlert(a), det = TC.details ? TC.details(a.id) : null;
+      if (!det) continue;
+      const seen = [];
+      for (const d of det) {
+        const ag = agents.get(String(d.id)) || eps.get(String(d.id));
+        const loc = (ag && (ag.location || (ag.location && ag.location.locationName))) || d.name || '';
+        const who = (ag && (ag.agentName || ag.computerName)) || d.name || 'Agent';
+        const m = (d.start && d.start.metrics) || d.metrics || null;
+        seen.push({ agent: who, loc, metrics: m, key: loc });
+        const g = geoLookup(typeof loc === 'string' ? loc : '');
+        if (!g) continue;
+        const p = pts.get(loc) || { key: loc, label: String(loc).split(',')[0].replace(/\s*\(.*\)\s*$/, ''), place: String(loc).split(',').slice(0, 2).join(','), lat: g.lat, lon: g.lon, alerts: [], agents: new Set(), sev: 'INFO', rows: [] };
+        if (!p.alerts.some((x) => x.id === n.id)) p.alerts.push(n);
+        p.agents.add(who);
+        if ((AL_SEV[n.sev] || 0) > (AL_SEV[p.sev] || 0) || (AL_SEV[n.sev] === AL_SEV[p.sev] && SEV_ORDER.indexOf(n.sev) < SEV_ORDER.indexOf(p.sev))) p.sev = n.sev;
+        p.rows.push({ n, agent: who, metrics: m });
+        pts.set(loc, p);
+      }
+      byAlert.set(String(n.id), seen);
+    }
+    const list = [...pts.values()].map((p) => ({ ...p, count: p.alerts.length, agents: [...p.agents] }));
+    // Links: other places that share an alert with this one.
+    for (const p of list) {
+      const ids = new Set(p.alerts.map((x) => x.id));
+      p.links = list.filter((q) => q !== p && q.alerts.some((x) => ids.has(x.id))).map((q) => ({ lon: q.lon, lat: q.lat }));
+    }
+    list.sort((a, b) => (AL_SEV[b.sev] || 0) - (AL_SEV[a.sev] || 0) || b.count - a.count || a.label.localeCompare(b.label));
+    return { list, byAlert };
+  }
+  function renderTenantMore() {
+    const TC = window.TEConn; if (!TC || !TC.on()) return;
+    tnModel = tenantModel();
+    const A = window.TEApp;
+    if (A && A.setTenantPoints) A.setTenantPoints(tnModel.list.map((p) => ({ key: p.key, label: p.label, lat: p.lat, lon: p.lon, sev: p.sev, count: p.count, links: p.links })));
+    // Account + freshness.
+    const acct = TC.account() || {}, up = TC.updatedAt ? TC.updatedAt() : 0;
+    $('tnAcct').textContent = [acct.name, acct.org && acct.org !== acct.name ? acct.org : '', up ? 'updated ' + (Date.now() - up < 60e3 ? 'just now' : alertSince(up) + ' ago') : 'loading\u2026'].filter(Boolean).join(' \u00b7 ');
+    // Summary tiles.
+    const alerts = TC.alerts(), sev = {};
+    alerts.forEach((a) => { const s = String(a.severity || 'INFO').toUpperCase(); sev[s] = (sev[s] || 0) + 1; });
+    const ent = TC.agents().filter((a) => /enterprise/i.test(a.agentType || ''));
+    const entOn = ent.filter((a) => /online/i.test(a.agentState || '')).length;
+    const tests = TC.tests(), alertingTests = new Set(alerts.map((a) => normAlert(a).testId).filter(Boolean));
+    const eps = TC.endpoints();
+    const sevDots = SEV_ORDER.filter((k) => sev[k]).map((k) => `<i class="${sevCls(k)}" title="${k}">${sev[k]}</i>`).join('');
+    const tile = (k, v, sub, cls, go) => `<button type="button" class="tn-stat${cls ? ' ' + cls : ''}" data-go="${go}"><b>${v}</b><span>${k}</span>${sub ? `<small>${sub}</small>` : ''}</button>`;
+    $('tnStats').innerHTML = tile('Alerts', alerts.length, sevDots, alerts.length ? (sev.CRITICAL || sev.MAJOR ? 'bad' : 'warn') : 'ok', 'tnAlSec')
+      + tile('Locations', tnModel.list.length, tnModel.list.length ? 'affected' : 'none hit', tnModel.list.length ? 'warn' : 'ok', 'tnLocSec')
+      + tile('Agents', ent.length ? `${entOn}<em>/${ent.length}</em>` : TC.agents().length, ent.length ? (ent.length - entOn ? `${ent.length - entOn} offline` : 'all online') : 'cloud', ent.length && ent.length - entOn ? 'warn' : 'ok', 'tnAgSec')
+      + tile('Tests', tests.length, alertingTests.size ? `${alertingTests.size} alerting` : (eps.length ? `${eps.length} endpoints` : 'all clear'), alertingTests.size ? 'warn' : 'ok', 'tnTsSec');
+    // Affected locations.
+    $('tnLocN').textContent = tnModel.list.length ? String(tnModel.list.length) : '';
+    const pending = alerts.some((a) => TC.details && TC.details(a.id) == null) || geoQ.length;
+    $('tnLocs').innerHTML = tnModel.list.length ? tnModel.list.map((p) => {
+      const top = p.rows.find((r) => r.metrics && fmtMetrics(r.metrics));
+      const open = tnPick === p.key;
+      return `<li class="tn-loc ${sevCls(p.sev)}${open ? ' open' : ''}" data-key="${esc(p.key)}">`
+        + `<div class="tn-loc-row"><span class="tn-dot"></span><div class="tn-loc-main"><b>${esc(p.place)}</b><span>${esc(p.agents.slice(0, 2).join(', ') + (p.agents.length > 2 ? ` +${p.agents.length - 2}` : ''))}${top ? ' \u00b7 ' + esc(fmtMetrics(top.metrics)) : ''}</span></div>`
+        + `<div class="tn-loc-n"><b>${p.count}</b><small>alert${p.count === 1 ? '' : 's'}</small></div></div>`
+        + `<ul class="tn-loc-al">${p.rows.slice(0, 12).map((r) => `<li class="${sevCls(r.n.sev)}"><b>${esc(r.n.title)}</b><span>${esc([r.agent, fmtMetrics(r.metrics), r.n.cond].filter(Boolean).join(' \u00b7 '))}</span></li>`).join('')}</ul></li>`;
+    }).join('') : `<li class="tn-empty">${alerts.length ? (pending ? 'Finding where your alerts are\u2026' : 'Your alerts aren\u2019t tied to agent locations.') : 'No alerts - nothing to show on the globe.'}</li>`;
+    // Enterprise agents: problems first.
+    $('tnAgN').textContent = ent.length ? `${entOn} of ${ent.length} online` : '';
+    $('tnAgSec').hidden = !ent.length;
+    $('tnAgents').innerHTML = ent.slice().sort((a, b) => (/online/i.test(a.agentState || '') - /online/i.test(b.agentState || '')) || String(a.agentName).localeCompare(String(b.agentName))).slice(0, 40).map((a) => {
+      const onl = /online/i.test(a.agentState || ''), u = a.utilization;
+      const seen = a.lastSeen ? Date.parse(a.lastSeen) : 0;
+      return `<li class="tn-ag ${onl ? 'on' : 'off'}"><span class="tn-dot"></span><div class="tn-ag-main"><b>${esc(a.agentName || 'Agent')}</b><span>${esc([String(a.location || '').split(',').slice(0, 2).join(','), a.network ? String(a.network).replace(/\s*\(AS \d+\)$/, '') : ''].filter(Boolean).join(' \u00b7 '))}</span></div>`
+        + (onl ? `<div class="tn-ag-u" title="Utilization">${u != null ? `<i style="--u:${Math.max(0, Math.min(100, u))}%"></i><small>${u}%</small>` : '<small>online</small>'}</div>`
+          : `<div class="tn-ag-u"><small class="off">${seen ? 'seen ' + alertSince(seen) + ' ago' : 'offline'}</small></div>`) + '</li>';
+    }).join('');
+    // Tests: by type, and the ones alerting now.
+    $('tnTsN').textContent = tests.length ? String(tests.length) : '';
+    const byType = {};
+    tests.forEach((t) => { const k = typeLabel(t.type || ''); byType[k] = (byType[k] || 0) + 1; });
+    const alertingList = [...alertingTests].map((id) => { const t = tests.find((x) => String(x.testId || x.id) === id); const al = alerts.map(normAlert).filter((n) => n.testId === id); return { id, name: (t && (t.testName || t.name)) || (al[0] && al[0].title) || 'Test ' + id, n: al.length, sev: al.reduce((s, n) => ((AL_SEV[n.sev] || 0) > (AL_SEV[s] || 0) ? n.sev : s), 'INFO'), type: t ? typeLabel(t.type) : (al[0] && al[0].type) || '' }; });
+    $('tnTests').innerHTML = `<div class="tn-chips">${Object.entries(byType).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span>${esc(k || 'Other')} <b>${v}</b></span>`).join('')}</div>`
+      + (alertingList.length ? `<ol class="tn-tests">${alertingList.sort((a, b) => (AL_SEV[b.sev] || 0) - (AL_SEV[a.sev] || 0) || b.n - a.n).map((t) => `<li class="${sevCls(t.sev)}"><span class="tn-dot"></span><div><b>${esc(t.name)}</b><span>${esc([t.type, t.n + ' alert' + (t.n === 1 ? '' : 's')].filter(Boolean).join(' \u00b7 '))}</span></div></li>`).join('')}</ol>` : '<p class="te-clear">No tests alerting right now.</p>');
+  }
+  // A location row: pick it (globe turns there) and show its alerts.
+  $('tnLocs').addEventListener('click', (e) => {
+    const li = e.target.closest('.tn-loc[data-key]'); if (!li) return;
+    if (window.Sfx) window.Sfx.play('tap');
+    const k = li.dataset.key, was = tnPick === k;
+    tnPick = was ? null : k;
+    $('tnLocs').querySelectorAll('.tn-loc').forEach((x) => x.classList.toggle('open', x.dataset.key === tnPick));
+    if (window.TEApp && TEApp.focusTenant) TEApp.focusTenant(tnPick, !was);
+  });
+  // The summary tiles jump to their section.
+  $('tnStats').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]'); if (!b) return;
+    const sec = $(b.dataset.go), v = $('viewTenant'); if (!sec || !v) return;
+    if (window.Sfx) window.Sfx.play('tap');
+    if (tnSheet && tnSheet.isMin()) tnSheet.snapTo('mid');
+    setTimeout(() => v.scrollTo({ top: Math.max(0, sec.offsetTop - 34), behavior: 'smooth' }), 60);
+  });
+  // A pin tapped on the globe: open its row.
+  addEventListener('te-tenant-pick', (e) => {
+    const k = e.detail && e.detail.key; tnPick = k || null;
+    const rows = $('tnLocs').querySelectorAll('.tn-loc');
+    rows.forEach((x) => x.classList.toggle('open', x.dataset.key === tnPick));
+    if (!k) return;
+    if (tnSheet && tnSheet.isMin()) tnSheet.snapTo('mid');
+    const li = [...rows].find((x) => x.dataset.key === k), v = $('viewTenant');
+    if (li && v) setTimeout(() => v.scrollTo({ top: Math.max(0, li.offsetTop - 40), behavior: 'smooth' }), 80);
+  });
+  setInterval(() => { if (tab === 'tenant' && window.TEConn && TEConn.on()) renderTenant(); }, 30e3);
   function renderTenantOutages() {
     if (!window.TEConn || !TEConn.on()) return;
     TEConn.refresh();
@@ -202,12 +372,29 @@
         <div class="te-al-main"><b>${esc(n.title)}</b><span>${esc([n.cond, n.type].filter(Boolean).join(' · '))}</span></div>
         <div class="te-al-meta"><span>${esc(n.sev || '')}</span><small>${n.start ? alertSince(n.start) : ''}${n.viol ? ' · ' + n.viol + '\u00d7' : ''}</small></div>
         </div>
-        <div class="al-detail">${alertDetail(n, false)}</div>
+        <div class="al-detail">${alertDetail(n, false)}${alertAgentsHtml(n)}</div>
       </div>`;
     }).join('');
     host.querySelectorAll('.te-al').forEach((al) => { if (openAlerts.has(al.dataset.aid)) al.classList.add('open'); });
   }
+  // Who saw an alert, with their numbers, and a way to see it on the globe.
+  function alertAgentsHtml(n) {
+    const seen = tnModel.byAlert.get(String(n.id));
+    if (!seen || !seen.length) return '';
+    const onGlobe = seen.find((s) => tnModel.list.some((p) => p.key === s.key));
+    return `<div class="al-agents"><h4>Seen by ${seen.length} agent${seen.length === 1 ? '' : 's'}</h4><ul>${seen.slice(0, 10).map((s) => `<li><b>${esc(s.agent)}</b><span>${esc(fmtMetrics(s.metrics))}</span></li>`).join('')}${seen.length > 10 ? `<li class="more">+${seen.length - 10} more</li>` : ''}</ul>`
+      + (onGlobe ? `<button type="button" class="al-open" data-globe="${esc(onGlobe.key)}">Show on the globe \u203a</button>` : '') + '</div>';
+  }
   $('teAlerts').addEventListener('click', (e) => {
+    const gb = e.target.closest('[data-globe]');
+    if (gb) {
+      e.stopPropagation();
+      tnPick = gb.dataset.globe;
+      $('tnLocs').querySelectorAll('.tn-loc').forEach((x) => x.classList.toggle('open', x.dataset.key === tnPick));
+      if (window.TEApp && TEApp.focusTenant) TEApp.focusTenant(tnPick, true);
+      if (tnSheet && !tnSheet.isMin()) tnSheet.snapTo('min');
+      return;
+    }
     const al = e.target.closest('.te-al.al-exp'); if (!al) return;
     if (window.Sfx) window.Sfx.play('tap');
     const op = al.classList.toggle('open');
@@ -233,8 +420,8 @@
   // Outages: centre the globe in the band between the header and the drawer
   // when the drawer is down or half up; left alone when it's pulled all the way up.
   function reportGlobeArea() {
-    if ((tab !== 'globe' && tab !== 'weather') || !window.TEApp || !window.TEApp.setGlobeArea) return;
-    const panel = tab === 'weather' ? $('viewWeather') : $('panel'); if (!panel) return;
+    if ((tab !== 'globe' && tab !== 'weather' && tab !== 'tenant') || !window.TEApp || !window.TEApp.setGlobeArea) return;
+    const panel = tab === 'weather' ? $('viewWeather') : tab === 'tenant' ? $('viewTenant') : $('panel'); if (!panel) return;
     const pr = panel.getBoundingClientRect();
     if (pr.height > innerHeight * 0.62) return;                 // all the way up: you can't see the globe anyway
     const br = document.querySelector('.brand'), bb = br ? br.getBoundingClientRect().bottom : 0;
@@ -891,7 +1078,7 @@
   // ── Outages: a draggable bottom-sheet drawer. Grab anywhere on the header
   // and slide up / down; it snaps to collapsed / half / tall. The outage detail
   // card lives INSIDE the drawer (not floating over the globe). ──────────────
-  var sheetToMid = null, wxToMid = null, homeMidPx = () => Math.round(innerHeight * 0.46), homeMeasure = null;   // var: setTab can run before these blocks
+  var sheetToMid = null, wxToMid = null, tnToMid = null, homeMidPx = () => Math.round(innerHeight * 0.46), homeMeasure = null;   // var: setTab can run before these blocks
   {
     const panel = $('panel'), grab = document.createElement('button');
     grab.className = 'sheet-grab'; grab.setAttribute('aria-label', 'Drag to resize the outage list');
@@ -1422,107 +1609,121 @@
   }, 4000);
   setTimeout(() => { loadHomeNews(); updateTabDots(); }, 1500);
 
-  // ── Weather: its own globe (radar, power) under a sheet - folded to the
-  // layer switches, or open for the full forecast ──────────────────────────
-  const wxView = $('viewWeather'), wxGrab = document.createElement('button');
-  wxGrab.className = 'sheet-grab wx-grab'; wxGrab.setAttribute('aria-label', 'Show or hide the forecast');
-  wxView.prepend(wxGrab);
-  // Three stops like the Outages drawer: folded (switches + hours), half up
-  // (level with the Home cards - where it opens) and tall. It follows the
-  // finger, flicks to the next stop, and moves with a GPU transform.
-  let safeTop = null, wxMin = true, wxH = 0, wxVis = 0, wxMaxPx = 0, wxSettleT = 0;
-  const wxSnaps = () => {
-    const tabh = (($('tabbar') && $('tabbar').offsetHeight) || 64);
-    if (safeTop == null) { const p = document.createElement('div'); p.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top,0px);visibility:hidden'; document.body.appendChild(p); safeTop = p.offsetHeight; p.remove(); }
-    const max = Math.round(innerHeight - 64 - safeTop);
-    const min = Math.min(max, tabh + 196);
-    const homeTop = innerHeight - homeMidPx();   // same top as the Outages drawer at half
-    return { min, mid: Math.max(min + 40, Math.min(max, Math.round(innerHeight - homeTop))), max };
-  };
-  function wxApply(px) {
-    const s = wxSnaps();
-    px = Math.max(s.min, Math.min(s.max, px));
-    wxH = px; wxVis = px;
-    wxView.style.transition = 'none'; wxView.style.transform = '';
-    wxView.style.height = px + 'px';
-    wxMin = px <= s.min + 8;
-    document.body.classList.toggle('wx-min', wxMin);
-    if (wxMin) wxView.scrollTop = 0;
-    document.documentElement.style.setProperty('--wsheet-px', px + 'px');
-    reportGlobeArea();
-  }
-  function wxHold(fromH) {
-    clearTimeout(wxSettleT);
-    wxMaxPx = wxSnaps().max;
-    document.body.classList.remove('wx-min');
-    wxView.style.transition = 'none';
-    wxView.style.height = wxMaxPx + 'px';
-    wxView.style.transform = `translateY(${wxMaxPx - fromH}px)`; wxVis = fromH;
-  }
-  function wxSettle(name, fromH, v) {
-    const to = wxSnaps()[name], dist = Math.abs(to - fromH);
-    const dur = Math.round(Math.max(170, Math.min(420, dist * 0.9 - Math.abs(v || 0) * 60)));
-    void wxView.offsetWidth;
-    wxView.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
-    wxView.style.transform = `translateY(${wxMaxPx - to}px)`; wxVis = to;
-    clearTimeout(wxSettleT);
-    wxSettleT = setTimeout(() => wxApply(to), dur + 20);
-  }
-  function wxSnapTo(name) { const cur = wxVis || wxView.offsetHeight; wxHold(cur); wxSettle(name, cur, 0); }
-  function foldWx(v) { wxSnapTo(v ? 'min' : 'mid'); }
-  wxToMid = () => { clearTimeout(wxSettleT); wxApply(wxSnaps().mid); };
-  requestAnimationFrame(() => wxApply(wxSnaps().mid));
-  wxGrab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); foldWx(!wxMin); });
-  // Touching the forecast while folded opens it half up.
-  wxView.addEventListener('click', (e) => { if (wxEat) { e.stopPropagation(); e.preventDefault(); return; } if (wxMin && !e.target.closest('[data-fips], button') && e.target.closest('#wxCard, #pwrWrap, .wx-hours')) foldWx(false); }, true);
-  // Drag anywhere: the grab always moves it; in the content, pushing up grows
-  // it first (then it scrolls), and pulling down at the top shrinks it.
-  let wg = null, wxEat = false;
-  const WX_NOGRAB = 'input, textarea, select';
-  function wgBegin(y, target, x) {
-    if (target && target.closest && target.closest(WX_NOGRAB) && !target.closest('.wx-grab')) { wg = null; return; }
-    const h = wxVis || wxView.offsetHeight;
-    wg = { x0: x || 0, y0: y, last: y, t: performance.now(), v: 0, h0: h, h, grab: !!(target && target.closest && target.closest('.wx-grab')), on: false };
-  }
-  function wgMove(y, ev, x) {
-    if (!wg) return;
-    const dy = wg.y0 - y;
-    if (!wg.on) {
-      if (Math.abs(dy) < 3 && Math.abs((x || 0) - wg.x0) < 3) return;
-      if (Math.abs((x || 0) - wg.x0) > Math.abs(dy)) { wg = null; return; }   // sideways: the hours strip scrolls
-      if (!wg.grab) {
-        const s = wxSnaps();
-        const take = dy > 0 ? wg.h0 < s.max - 4 : wxView.scrollTop <= 0;
-        if (!take) { wg = null; return; }
-      }
-      wg.on = true; wg.y0 = y; wxHold(wg.h0);
+  // ── A fluid bottom sheet over the shared globe (Weather, Tenant). Three
+  // stops like the Outages drawer: folded, half up (level with the Home cards -
+  // where it opens) and tall. It follows the finger, flicks to the next stop,
+  // and moves with a GPU transform; the real height is committed when it rests.
+  let safeTop = null;
+  function makeSheet(view, o) {
+    const grab = document.createElement('button');
+    grab.className = 'sheet-grab ' + o.grabCls; grab.setAttribute('aria-label', o.label);
+    view.prepend(grab);
+    let min = true, H = 0, vis = 0, maxPx = 0, settleT = 0, g = null, eat = false;
+    const snaps = () => {
+      const tabh = (($('tabbar') && $('tabbar').offsetHeight) || 64);
+      if (safeTop == null) { const p = document.createElement('div'); p.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top,0px);visibility:hidden'; document.body.appendChild(p); safeTop = p.offsetHeight; p.remove(); }
+      const max = Math.round(innerHeight - 64 - safeTop);
+      const mn = Math.min(max, tabh + o.minPx);
+      return { min: mn, mid: Math.max(mn + 40, Math.min(max, Math.round(homeMidPx()))), max };
+    };
+    function apply(px) {
+      const s = snaps();
+      px = Math.max(s.min, Math.min(s.max, px));
+      H = px; vis = px;
+      view.style.transition = 'none'; view.style.transform = '';
+      view.style.height = px + 'px';
+      min = px <= s.min + 8;
+      if (o.minClass) document.body.classList.toggle(o.minClass, min);
+      if (min) view.scrollTop = 0;
+      if (o.cssVar) document.documentElement.style.setProperty(o.cssVar, px + 'px');
+      reportGlobeArea();
     }
-    if (ev && ev.cancelable) ev.preventDefault();
-    const t = performance.now(), dt = Math.max(1, t - wg.t);
-    wg.v = 0.75 * ((wg.last - y) / dt) + 0.25 * wg.v; wg.last = y; wg.t = t;
-    const s = wxSnaps();
-    let h = wg.h0 + (wg.y0 - y);
-    if (h < s.min) h = s.min - Math.min(70, (s.min - h) * 0.35);
-    if (h > s.max) h = s.max + Math.min(14, (h - s.max) * 0.2);
-    wg.h = h; wxVis = h;
-    wxView.style.transform = `translateY(${wxMaxPx - h}px)`;
+    function hold(fromH) {
+      clearTimeout(settleT);
+      maxPx = snaps().max;
+      if (o.minClass) document.body.classList.remove(o.minClass);
+      view.style.transition = 'none';
+      view.style.height = maxPx + 'px';
+      view.style.transform = `translateY(${maxPx - fromH}px)`; vis = fromH;
+    }
+    function settle(name, fromH, v) {
+      const to = snaps()[name], dist = Math.abs(to - fromH);
+      const dur = Math.round(Math.max(170, Math.min(420, dist * 0.9 - Math.abs(v || 0) * 60)));
+      void view.offsetWidth;
+      view.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
+      view.style.transform = `translateY(${maxPx - to}px)`; vis = to;
+      clearTimeout(settleT);
+      settleT = setTimeout(() => apply(to), dur + 20);
+    }
+    function snapTo(name) { const cur = vis || view.offsetHeight; hold(cur); settle(name, cur, 0); }
+    const toMid = () => { clearTimeout(settleT); apply(snaps().mid); };
+    requestAnimationFrame(toMid);
+    grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); snapTo(min ? 'mid' : 'min'); });
+    view.addEventListener('click', (e) => {
+      if (eat) { e.stopPropagation(); e.preventDefault(); return; }
+      if (min && o.openOn && o.openOn(e)) snapTo('mid');
+    }, true);
+    // Drag anywhere: the grab always moves it; in the content, pushing up grows
+    // it first (then it scrolls), and pulling down at the top shrinks it.
+    function begin(y, target, x) {
+      if (target && target.closest && target.closest('input, textarea, select') && !target.closest('.sheet-grab')) { g = null; return; }
+      const h = vis || view.offsetHeight;
+      g = { x0: x || 0, y0: y, last: y, t: performance.now(), v: 0, h0: h, h, grab: !!(target && target.closest && target.closest('.sheet-grab')), on: false };
+    }
+    function move(y, ev, x) {
+      if (!g) return;
+      const dy = g.y0 - y;
+      if (!g.on) {
+        if (Math.abs(dy) < 3 && Math.abs((x || 0) - g.x0) < 3) return;
+        if (Math.abs((x || 0) - g.x0) > Math.abs(dy)) { g = null; return; }   // sideways: strips scroll
+        if (!g.grab) {
+          const s = snaps();
+          const take = dy > 0 ? g.h0 < s.max - 4 : view.scrollTop <= 0;
+          if (!take) { g = null; return; }
+        }
+        g.on = true; g.y0 = y; hold(g.h0);
+      }
+      if (ev && ev.cancelable) ev.preventDefault();
+      const t = performance.now(), dt = Math.max(1, t - g.t);
+      g.v = 0.75 * ((g.last - y) / dt) + 0.25 * g.v; g.last = y; g.t = t;
+      const s = snaps();
+      let h = g.h0 + (g.y0 - y);
+      if (h < s.min) h = s.min - Math.min(70, (s.min - h) * 0.35);
+      if (h > s.max) h = s.max + Math.min(14, (h - s.max) * 0.2);
+      g.h = h; vis = h;
+      view.style.transform = `translateY(${maxPx - h}px)`;
+    }
+    function end() {
+      if (!g) return;
+      const G = g; g = null;
+      if (!G.on) return;
+      eat = true; setTimeout(() => { eat = false; }, 60);
+      const s = snaps(), land = G.h + G.v * 220;
+      const stops = [['min', s.min], ['mid', s.mid], ['max', s.max]];
+      settle(stops.reduce((a, b) => (Math.abs(b[1] - land) < Math.abs(a[1] - land) ? b : a))[0], G.h, G.v);
+    }
+    view.addEventListener('touchstart', (e) => { if (e.touches.length === 1) begin(e.touches[0].clientY, e.target, e.touches[0].clientX); else g = null; }, { passive: true });
+    view.addEventListener('touchmove', (e) => { if (g && e.touches.length === 1) move(e.touches[0].clientY, e, e.touches[0].clientX); }, { passive: false });
+    view.addEventListener('touchend', end); view.addEventListener('touchcancel', end);
+    view.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; begin(e.clientY, e.target, e.clientX); if (g) g.mouse = true; });
+    addEventListener('pointermove', (e) => { if (g && g.mouse) move(e.clientY, e, e.clientX); });
+    addEventListener('pointerup', () => { if (g && g.mouse) end(); });
+    addEventListener('resize', () => { if (tab === o.tab && !g) apply(snaps()[min ? 'min' : H >= snaps().max - 4 ? 'max' : 'mid']); });
+    return { snapTo, toMid, isMin: () => min };
   }
-  function wgEnd() {
-    if (!wg) return;
-    const G = wg; wg = null;
-    if (!G.on) return;
-    wxEat = true; setTimeout(() => { wxEat = false; }, 60);
-    const s = wxSnaps(), land = G.h + G.v * 220;
-    const stops = [['min', s.min], ['mid', s.mid], ['max', s.max]];
-    wxSettle(stops.reduce((a, b) => (Math.abs(b[1] - land) < Math.abs(a[1] - land) ? b : a))[0], G.h, G.v);
-  }
-  wxView.addEventListener('touchstart', (e) => { if (e.touches.length === 1) wgBegin(e.touches[0].clientY, e.target, e.touches[0].clientX); else wg = null; }, { passive: true });
-  wxView.addEventListener('touchmove', (e) => { if (wg && e.touches.length === 1) wgMove(e.touches[0].clientY, e, e.touches[0].clientX); }, { passive: false });
-  wxView.addEventListener('touchend', wgEnd); wxView.addEventListener('touchcancel', wgEnd);
-  wxView.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; wgBegin(e.clientY, e.target, e.clientX); if (wg) wg.mouse = true; });
-  addEventListener('pointermove', (e) => { if (wg && wg.mouse) wgMove(e.clientY, e, e.clientX); });
-  addEventListener('pointerup', () => { if (wg && wg.mouse) wgEnd(); });
-  addEventListener('resize', () => { if (tab === 'weather' && !wg) wxApply(wxSnaps()[wxMin ? 'min' : wxH >= wxSnaps().max - 4 ? 'max' : 'mid']); });
+
+  // Weather: radar and power on the globe; folded = layer switches + hours.
+  const wxView = $('viewWeather');
+  const wxSheet = makeSheet(wxView, {
+    tab: 'weather', grabCls: 'wx-grab', label: 'Show or hide the forecast', minPx: 196, minClass: 'wx-min', cssVar: '--wsheet-px',
+    openOn: (e) => !e.target.closest('[data-fips], button') && !!e.target.closest('#wxCard, #pwrWrap, .wx-hours'),
+  });
+  function foldWx(v) { wxSheet.snapTo(v ? 'min' : 'mid'); }
+  wxToMid = wxSheet.toMid;
+  // Tenant: alerts on the globe; folded = the summary strip.
+  const tnView = $('viewTenant');
+  const tnSheet = tnView ? makeSheet(tnView, { tab: 'tenant', grabCls: 'tn-grab', label: 'Show or hide your tenant', minPx: 150, minClass: 'tn-min', cssVar: '--tsheet-px', openOn: () => true }) : null;
+  tnToMid = tnSheet ? tnSheet.toMid : null;
 
   let wxOpened = false;
   function syncLayers() {
