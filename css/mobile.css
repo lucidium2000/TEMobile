@@ -1032,3 +1032,47 @@ body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity
   background: linear-gradient(160deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .03)), rgba(8, 12, 22, .62);
   -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
 }
+
+/* ── Morph between Home / Outages / Weather ─────────────────────────────
+   A light-line strikes along the shared top edge; the drawer unfolds from it
+   (or the Home cards rise in), contents following a beat behind. */
+#morphLine { position: fixed; left: 10px; right: 10px; height: 0; z-index: 105; pointer-events: none; opacity: 0; }
+#morphLine::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(22, 189, 235, .9) 22%, #e6fbff 50%, rgba(22, 189, 235, .9) 78%, transparent);
+  box-shadow: 0 0 12px rgba(22, 189, 235, .9), 0 0 28px rgba(22, 189, 235, .45); transform: scaleX(0); }
+#morphLine i { position: absolute; left: 6%; right: 6%; top: 0; height: 120px;
+  background: linear-gradient(180deg, rgba(22, 189, 235, .16), rgba(22, 189, 235, .04) 45%, transparent);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent); mask: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+  transform-origin: top; transform: scaleY(0); }
+#morphLine.go { animation: mlFade .8s ease-out both; }
+#morphLine.go::before { animation: mlStrike .42s cubic-bezier(.2, .9, .25, 1) both; }
+#morphLine.go i { animation: mlScan .7s cubic-bezier(.2, .9, .25, 1) .08s both; }
+@keyframes mlFade { 0% { opacity: 0; } 8% { opacity: 1; } 55% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes mlStrike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes mlScan { 0% { transform: scaleY(0); opacity: 1; } 60% { opacity: .9; } 100% { transform: scaleY(1); opacity: 0; } }
+
+/* The drawers unfold from the line: centre out, then down. */
+#panel.morph-in, #viewWeather.morph-in { animation: drawerUnfold .52s cubic-bezier(.2, .9, .25, 1) both; }
+@keyframes drawerUnfold {
+  0%   { clip-path: inset(0 46% calc(100% - 3px) 46% round 28px); }
+  38%  { clip-path: inset(0 0 calc(100% - 3px) 0 round 28px); }
+  100% { clip-path: inset(0 0 0 0 round 28px); }
+}
+:is(#panel, #viewWeather).morph-in > :not(.sheet-grab):not(#morphLine) { animation: morphRise .46s cubic-bezier(.2, .9, .25, 1) both; }
+:is(#panel, #viewWeather).morph-in > :nth-child(2) { animation-delay: .14s; }
+:is(#panel, #viewWeather).morph-in > :nth-child(3) { animation-delay: .19s; }
+:is(#panel, #viewWeather).morph-in > :nth-child(4) { animation-delay: .24s; }
+:is(#panel, #viewWeather).morph-in > :nth-child(n+5) { animation-delay: .29s; }
+@keyframes morphRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Home: the cards rise in from the line, one after another, with a glint. */
+.hm-flow.morph-in .tile { animation: tileIn .5s cubic-bezier(.2, .9, .25, 1) both; }
+.hm-flow.morph-in .tile:nth-child(2) { animation-delay: .06s; }
+.hm-flow.morph-in .tile:nth-child(3) { animation-delay: .12s; }
+.hm-flow.morph-in .tile:nth-child(4) { animation-delay: .18s; }
+@keyframes tileIn { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+.hm-flow.morph-in .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(180, 240, 255, .16) 50%, transparent 65%); background-size: 260% 100%;
+  animation: tileGlint .8s ease-out .15s both; }
+@keyframes tileGlint { from { background-position: 120% 0; } to { background-position: -40% 0; } }
+@media (prefers-reduced-motion: reduce) { #morphLine { display: none; } }

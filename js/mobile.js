@@ -27,6 +27,28 @@
   // ── Tabs ─────────────────────────────────────────────────────────────────
   const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone'), tenant: $('viewTenant'), news: $('viewNews') };
   let tab = 'home';
+  // ── Morph between Home / Outages / Weather: the cards and the drawers share
+  // one top line. A light-line strikes out from the centre of that line, the
+  // new surface unfolds from it, and its contents rise in, one after another.
+  const MORPH_TABS = ['home', 'globe', 'weather'];
+  const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let morphT = 0;
+  function morphIn(name) {
+    if (reduceMotion()) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {   // after the drawer has taken its half-up height
+      const el = name === 'globe' ? $('panel') : name === 'weather' ? $('viewWeather') : document.querySelector('#viewHome .hm-flow');
+      if (!el) return;
+      let line = $('morphLine');
+      if (!line) { line = document.createElement('div'); line.id = 'morphLine'; line.setAttribute('aria-hidden', 'true'); line.innerHTML = '<i></i>'; document.body.appendChild(line); }
+      document.querySelectorAll('.morph-in').forEach((x) => x.classList.remove('morph-in'));
+      line.classList.remove('go');
+      line.style.top = Math.round(el.getBoundingClientRect().top) + 'px';
+      void line.offsetWidth;
+      el.classList.add('morph-in'); line.classList.add('go');
+      clearTimeout(morphT);
+      morphT = setTimeout(() => { el.classList.remove('morph-in'); line.classList.remove('go'); }, 900);
+    }));
+  }
   function setTab(name, fromPop) {
     // Weather again (Show radar, a county): fold the sheet to show its globe.
     if (name === 'weather' && tab === 'weather') { foldWx(true); return; }
@@ -34,7 +56,9 @@
     // history entry, so Back returns to the previous tab instead of leaving.
     if (!fromPop && name !== tab) { try { history.pushState({ teTab: name }, ''); } catch (_) { /* */ } }
     if ((name === 'globe' || name === 'weather' || name === 'home') && window.TEApp && window.TEApp.enterView) window.TEApp.enterView(name);
+    const prevTab = tab;
     tab = name;
+    if (prevTab !== name && MORPH_TABS.includes(prevTab) && MORPH_TABS.includes(name)) morphIn(name);
     document.body.dataset.tab = name;
     for (const [k, v] of Object.entries(views)) v.hidden = k !== name;
     document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
