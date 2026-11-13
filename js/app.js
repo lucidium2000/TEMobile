@@ -4296,7 +4296,7 @@
     for (let i = 0; i < n && B.ph; i++) {
       if (B.ph === 1) {            // falling away, speeding up
         B.v -= B.G * h; B.x += B.v * h;
-        if (B.x <= -B.D) { B.x = -B.D; B.v = B.vb; B.ph = 2; }   // hits the ground: bounces
+        if (B.x <= -B.D) { B.x = -B.D; B.v = B.vb; B.ph = 2; sfx('pock'); sfx('rebound'); }   // hits the ground: bounces
       } else if (B.ph === 2) {     // flying back up, slowing; passes home
         B.v -= B.G * h; B.x += B.v * h;
         if (B.v <= 0) B.ph = 3;                                  // the peak, closest to you

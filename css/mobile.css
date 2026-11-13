@@ -1277,3 +1277,8 @@ body.tn-min #viewTenant > :not(.tn-grab):not(.tn-head):not(.tn-stats) { opacity:
   .pt-body > .pt-scroll { grid-column: 1; grid-row: 2; }
   .pt-body > .pt-info { grid-column: 2; grid-row: 2; width: 250px; max-height: none; margin: 0 0 0 10px; overflow-y: auto; }
 }
+/* Trace zoom: - / + beside close; pinch zooms too. */
+.pt-zb { display: flex; gap: 6px; align-self: center; }
+.pt-zb button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(148, 163, 184, .14); color: inherit; font: inherit; font-size: 1.15em; line-height: 1; cursor: pointer; }
+.pt-svg { max-width: none; }
+.pt-scroll { touch-action: pan-x pan-y; }

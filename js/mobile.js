@@ -513,24 +513,59 @@
     if (m) return m;
     m = document.createElement('div'); m.id = 'ptModal'; m.className = 'pt-modal'; m.hidden = true;
     m.innerHTML = `<div class="pt-card" role="dialog" aria-modal="true" aria-labelledby="ptTitle">
-      <header class="pt-head"><div><h3 id="ptTitle"></h3><p id="ptSub"></p></div><button type="button" class="pt-x" aria-label="Close">×</button></header>
+      <header class="pt-head"><div><h3 id="ptTitle"></h3><p id="ptSub"></p></div><div class="pt-zb"><button type="button" data-ptz="-1" aria-label="Zoom out">−</button><button type="button" data-ptz="1" aria-label="Zoom in">+</button></div><button type="button" class="pt-x" aria-label="Close">×</button></header>
       <div class="pt-body" id="ptBody"></div></div>`;
     document.body.appendChild(m);
-    const close = () => { m.classList.remove('show'); setTimeout(() => { m.hidden = true; }, 220); ptState = null; orient(true); if (window.Sfx) window.Sfx.play('close'); };
+    // Back (Android button, browser back, iOS edge swipe) closes the trace
+    // instead of leaving the page underneath: opening it adds a history entry.
+    const close = (fromPop) => {
+      if (!m.ptOpen) return;
+      m.ptOpen = false; m.classList.remove('show'); setTimeout(() => { m.hidden = true; }, 220); ptState = null; orient(true);
+      if (window.Sfx) window.Sfx.play('close');
+      if (fromPop !== true && history.state && history.state.ptModal) { try { history.back(); } catch (_) { /* */ } }
+    };
+    m.ptClose = close;
+    addEventListener('popstate', (e) => { if (m.ptOpen && !(e.state && e.state.ptModal)) close(true); });
     m.addEventListener('click', (e) => {
       if (e.target === m || e.target.closest('.pt-x')) return close();
+      const zb = e.target.closest('[data-ptz]'); if (zb) { if (window.Sfx) window.Sfx.play('tap'); return ptZoomBy(zb.dataset.ptz > 0 ? 1.4 : 1 / 1.4); }
       const nd = e.target.closest('[data-ptn]'); if (nd && ptState) { if (window.Sfx) window.Sfx.play('tap'); return ptInfo(ptState.sel === nd.dataset.ptn ? null : nd.dataset.ptn); }
     });
-    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) close(); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && m.ptOpen) close(); });
+    // Pinch (two fingers) or ctrl/trackpad wheel zooms the graph around the fingers.
+    let pinch = null;
+    const mid = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2, d: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) });
+    m.addEventListener('touchstart', (e) => { if (e.touches.length === 2 && e.target.closest('.pt-scroll')) { const p = mid(e.touches); pinch = { d: p.d, z: ptZoom }; e.preventDefault(); } }, { passive: false });
+    m.addEventListener('touchmove', (e) => { if (pinch && e.touches.length === 2) { e.preventDefault(); const p = mid(e.touches); ptZoomTo(pinch.z * p.d / Math.max(20, pinch.d), p.x, p.y); } }, { passive: false });
+    m.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; });
+    m.addEventListener('wheel', (e) => { if (e.ctrlKey && e.target.closest('.pt-scroll')) { e.preventDefault(); ptZoomTo(ptZoom * Math.exp(-e.deltaY / 200), e.clientX, e.clientY); } }, { passive: false });
     return m;
+  }
+  let ptZoom = 1;
+  const PT_ZMIN = 0.35, PT_ZMAX = 5;
+  function ptZoomBy(f) { const sc = document.querySelector('#ptBody .pt-scroll'); if (!sc) return; const r = sc.getBoundingClientRect(); ptZoomTo(ptZoom * f, r.left + r.width / 2, r.top + r.height / 2); }
+  function ptZoomTo(z, cx, cy) {
+    z = Math.max(PT_ZMIN, Math.min(PT_ZMAX, z));
+    const sc = document.querySelector('#ptBody .pt-scroll'), svg = sc && sc.querySelector('svg');
+    if (!svg) { ptZoom = z; return; }
+    const r = sc.getBoundingClientRect(), ox = cx - r.left, oy = cy - r.top;
+    const fx = (sc.scrollLeft + ox) / ptZoom, fy = (sc.scrollTop + oy) / ptZoom;   // graph point under the fingers
+    ptZoom = z; ptApplyZoom();
+    sc.scrollLeft = fx * z - ox; sc.scrollTop = fy * z - oy;
+  }
+  function ptApplyZoom() {
+    const svg = document.querySelector('#ptBody .pt-scroll svg'); if (!svg) return;
+    svg.setAttribute('width', Math.round(svg.dataset.w * ptZoom)); svg.setAttribute('height', Math.round(svg.dataset.h * ptZoom));
   }
   async function openTrace(testId, title, seen) {
     const m = ptModal();
     $('ptTitle').innerHTML = 'Last path trace<span class="pt-rot"> \u00b7 turn sideways for more</span>';
     $('ptSub').textContent = title || 'Test ' + testId;
     $('ptBody').innerHTML = '<p class="pt-msg">Fetching the latest round…</p>';
-    m.hidden = false; requestAnimationFrame(() => m.classList.add('show'));
-    orient(false);
+    const was = !!m.ptOpen;
+    m.ptOpen = true; m.hidden = false; requestAnimationFrame(() => m.classList.add('show'));
+    orient(false); ptZoom = 1;
+    if (!was && !(history.state && history.state.ptModal)) { try { history.pushState({ ...(history.state || {}), ptModal: 1 }, ''); } catch (_) { /* */ } }
     if (window.Sfx) window.Sfx.play('open');
     const st = ptState = { testId, seen: new Set(seen.map((x) => x.id).filter(Boolean)), agents: [], total: 0, rounds: [], done: 0, sel: null, nodes: new Map() };
     try {
@@ -647,7 +682,7 @@
     for (const n of nodes.values()) { n.x = PADX + col.get(n.key) * CW; n.y = H / 2 + pos.get(n.key) * RH; }
     const sev = (d) => d >= 40 ? 'bad' : d >= 15 ? 'warn' : '';
     const cut = (x, k) => (x && x.length > k ? x.slice(0, k - 1) + '…' : x || '');
-    let svg = `<svg class="pt-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Combined path trace">`;
+    let svg = `<svg class="pt-svg" width="${W}" height="${H}" data-w="${W}" data-h="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Combined path trace">`;
     for (const e of el) {
       const d = e.d.length ? e.d.reduce((x, y) => x + y, 0) / e.d.length : null, c = e.gap ? 'gap' : d != null ? sev(d) : '';
       svg += `<line class="pt-l ${c}" x1="${e.a.x}" y1="${e.a.y}" x2="${e.b.x}" y2="${e.b.y}"/>`;
@@ -676,6 +711,7 @@
     $('ptBody').innerHTML = `<div class="pt-meta"><span><b>${rounds.length}</b> agent${rounds.length === 1 ? '' : 's'} → <b>${esc(tname)}</b></span><span>${nodes.size - rounds.length - tgt.length} hops${lossy ? ` · <em class="bad">loss at ${lossy} node${lossy === 1 ? '' : 's'}</em>` : ''}${stopped ? ` · <em class="bad">${stopped} path${stopped === 1 ? '' : 's'} stopped short</em>` : ''}${st.done < st.agents.length ? ` · loading ${st.done}/${st.agents.length}…` : ''}</span></div>`
       + `<div class="pt-scroll">${svg}</div><div class="pt-info" id="ptInfo" hidden></div>`
       + `<p class="pt-foot">${st.total > PT_MAX ? `${PT_MAX} of ${st.total} agents${st.seen.size ? ', alerting ones first' : ''} · ` : ''}Tap a node for details · link labels are the delay each hop adds · red % is forwarding loss (highest any agent saw) · newest round per agent</p>`;
+    ptApplyZoom();
     const sc2 = document.querySelector('#ptBody .pt-scroll'); if (sc2) { sc2.scrollLeft = sl; sc2.scrollTop = stp; }
     ptInfo(st.sel && nodes.get(st.sel) ? st.sel : null);
   }
