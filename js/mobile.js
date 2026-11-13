@@ -46,7 +46,6 @@
     if (name === 'weather') refreshWeather();
     if (name === 'globe') updateOTabs();
     if (name === 'tenant') renderTenant();
-    updateFlowArrows();
   }
 
   // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
@@ -175,19 +174,6 @@
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
   // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
   const TAB_ORDER = ['home', 'tests', 'globe', 'tenant', 'weather'];
-  function goTab(dir) {
-    const i = TAB_ORDER.indexOf(tab), j = i + dir;
-    if (i < 0 || j < 0 || j >= TAB_ORDER.length) return;
-    if (window.Sfx) window.Sfx.play('tap');
-    slideTo(dir);
-  }
-  function updateFlowArrows() {
-    const i = TAB_ORDER.indexOf(tab), prev = $('flowPrev'), next = $('flowNext');
-    if (prev) prev.hidden = i <= 0;
-    if (next) next.hidden = i < 0 || i >= TAB_ORDER.length - 1;
-  }
-  $('flowPrev').addEventListener('click', () => goTab(-1));
-  $('flowNext').addEventListener('click', () => goTab(1));
   // ── Seamless pager: drag left/right and the screens follow your finger (hold
   // and they hold), release to complete or snap back. Arrows / taps animate the
   // same way. A view slides over / off the globe, which stays as the backdrop.
@@ -209,7 +195,7 @@
   }
   // Interactive finger-follow drag.
   let pg = null;
-  const PG_IGNORE = 'input, textarea, select, [contenteditable], .flow-arrow';
+  const PG_IGNORE = 'input, textarea, select, [contenteditable]';
   function pgNeighbor(dir) {
     const name = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir] || null;
     if (pg.nbrName === name) return;
@@ -889,7 +875,13 @@
     if (card && ow) panel.insertBefore(card, ow);
 
     const vh = () => window.innerHeight;
-    const snaps = () => ({ min: Math.round(vh() * 0.26), mid: Math.round(vh() * 0.54), max: Math.round(vh() * 0.86) });
+    // Collapsed height hugs the header (grab + tabs + stats) so there's no empty
+    // gap under it; mid/max are fractions of the viewport.
+    function minH() {
+      const t = $('oTabs'), st = $('owSection') && $('owSection').querySelector('.stats');
+      return Math.max(120, (grab.offsetHeight || 22) + (t ? t.offsetHeight : 0) + (st ? st.offsetHeight : 0) + 38);
+    }
+    const snaps = () => ({ min: minH(), mid: Math.round(vh() * 0.54), max: Math.round(vh() * 0.86) });
     let curH = null;
     function applyH(px, animate) {
       const s = snaps();

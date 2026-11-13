@@ -1563,19 +1563,15 @@
   // most outages (active first) or by distance from where the globe is
   // looking. Tap one to fly there and open its latest outage.
   S.locSort = 'most';
-  S.region = 'all';
-  // Rough continent bucket from a lat/lon, for the Locations region filter.
-  const REGION_ORDER = ['N. America', 'S. America', 'Europe', 'Africa', 'Asia', 'Oceania', 'Other'];
+  S.regions = new Set();   // selected regions; empty = all
+  S.regionOpen = false;    // is the region pull-down open
+  // Major business regions from a lat/lon, for the Locations filter.
+  const REGION_ORDER = ['Americas', 'EMEA', 'APAC', 'Other'];
   function regionOf(lat, lon) {
     if (!isFinite(lat) || !isFinite(lon)) return 'Other';
-    if (lat <= -40) return 'Oceania';
-    if (lon >= -170 && lon < -30 && lat >= 13) return 'N. America';
-    if (lon >= -90 && lon < -30 && lat < 13) return 'S. America';
-    if (lon >= -30 && lon < 40 && lat >= 36) return 'Europe';
-    if (lon >= -20 && lon < 52 && lat < 36) return 'Africa';
-    if (lon >= 40 && lon < 110 && lat >= 8) return 'Asia';
-    if (lon >= 110 && lat >= 8) return 'Asia';
-    if ((lon >= 110 || lon < -140) && lat < 8) return 'Oceania';
+    if (lon >= -170 && lon < -30) return 'Americas';      // N + S America
+    if (lon >= -30 && lon < 60) return 'EMEA';            // Europe, Middle East, Africa
+    if (lon >= 60 || lon < -140) return 'APAC';           // Asia, Oceania, Pacific
     return 'Other';
   }
   function locationGroups() {
@@ -1602,14 +1598,20 @@
     const dist = (km) => (WX_C ? `${Math.round(km).toLocaleString()} km` : `${Math.round(km * 0.621371).toLocaleString()} mi`);
     const head = `<li class="loc-sort">Sort by <button data-sort="most" class="${S.locSort === 'most' ? 'on' : ''}">Most outages</button>`
       + `<button data-sort="near" class="${S.locSort === 'near' ? 'on' : ''}">Nearest to view</button></li>`;
-    // Region filter: a chip per continent present, with its place count.
-    const regions = [...new Set(all.map((g) => g.region))].sort((a, b) => REGION_ORDER.indexOf(a) - REGION_ORDER.indexOf(b));
-    if (S.region !== 'all' && !regions.includes(S.region)) S.region = 'all';
+    // Region filter: a one-line pull-down, multi-select or All.
+    const regions = REGION_ORDER.filter((r) => all.some((g) => g.region === r));
+    [...S.regions].forEach((r) => { if (!regions.includes(r)) S.regions.delete(r); });
+    const sel = S.regions.size ? [...S.regions] : [];
+    const summary = sel.length ? (sel.length === regions.length ? 'All' : sel.join(', ')) : 'All';
     const regHead = regions.length > 1
-      ? `<li class="loc-region"><span>Region</span><button data-region="all" class="${S.region === 'all' ? 'on' : ''}">All <b>${all.length}</b></button>`
-        + regions.map((r) => `<button data-region="${esc(r)}" class="${S.region === r ? 'on' : ''}">${esc(r)} <b>${all.filter((g) => g.region === r).length}</b></button>`).join('') + '</li>'
+      ? `<li class="loc-region"><span>Region</span><div class="rdrop${S.regionOpen ? ' open' : ''}">`
+        + `<button class="rdrop-sum" type="button">${esc(summary)}<i>▾</i></button>`
+        + `<div class="rdrop-menu">`
+        + `<label><input type="checkbox" data-rg="all"${sel.length === 0 ? ' checked' : ''}>All regions <b>${all.length}</b></label>`
+        + regions.map((r) => `<label><input type="checkbox" data-rg="${esc(r)}"${S.regions.has(r) ? ' checked' : ''}>${esc(r)} <b>${all.filter((g) => g.region === r).length}</b></label>`).join('')
+        + `</div></div></li>`
       : '';
-    const groups = S.region === 'all' ? all : all.filter((g) => g.region === S.region);
+    const groups = S.regions.size ? all.filter((g) => S.regions.has(g.region)) : all;
     if (!all.length) { el.list.innerHTML = head + '<li class="empty">No outage locations in this window.</li>'; return; }
     if (!groups.length) { el.list.innerHTML = head + regHead + '<li class="empty">No outages in this region.</li>'; S.locRows = groups; return; }
     el.list.innerHTML = head + regHead + groups.map((g, i) => {
@@ -2695,8 +2697,16 @@
   el.list.addEventListener('click', (e) => {
     const sortBtn = e.target.closest('[data-sort]');
     if (sortBtn) { e.stopPropagation(); userInput(); sfx('tap'); S.locSort = sortBtn.dataset.sort; renderList(); return; }
-    const regBtn = e.target.closest('[data-region]');
-    if (regBtn) { e.stopPropagation(); userInput(); sfx('tap'); S.region = regBtn.dataset.region; renderList(); return; }
+    // Region pull-down: toggle open, or tick regions (multi-select / all).
+    if (e.target.closest('.rdrop-sum')) { e.stopPropagation(); userInput(); sfx('tap'); S.regionOpen = !S.regionOpen; renderList(); return; }
+    const rg = e.target.closest('[data-rg]');
+    if (rg) {
+      e.stopPropagation(); userInput(); sfx('tap');
+      const v = rg.dataset.rg;
+      if (v === 'all') S.regions.clear();
+      else if (S.regions.has(v)) S.regions.delete(v); else S.regions.add(v);
+      S.regionOpen = true; renderList(); return;
+    }
     const locRow = e.target.closest('.row.loc');
     if (locRow) {
       userInput();
