@@ -189,9 +189,10 @@ body.power-on .pwr-offnote { display: none; }
    three figures; the list is a sheet that folds down to its counts. */
 :root { --sheet: 52dvh; }
 @media (max-width: 900px) {
-  .panel { height: var(--sheet) !important; }
-  body.sheet-min .panel { height: auto !important; }
-  .card { bottom: calc(var(--tabh) + var(--sheet-px, 52dvh) + 10px) !important; }
+  /* Height is driven by the drag handler (inline style); this is only a fallback. */
+  .panel { height: var(--sheet); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  /* The outage detail card now lives inside the drawer, in normal flow. */
+  #panel > #card { position: static; left: auto; right: auto; top: auto; bottom: auto; width: auto; margin: 2px 0 12px; box-shadow: none; animation: none; }
 }
 body.sheet-min .panel .list, body.sheet-min .panel .te-alerts { display: none; }
 .brand .brand-logo { display: none; }

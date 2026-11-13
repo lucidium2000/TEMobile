@@ -818,30 +818,77 @@
   addEventListener('te-conn', () => { if (tab === 'tenant') renderTEEndpoint(); });
   addEventListener('te-data', () => { if (tab === 'tenant') renderTEEndpoint(); });
 
-  // ── Outages: the list is a sheet - folded to its counts, or open ──────
+  // ── Outages: a draggable bottom-sheet drawer. Grab anywhere on the header
+  // and slide up / down; it snaps to collapsed / half / tall. The outage detail
+  // card lives INSIDE the drawer (not floating over the globe). ──────────────
   {
     const panel = $('panel'), grab = document.createElement('button');
-    grab.className = 'sheet-grab'; grab.setAttribute('aria-label', 'Show or hide the outage list');
+    grab.className = 'sheet-grab'; grab.setAttribute('aria-label', 'Drag to resize the outage list');
     panel.prepend(grab);
-    let min = true;
-    try { min = localStorage.getItem('te-m-sheet') !== 'open'; } catch (_) { /* */ }
-    const setMin = (v) => {
-      min = v; document.body.classList.toggle('sheet-min', v);
-      try { localStorage.setItem('te-m-sheet', v ? 'min' : 'open'); } catch (_) { /* */ }
-      setTimeout(() => dispatchEvent(new Event('resize')), 300);
+    // Move the detail card into the drawer, right under the tabs.
+    const card = $('card'), ow = $('owSection');
+    if (card && ow) panel.insertBefore(card, ow);
+
+    const vh = () => window.innerHeight;
+    const snaps = () => ({ min: Math.round(vh() * 0.26), mid: Math.round(vh() * 0.54), max: Math.round(vh() * 0.86) });
+    let curH = null;
+    function applyH(px, animate) {
+      const s = snaps();
+      px = Math.max(s.min, Math.min(s.max, px));
+      curH = px;
+      panel.style.transition = animate ? 'height .3s cubic-bezier(.22,1,.36,1)' : 'none';
+      panel.style.height = px + 'px';
+      document.body.classList.toggle('sheet-min', px <= s.min + 8);
+      document.documentElement.style.setProperty('--sheet-px', px + 'px');
+    }
+    function snapTo(name, animate) {
+      applyH(snaps()[name] || snaps().min, animate !== false);
+      try { localStorage.setItem('te-m-sheet', name); } catch (_) { /* */ }
+      setTimeout(() => dispatchEvent(new Event('resize')), 320);
+    }
+    let saved = 'min'; try { saved = localStorage.getItem('te-m-sheet') || 'min'; } catch (_) { /* */ }
+    if (!['min', 'mid', 'max'].includes(saved)) saved = saved === 'open' ? 'mid' : 'min';
+    requestAnimationFrame(() => applyH(snaps()[saved], false));
+
+    // Drag from anywhere on the header (grab / tabs / stats background), but not
+    // from a button, the scrolling list, or the card.
+    const NODRAG = '.list, #card, .te-alerts, .ot-tab, .win-btn, .stat, .filter-all, button, input, textarea';
+    let dragging = false, startY = 0, startH = 0, lastY = 0, lastT = 0, vel = 0, moved = false;
+    panel.addEventListener('pointerdown', (e) => {
+      if (e.target !== grab && e.target.closest(NODRAG)) return;
+      dragging = true; moved = false; startY = e.clientY; startH = panel.offsetHeight; lastY = e.clientY; lastT = performance.now(); vel = 0;
+      try { panel.setPointerCapture(e.pointerId); } catch (_) { /* */ }
+    });
+    panel.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dy = startY - e.clientY;
+      if (Math.abs(dy) > 4) moved = true;
+      if (moved) { applyH(startH + dy, false); e.preventDefault(); }
+      const now = performance.now();
+      if (now - lastT > 16) { vel = (lastY - e.clientY) / (now - lastT); lastY = e.clientY; lastT = now; }
+    });
+    const endDrag = () => {
+      if (!dragging) return; dragging = false;
+      if (!moved) return;                         // a tap, not a drag - leave height, let click fire
+      const s = snaps(), h = curH;
+      let t;
+      if (vel > 0.45) t = h < s.mid ? 'mid' : 'max';
+      else if (vel < -0.45) t = h > s.mid ? 'mid' : 'min';
+      else { const d = { min: Math.abs(h - s.min), mid: Math.abs(h - s.mid), max: Math.abs(h - s.max) }; t = Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a)); }
+      snapTo(t, true);
     };
-    setMin(min);
-    // The outage card sits just above the sheet, whatever its height.
-    const fit = () => document.documentElement.style.setProperty('--sheet-px', panel.offsetHeight + 'px');
-    if (window.ResizeObserver) new ResizeObserver(fit).observe(panel); else fit();
-    // Picking an outage folds the list, so the globe and its card show.
-    $('list').addEventListener('click', (e) => { if (e.target.closest('.row')) setMin(true); });
-    grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); setMin(!min); });
+    panel.addEventListener('pointerup', endDrag);
+    panel.addEventListener('pointercancel', endDrag);
+    // Tap the grab toggles collapsed <-> half.
+    grab.addEventListener('click', () => { if (moved) return; if (window.Sfx) window.Sfx.play('tap'); snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min', true); });
+    // Selecting an outage opens the drawer so its card (now inside) shows.
+    $('list').addEventListener('click', (e) => { if (e.target.closest('.row')) snapTo('mid', true); });
+    if (card) new MutationObserver(() => { if (!card.hidden && document.body.classList.contains('sheet-min')) snapTo('mid', true); }).observe(card, { attributes: true, attributeFilter: ['hidden'] });
     const oTabsEl = $('oTabs');
     if (oTabsEl) oTabsEl.addEventListener('click', (e) => { const b = e.target.closest('.ot-tab'); if (b) { if (window.Sfx) window.Sfx.play('tap'); setOTab(b.dataset.otab); } });
     updateOTabs();
-    // A count (filter) or the section title opens it.
-    panel.addEventListener('click', (e) => { if (min && e.target.closest('.stats, .ot-tab')) setMin(false); });
+    // A count (filter) or the section title opens it when collapsed.
+    panel.addEventListener('click', (e) => { if (!moved && document.body.classList.contains('sheet-min') && e.target.closest('.stats, .ot-tab')) snapTo('mid', true); });
   }
 
   // ── Home: one glance at every tab; each card opens its tab ──────────────
