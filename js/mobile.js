@@ -1078,12 +1078,12 @@
     const outScore = (n) => Math.max(0, Math.round(100 - Math.min(100, (n / full) * 100)));
     const iiNet = outScore(count('network')), iiApp = outScore(count('application'));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
-    const legRow = (x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
+    const legRow = (x) => `<span class="rg-go" data-go="${x[3]}" style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
     // Apps + Internet are out on the public internet (external); Network and
     // this Device are things you run (internal).
     $('hmRingLegend').innerHTML =
-      `<div class="rg-grp"><em class="rg-cat">Global Health (${hW}h)</em>${[['#00bceb', 'SaaS', iiApp], ['#f15e22', 'ISPs', iiNet]].map(legRow).join('')}</div>`
-      + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
+      `<div class="rg-grp"><em class="rg-cat">Global Health (${hW}h)</em>${[['#00bceb', 'SaaS', iiApp, 'globe'], ['#f15e22', 'ISPs', iiNet, 'globe']].map(legRow).join('')}</div>`
+      + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net, 'tests'], ['#7c3aed', 'Device', dev, 'phone']].map(legRow).join('')}</div>`;
     homeRings = {
       rgIIApp: { name: 'SaaS', color: '#00bceb', val: iiApp, desc: `Global SaaS outages in the last ${hW} hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.` },
       rgIINet: { name: 'ISPs', color: '#f15e22', val: iiNet, desc: `Global ISP and backbone network outages in the last ${hW} hours. Fewer outages fills the ring.` },
@@ -1283,16 +1283,26 @@
         tip.classList.add('on'); ringsEl.classList.add('inspect');
       };
       const hide = () => { if (tip) tip.classList.remove('on'); ringsEl.classList.remove('inspect'); ringsEl.querySelectorAll('.rg-hot').forEach((c) => c.classList.remove('rg-hot')); active = null; };
-      ringsEl.addEventListener('pointerdown', (e) => { const id = ringAt(e.clientX, e.clientY); if (id) { holding = true; try { ringsEl.setPointerCapture(e.pointerId); } catch (_) { /* */ } e.preventDefault(); e.stopPropagation(); show(id, e.clientX, e.clientY); } });
+      let tap = null;
+      ringsEl.addEventListener('pointerdown', (e) => { const id = ringAt(e.clientX, e.clientY); if (id) { holding = true; tap = { id, x: e.clientX, y: e.clientY, t: Date.now() }; try { ringsEl.setPointerCapture(e.pointerId); } catch (_) { /* */ } e.preventDefault(); e.stopPropagation(); show(id, e.clientX, e.clientY); } });
       ringsEl.addEventListener('pointermove', (e) => {
         if (holding) { e.preventDefault(); const id = ringAt(e.clientX, e.clientY); id ? show(id, e.clientX, e.clientY) : hide(); return; }
         if (e.pointerType === 'mouse') { const id = ringAt(e.clientX, e.clientY); id ? show(id, e.clientX, e.clientY) : hide(); }
       });
       const end = () => { holding = false; hide(); };
-      ringsEl.addEventListener('pointerup', end);
+      const RING_GO = { rgDevice: 'phone', rgNet: 'tests', rgIINet: 'globe', rgIIApp: 'globe' };
+      ringsEl.addEventListener('pointerup', (e) => {
+        const t = tap; tap = null; end();
+        if (t && Date.now() - t.t < 300 && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 10 && RING_GO[t.id]) { if (window.Sfx) window.Sfx.play('tap'); setTab(RING_GO[t.id]); }
+      });
       ringsEl.addEventListener('pointercancel', end);
       ringsEl.addEventListener('pointerleave', () => { if (!holding) hide(); });
-      ringsEl.addEventListener('click', (e) => e.stopPropagation());   // rings inspect, never navigate
+      ringsEl.addEventListener('click', (e) => e.stopPropagation());   // handled on pointerup above
+      // Legend entries go to their own screen (not the hero's default, Outages).
+      $('hmRingLegend').addEventListener('click', (e) => {
+        const g = e.target.closest('.rg-go'); if (!g) return;
+        e.stopPropagation(); if (window.Sfx) window.Sfx.play('tap'); setTab(g.dataset.go);
+      });
     }
   }
   addEventListener('te-outages', () => tab === 'home' && refreshHome());
