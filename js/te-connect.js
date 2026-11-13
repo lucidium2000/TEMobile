@@ -74,7 +74,7 @@
   }
 
   // ── Tenant data, cached and shared by the snapshot / Outages / Phone ──────
-  const cache = { at: 0, agents: null, tests: null, alerts: null, endpoints: null, loading: false };
+  const cache = { at: 0, agents: null, tests: null, alerts: null, endpoints: null, rules: null, epTests: null, epRules: null, loading: false };
   function withAid(path) { const a = state.acct && state.acct.aid; return a ? path + (path.includes('?') ? '&' : '?') + 'aid=' + encodeURIComponent(a) : path; }
   function pick(d) { for (let i = 1; i < arguments.length; i++) { const k = arguments[i]; if (d && Array.isArray(d[k])) return d[k]; } return []; }
   function fireData() { try { dispatchEvent(new CustomEvent('te-data', { detail: summary() })); } catch (_) { /* */ } render(); }
@@ -99,6 +99,22 @@
       // Agents can be 1000+ (all the cloud vantage points): load in the
       // background so it never blocks the first paint.
       api(withAid('/v7/agents')).then((ag) => { if (ag) { cache.agents = pick(ag, 'agents', 'result'); fireData(); } }).catch(() => {});
+      // Name lookups for alerts: the alert list only carries IDs (test and
+      // rule, also encoded in meta.id), so fetch the rule lists and the
+      // endpoint scheduled tests (not in /v7/tests) once in a while.
+      if (!cache.rulesAt || Date.now() - cache.rulesAt > 10 * 60e3) {
+        cache.rulesAt = Date.now();
+        Promise.all([
+          api(withAid('/v7/alerts/rules')).catch(() => null),
+          api(withAid('/v7/endpoint/tests/scheduled-tests')).catch(() => null),
+          api(withAid('/v7/endpoint/alerts/rules')).catch(() => null),
+        ]).then(([ru, et, er]) => {
+          if (ru) cache.rules = pick(ru, 'alertRules', 'rules', 'results');
+          if (et) cache.epTests = pick(et, 'tests', 'scheduledTests', 'results');
+          if (er) cache.epRules = pick(er, 'alertRules', 'rules', 'results');
+          fireData();
+        });
+      }
     } finally { cache.loading = false; }
     return cache;
   }
@@ -126,6 +142,8 @@
     tests: () => cache.tests || [],
     alerts: () => cache.alerts || [],
     endpoints: () => cache.endpoints || [],
+    rules: () => (cache.rules || []).concat(cache.epRules || []),
+    epTests: () => cache.epTests || [],
     async connect(proxy, token, persist) {
       state.proxy = (proxy || '').trim(); state.token = (token || '').trim(); state.persist = !!persist;
       const acct = await validate();            // throws on bad token / proxy
@@ -137,7 +155,7 @@
     },
     disconnect() {
       state.token = ''; state.acct = null; state.status = 'off';
-      cache.at = 0; cache.agents = cache.tests = cache.alerts = cache.endpoints = null;
+      cache.at = 0; cache.rulesAt = 0; cache.agents = cache.tests = cache.alerts = cache.endpoints = cache.rules = cache.epTests = cache.epRules = null;
       wipe();
       changed();
     },

@@ -60,22 +60,49 @@
   // (testName/ruleName/ruleExpression) shapes the API can return, and fall back
   // to the tests list by id, so an alert always shows real detail - not just "Alert".
   const parseTs = (v) => { if (!v) return 0; const d = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isFinite(d) ? d : 0; };
+  // The raw v7 alert list carries IDs, not names: alertType, alertSeverity,
+  // startDate, and a meta.id that encodes the test and rule, e.g.
+  // "cea:http:<testId>:<ruleId>", "cea:network:<targetId>:<testId>:<ruleId>",
+  // "endpoint:scheduled-tests:HTTP:<testId>:<ruleId>". Names come from the
+  // tests list, the endpoint scheduled-tests list and the alert-rules lists
+  // (TEConn fetches those). Nested shapes (test / rule objects) still work.
+  const ALERT_TYPE = { 'agent-to-server': 'Network', 'agent-to-agent': 'Agent to agent', 'http-server': 'HTTP server', 'page-load': 'Page load', 'web-transactions': 'Web transaction', transactions: 'Transaction', 'end-to-end-server': 'Network', 'end-to-end-agent': 'Agent to agent', 'path-trace': 'Path trace', bgp: 'BGP', 'dns-server': 'DNS server', 'dns-trace': 'DNS trace', dnssec: 'DNSSEC', 'sip-server': 'SIP server', voice: 'Voice', ftp: 'FTP', api: 'API', EndpointHttp: 'Endpoint HTTP', BrowserBot: 'Browser', Http: 'HTTP', Network: 'Network', Bgp: 'BGP' };
+  const typeLabel = (t) => ALERT_TYPE[t] || String(t || '').replace(/^endpoint-?/i, 'Endpoint ').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+  function prettyExpr(e) {
+    if (!e) return '';
+    let x = String(e);
+    const M = { 'probDetail != ""': 'Error is present', 'errorType != "None"': 'Error type is any', 'pageLoadHasError == true': 'Page load has an error', 'pageLoadTimedOut == true': 'Page load timed out', '!pageLoaded': 'Page load incomplete' };
+    for (const k in M) x = x.split(k).join(M[k]);
+    return x.replace(/\[[^\]]*\]/g, '').replace(/[()]/g, '').replace(/\s*&&\s*/g, ' and ').replace(/\s*\|\|\s*/g, ' or ')
+      .replace(/\bloss\b/g, 'Packet loss').replace(/\blatency\b/g, 'Latency').replace(/\bjitter\b/g, 'Jitter').replace(/\breachability\b/g, 'Reachability')
+      .replace(/\bresponseTime\b/g, 'Response time').replace(/\bavailability\b/g, 'Availability').replace(/>=/g, '≥').replace(/<=/g, '≤').replace(/\s+/g, ' ').trim();
+  }
+  const idFrom = (href, re) => { const m = href && String(href).match(re); return m ? m[1] : ''; };
   function normAlert(a) {
-    const t = a.test || {}, r = a.rule || {}, tg = a.target || {};
-    let name = t.name || a.testName || tg.name || a.targetName || '';
-    if (!name) { const tid = a.testId || t.id; if (tid && window.TEConn) { const tt = TEConn.tests().find((x) => String(x.testId || x.id) === String(tid)); if (tt) name = tt.testName || tt.name; } }
-    if (!name) name = r.name || a.ruleName || '';
-    const cond = r.expressionText || a.ruleExpression || a.expressionText || r.name || a.ruleName || '';
-    const type = t.type || r.type || a.alertType || a.type || '';
-    const start = (a.start || a.dateStartMs || 0) || parseTs(a.dateStart);
-    const end = (a.end || a.dateEndMs || 0) || parseTs(a.dateEnd);
-    const active = a.active != null ? !!a.active : (['ACTIVE', 'TRIGGERED'].includes(String(a.state || a.status || '').toUpperCase()) || (!end));
+    const t = a.test || {}, r = a.rule || {}, tg = a.target || {}, L = a._links || a.links || {};
+    const meta = String((a.meta && a.meta.id) || '').split(':'), endpoint = /^endpoint/i.test(meta[0] || '') || /^endpoint/i.test(a.alertType || '');
+    const num = (v) => (/^\d+$/.test(String(v || '')) ? String(v) : '');
+    const testId = String(t.id || a.testId || idFrom(L.test && L.test.href, /tests\/(?:[a-z-]+\/)?(\d+)/) || (meta.length >= 4 ? num(meta[meta.length - 2]) : '') || '');
+    const ruleId = String(r.id || a.alertRuleId || a.ruleId || idFrom(L.rule && L.rule.href, /rules\/(\d+)/) || (meta.length >= 3 ? num(meta[meta.length - 1]) : '') || '');
+    const TC = window.TEConn;
+    const tst = testId && TC ? (TC.tests().concat(TC.epTests ? TC.epTests() : [])).find((x) => String(x.testId || x.id) === testId) : null;
+    const rul = ruleId && TC && TC.rules ? TC.rules().find((x) => String(x.ruleId || x.id) === ruleId) : null;
+    const ruleName = r.name || a.ruleName || (rul && (rul.ruleName || rul.name)) || '';
+    const testName = t.name || a.testName || (tst && (tst.testName || tst.name)) || '';
+    const rawType = t.type || (tst && tst.type) || a.alertType || r.type || a.type || '';
+    const type = typeLabel(rawType) + (endpoint && !/endpoint/i.test(typeLabel(rawType)) ? ' (endpoint)' : '');
+    const cond = r.expressionText || a.ruleExpression || a.expressionText || prettyExpr(r.expression || (rul && rul.expression)) || '';
+    const start = (a.start || a.dateStartMs || 0) || parseTs(a.startDate) || parseTs(a.dateStart);
+    const end = (a.end || a.dateEndMs || 0) || parseTs(a.endDate) || parseTs(a.dateEnd);
+    const st = String(a.state || a.alertState || a.status || '').toUpperCase();
+    const active = a.active != null ? !!a.active : (['ACTIVE', 'TRIGGER', 'TRIGGERED'].includes(st) || (!end && st !== 'CLEAR' && st !== 'CLEARED'));
     const agents = (a.monitors && a.monitors.length) || (a.agents && a.agents.length) || a.affectedAgents || a.agentCount || 0;
-    const perma = (a.links && (a.links.appLink || a.links.self)) || a.permalink || (a.apiLinks && a.apiLinks[0] && a.apiLinks[0].href) || '';
+    const perma = (L.app && L.app.href) || (a.links && a.links.appLink) || a.permalink || '';
+    const title = testName || tg.name || a.targetName || ruleName || (type ? type + ' alert' : 'ThousandEyes alert');
     return {
-      sev: (a.severity || '').toUpperCase(), title: name || (type ? type + ' alert' : 'ThousandEyes alert'),
+      sev: String(a.severity || a.alertSeverity || '').toUpperCase(), title,
       cond, type, start, end, active, agents, viol: a.violationCount || a.violations || 0,
-      rule: r.name || a.ruleName || '', id: a.id || a.alertId || '', testId: a.testId || t.id || '', perma,
+      rule: ruleName, target: tg.name || '', id: a.id || a.alertId || '', testId, perma,
     };
   }
   // The shared deep-detail body for an alert (used on Home and in the tenant panel).
@@ -85,12 +112,15 @@
     if (n.type) rows.push(['Type', n.type]);
     if (n.sev) rows.push(['Severity', n.sev]);
     if (n.rule && n.rule !== n.title) rows.push(['Alert rule', n.rule]);
+    if (n.target && n.target !== n.title) rows.push(['Target', n.target]);
     if (n.start) rows.push(['Started', new Date(n.start).toLocaleString()]);
     rows.push(['Status', n.active ? `Active · ${alertSince(n.start)} so far` : (n.end ? `Cleared ${alertSince(n.end)} ago` : 'Cleared')]);
     if (n.viol) rows.push(['Violations', String(n.viol)]);
     if (n.agents) rows.push(['Agents affected', String(n.agents)]);
+    if (n.testId) rows.push(['Test ID', n.testId]);
     if (n.id) rows.push(['Alert ID', String(n.id)]);
     return `<dl class="al-kv">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`
+      + (n.perma && /^https:\/\/app\.thousandeyes\.com\//.test(n.perma) ? `<a class="al-open" href="${esc(n.perma)}" target="_blank" rel="noopener">View in ThousandEyes ›</a> ` : '')
       + (withOpen ? `<button type="button" class="al-open" data-act="tenant">Open in My ThousandEyes ›</button>` : '');
   }
   const alKey = (n) => String(n.id || n.title || '');
