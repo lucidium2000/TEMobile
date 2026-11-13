@@ -45,7 +45,6 @@ STATUS_FEEDS = [
     ('Zoom', 'https://status.zoom.us/history.rss'),
     ('Slack', 'https://slack-status.com/feed/rss'),
     ('Atlassian', 'https://status.atlassian.com/history.rss'),
-    ('Okta', 'https://status.okta.com/history.rss'),
 ]
 # Weather / utility outages aren't what this tab is for.
 # Status pages also list planned work - not an outage.

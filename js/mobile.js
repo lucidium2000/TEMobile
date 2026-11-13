@@ -1190,7 +1190,7 @@
   const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'ISP' : 'SaaS'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
   const NEWS_TAG = { status: ['Status', 'st'], security: ['Security', 'sec'], outage: ['Outage', 'out'] };
   const newsRow = (n) => { const tg = NEWS_TAG[n.kind] || NEWS_TAG.outage;
-    return `<li class="feed-news k-${tg[1]}" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small><em class="feed-tag nt-${tg[1]}">${tg[0]}</em>${esc(n.source || hostOf(n.url))}</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`; };
+    return `<li class="feed-news k-${tg[1]}" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm"><span class="nt-t">${esc(n.title)}</span><small><em class="feed-tag nt-${tg[1]}">${tg[0]}</em>${esc(n.source || hostOf(n.url))}</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`; };
   // Which rolled-up groups the user has expanded (kept across the 4s refresh).
   const openGroups = new Set();
   function feedGroup(key, cls, ico, rows, label, sub, tag) {
