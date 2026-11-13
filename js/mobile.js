@@ -220,7 +220,11 @@
   addEventListener('pointerdown', (e) => {
     if (pg || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const t = e.target; if (t && t.closest && t.closest(PG_IGNORE)) return;
-    pg = { x0: e.clientX, y0: e.clientY, axis: null, W: vw(), curEl: null, nbrEl: null, nbrName: undefined, dx: 0, dir: 0, moved: false, t0: Date.now() };
+    // Only start from the outer 25% on either side; the middle 50% is left for
+    // other gestures (globe, drawer, taps) so paging doesn't steal them.
+    const W = vw();
+    if (e.clientX > W * 0.25 && e.clientX < W * 0.75) return;
+    pg = { x0: e.clientX, y0: e.clientY, axis: null, W, curEl: null, nbrEl: null, nbrName: undefined, dx: 0, dir: 0, moved: false, t0: Date.now() };
   }, { capture: true, passive: true });
   addEventListener('pointermove', (e) => {
     if (!pg) return;
