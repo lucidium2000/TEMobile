@@ -65,7 +65,7 @@
     if (!window.Sfx) return;
     if (name === 'home') sfx('powerUp');
     if (name === 'globe' || name === 'tenant') { sfx('drawerOpen'); sfx('settle', 420); }
-    if (name === 'weather') { sfx('radar'); sfx('settle', 420); }
+    if (name === 'weather') { sfx('chime'); sfx('settle', 420); }
     let hot = false; try { hot = (name === 'globe' || name === 'news') && somethingActive(name); } catch (_) { /* news not loaded yet */ }
     if (hot) sfx('warn', name === 'globe' ? 620 : 150);
   }
@@ -203,12 +203,14 @@
     ['teConnCard', 'phTE'].forEach((id) => { const el = $(id); if (el) root.appendChild(el); });
     const al = $('teTenant'), sec = $('tnAlSec'); if (al && sec) sec.appendChild(al);
   })();
+  let tnLocShown = false;   // Affected locations stays tucked away until asked for
   function renderTenant() {
     const on = !!(window.TEConn && TEConn.on());
     const t = $('teTenant'), ep = $('phTE');
     if (t) t.hidden = !on;
     if (ep) ep.hidden = !on;
-    ['tnStats', 'tnLocSec', 'tnAlSec', 'tnAgSec', 'tnTsSec', 'tnLive'].forEach((id) => { const el = $(id); if (el) el.hidden = !on; });
+    ['tnStats', 'tnAlSec', 'tnAgSec', 'tnTsSec', 'tnLive'].forEach((id) => { const el = $(id); if (el) el.hidden = !on; });
+    $('tnLocSec').hidden = !on || !tnLocShown;   // locations only open from their tile (or a pin)
     if (!on) {
       if (window.TEApp && TEApp.setTenantPoints) TEApp.setTenantPoints([]);
       $('tnAcct').textContent = 'Connect your tenant to see your alerts on the globe';
@@ -317,9 +319,9 @@
     const sevDots = SEV_ORDER.filter((k) => sev[k]).map((k) => `<i class="${sevCls(k)}" title="${k}">${sev[k]}</i>`).join('');
     const tile = (k, v, sub, cls, go) => `<button type="button" class="tn-stat${cls ? ' ' + cls : ''}" data-go="${go}"><b>${v}</b><span>${k}</span>${sub ? `<small>${sub}</small>` : ''}</button>`;
     $('tnStats').innerHTML = tile('Alerts', alerts.length, sevDots, alerts.length ? (sev.CRITICAL || sev.MAJOR ? 'bad' : 'warn') : 'ok', 'tnAlSec')
-      + tile('Locations', tnModel.list.length, tnModel.list.length ? 'affected' : 'none hit', tnModel.list.length ? 'warn' : 'ok', 'tnLocSec')
       + tile('Agents', ent.length ? `${entOn}<em>/${ent.length}</em>` : TC.agents().length, ent.length ? (ent.length - entOn ? `${ent.length - entOn} offline` : 'all online') : 'cloud', ent.length && ent.length - entOn ? 'warn' : 'ok', 'tnAgSec')
-      + tile('Tests', tests.length, alertingTests.size ? `${alertingTests.size} alerting` : (eps.length ? `${eps.length} endpoints` : 'all clear'), alertingTests.size ? 'warn' : 'ok', 'tnTsSec');
+      + tile('Tests', tests.length, alertingTests.size ? `${alertingTests.size} alerting` : (eps.length ? `${eps.length} endpoints` : 'all clear'), alertingTests.size ? 'warn' : 'ok', 'tnTsSec')
+      + tile('Locations', tnModel.list.length, tnLocShown ? 'hide list' : tnModel.list.length ? 'affected' : 'none hit', (tnModel.list.length ? 'warn' : 'ok') + (tnLocShown ? ' on' : ''), 'tnLocSec');
     // Affected locations.
     $('tnLocN').textContent = tnModel.list.length ? String(tnModel.list.length) : '';
     const pending = alerts.some((a) => TC.details && TC.details(a.id) == null) || geoQ.length;
@@ -363,12 +365,17 @@
     const b = e.target.closest('[data-go]'); if (!b) return;
     const sec = $(b.dataset.go), v = $('viewTenant'); if (!sec || !v) return;
     if (window.Sfx) window.Sfx.play('tap');
+    if (b.dataset.go === 'tnLocSec') {   // the Locations tile shows / hides the list
+      tnLocShown = !tnLocShown; renderTenant();
+      if (!tnLocShown) return;
+    }
     if (tnSheet && tnSheet.isMin()) tnSheet.snapTo('mid');
     setTimeout(() => v.scrollTo({ top: Math.max(0, sec.offsetTop - 34), behavior: 'smooth' }), 60);
   });
   // A pin tapped on the globe: open its row.
   addEventListener('te-tenant-pick', (e) => {
     const k = e.detail && e.detail.key; tnPick = k || null;
+    if (k && !tnLocShown) { tnLocShown = true; renderTenant(); }
     const rows = $('tnLocs').querySelectorAll('.tn-loc');
     rows.forEach((x) => x.classList.toggle('open', x.dataset.key === tnPick));
     if (!k) return;

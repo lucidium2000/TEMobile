@@ -105,6 +105,7 @@
     spin:     () => noise(0.45, 0.7, { type: 'lowpass', f: 350, to: 900, attack: 0.18 }),
     radar:    () => echoTone(1500, 0.6, 0.36, 0.18, 0.35),
     powerUp:  () => { tone(80, 0.6, { to: 880, vol: 0.18, type: 'sawtooth', lp: 300, lp2: 6000, attack: 0.05 }); tone(1760, 0.4, { vol: 0.16, delay: 0.6 }); },   // #27
+    chime:    () => { tone(880, 0.35, { vol: 0.32 }); tone(1320, 0.5, { vol: 0.32, delay: 0.12 }); },   // #22
     warn:     () => { tone(440, 0.12, { vol: 0.16, type: 'square' }); tone(440, 0.12, { vol: 0.16, type: 'square', delay: 0.2 }); },
     tap:      () => tone(1800, 0.035, { vol: 0.35 }),
     on:       () => { tone(660, 0.09, { vol: 0.5 }); tone(990, 0.12, { vol: 0.5, delay: 0.07 }); },
