@@ -958,21 +958,28 @@
   function renderSvcOverview() {
     const grid = $('hmSvccGrid'), leg = $('hmSvccLegend'); if (!grid) return;
     const probes = (window.RoomNet && window.RoomNet.probes) || [];
-    const now = Date.now(), span = 3600e3, t0 = now - span;
-    let maxMs = 60;
-    probes.forEach((p) => (p.samples || []).forEach((s) => { if (s.ms != null && s.t >= t0) maxMs = Math.max(maxMs, s.ms); }));
+    const now = Date.now(), span = 3600e3, winStart = now - span;
+    // Stretch the drawn data across the full width (earliest sample -> now) and
+    // let it scroll as time goes on, like the connection timeline.
+    let earliest = Infinity, maxMs = 60;
+    probes.forEach((p) => (p.samples || []).forEach((s) => { if (s.t >= winStart) { if (s.t < earliest) earliest = s.t; if (s.ms != null) maxMs = Math.max(maxMs, s.ms); } }));
+    const t0 = isFinite(earliest) ? Math.max(winStart, earliest) : now - 60e3, t1 = Math.max(now, t0 + 1000);
     maxMs = Math.min(maxMs * 1.12, 600);
-    const W = 300, H = 76, X = (t) => ((t - t0) / span) * W, Y = (ms) => H - 3 - (Math.min(ms, maxMs) / maxMs) * (H - 8);
+    const W = 300, H = 54, X = (t) => ((t - t0) / (t1 - t0)) * W, Y = (ms) => H - 3 - (Math.min(ms, maxMs) / maxMs) * (H - 8);
     let paths = '';
     probes.forEach((p, i) => {
       const col = SVCC_COLORS[i % SVCC_COLORS.length];
       const pts = (p.samples || []).filter((s) => s.t >= t0 && s.ms != null);
-      if (pts.length < 2) return;
-      const d = pts.map((s, k) => (k ? 'L' : 'M') + X(s.t).toFixed(1) + ' ' + Y(s.ms).toFixed(1)).join(' ');
+      if (!pts.length) return;
+      let d = pts.map((s, k) => (k ? 'L' : 'M') + X(s.t).toFixed(1) + ' ' + Y(s.ms).toFixed(1)).join(' ');
+      if (pts.length === 1) d += `L${W} ${Y(pts[0].ms).toFixed(1)}`;              // a lone point still draws a line to now
+      else d += `L${W} ${Y(pts[pts.length - 1].ms).toFixed(1)}`;                  // hold the last value out to now
       paths += `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>`;
     });
+    const mins = Math.round((now - t0) / 60e3);
+    const axL = mins >= 59 ? '1h ago' : mins >= 1 ? mins + ' min ago' : Math.max(1, Math.round((now - t0) / 1000)) + ' s ago';
     grid.innerHTML = paths
-      ? `<svg class="svcc-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${paths}</svg><span class="svcc-ax"><span>1h ago</span><span>now</span></span>`
+      ? `<svg class="svcc-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${paths}</svg><span class="svcc-ax"><span>${axL}</span><span>now</span></span>`
       : '<span class="svcc-wait">Checking services…</span>';
     leg.innerHTML = probes.map((p, i) => {
       const col = SVCC_COLORS[i % SVCC_COLORS.length];

@@ -674,9 +674,19 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 /* Service-checks overview: one grid of overlapping latency lines + a legend,
    with a Details link out to the Network tab. Compact by design. */
 .hm-svcc > .sec-title { display: flex; align-items: center; }
+.hm-svcc { padding-top: 2px; padding-bottom: 10px; }
+.hm-svcc > .sec-title { margin-bottom: 6px; padding-top: .5em; padding-bottom: .5em; }
 .svcc-btn { margin-left: auto; padding: .28em .7em; border-radius: 99px; border: 1px solid var(--hair); background: none; color: var(--cyan); font-weight: 700; font-size: .82em; letter-spacing: 0; text-transform: none; cursor: pointer; }
-.svcc-grid { position: relative; height: 76px; margin: 2px 0 8px; border-radius: 12px; background: rgba(0, 0, 0, .28); border: 1px solid var(--hair); overflow: hidden; }
-.svcc-svg { position: absolute; inset: 4px 7px 10px; width: calc(100% - 14px); height: calc(100% - 14px); }
+.svcc-grid { position: relative; height: 54px; margin: 0 0 8px; border-radius: 12px; background: rgba(0, 0, 0, .28); border: 1px solid var(--hair); overflow: hidden; }
+.svcc-svg { position: absolute; inset: 4px 7px 11px; width: calc(100% - 14px); height: calc(100% - 15px); }
+/* Tighter This Device overview cards */
+#phNet { padding-top: 2px; padding-bottom: 10px; }
+#phNet > .sec-title { margin-bottom: 6px; padding-top: .5em; padding-bottom: .5em; }
+#phNet .sig { margin-bottom: 5px; gap: 12px; }
+#phNet .sig b { font-size: 1.12em; }
+#phNet .ph-tl { margin: 2px 0 8px; }
+#phNet .nc-tl { padding: 8px 10px 5px; }
+#phNet .nc-spark .rn-spark { height: 46px; }
 .svcc-ax { position: absolute; left: 9px; right: 9px; bottom: 2px; display: flex; justify-content: space-between; font-size: .6em; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; pointer-events: none; }
 .svcc-wait { display: grid; place-items: center; height: 100%; color: var(--ink-3); font-size: .82em; }
 .svcc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
