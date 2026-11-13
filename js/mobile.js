@@ -940,8 +940,9 @@
     panel.addEventListener('pointercancel', endDrag);
     // Tap the grab toggles collapsed <-> half.
     grab.addEventListener('click', () => { if (moved) return; if (window.Sfx) window.Sfx.play('tap'); snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min', true); });
-    // Selecting an outage opens the drawer so its card (now inside) shows.
-    $('list').addEventListener('click', (e) => { if (e.target.closest('.row')) snapTo('mid', true); });
+    // Selecting an outage opens the drawer (only if collapsed) so its inline
+    // detail is visible; if already open, leave the user's height alone.
+    $('list').addEventListener('click', (e) => { if (e.target.closest('.row:not(.row-detail)') && document.body.classList.contains('sheet-min')) snapTo('mid', true); });
     if (card) new MutationObserver(() => { if (!card.hidden && document.body.classList.contains('sheet-min')) snapTo('mid', true); }).observe(card, { attributes: true, attributeFilter: ['hidden'] });
     const oTabsEl = $('oTabs');
     if (oTabsEl) oTabsEl.addEventListener('click', (e) => { const b = e.target.closest('.ot-tab'); if (b) { if (window.Sfx) window.Sfx.play('tap'); setOTab(b.dataset.otab); } });

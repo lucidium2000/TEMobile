@@ -1552,10 +1552,8 @@
     // Each location: hover lights up its point on the globe, tap zooms to it.
     S.locHover = null; S.locPick = null; S.cardLocsAll = locs;
     renderCardLocs();
-    el.card.hidden = false;
+    el.card.hidden = true;   // detail now expands inline in the list, not as a card
     fillFloat(o, metrics, locs);
-    // Restart the entrance animation.
-    el.card.style.animation = 'none'; void el.card.offsetWidth; el.card.style.animation = '';
     if (!fromTour) { el.cardProgress.style.transform = 'scaleX(0)'; floatProgress.style.transform = 'scaleX(0)'; }
     renderList();
     renderTimeline();
@@ -1638,16 +1636,44 @@
       + (!exp && locs.length > 8 ? `<li class="loc-more">+${locs.length - 8} more</li>` : '');
   }
 
+  // The selected outage's detail, expanded inline right under its row (instead
+  // of a separate card above the totals).
+  function outageDetailHtml(o) {
+    const locs = o.locations.slice().sort((a, b) => b.n - a.n);
+    S.rdLocs = locs.slice(0, 10);
+    const metrics = [
+      [fmtTime(o.start), 'Started'],
+      [fmtDur(o.durationS), o.active ? 'Ongoing' : 'Duration'],
+      [o.locations.length, o.locations.length === 1 ? 'Location' : 'Locations'],
+      o.kind === 'network' ? [o.interfaces || 0, 'Interfaces'] : [o.servers || 0, 'Servers'],
+    ];
+    if (o.asn) metrics.push(['AS' + o.asn, 'Network']);
+    const kv = [];
+    if (o.fullName && o.fullName !== o.name) kv.push(['Provider', o.fullName]);
+    if (o.appId) kv.push(['Service', o.appId]);
+    if (o.domains && o.domains.length) kv.push(['Domains', o.domains.slice(0, 6).join(', ')]);
+    if (!o.active && o.endRound) kv.push(['Cleared', clearedAgo(o) + ' ago']);
+    const pwrNear = o.locations.map((l) => nearestPower(l.lon, l.lat)).find(Boolean);
+    if (pwrNear) kv.push(['Power out nearby', `${pwrNear.name}, ${pwrNear.state} · ${Math.round(pwrNear.out).toLocaleString('en-US')}`]);
+    return `<li class="row-detail ${o.kind}" data-detail="${esc(o.id)}">`
+      + `<div class="rd-metrics">${metrics.map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join('')}</div>`
+      + (kv.length ? `<dl class="rd-kv">${kv.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '')
+      + `<ul class="rd-locs">${S.rdLocs.map((l, i) => `<li data-rdloc="${i}" title="Show on the globe">${esc(l.label || l.name)} <b>${l.n}</b></li>`).join('')}${locs.length > 10 ? `<li class="rd-more">+${locs.length - 10} more</li>` : ''}</ul>`
+      + '</li>';
+  }
   function renderList() {
     if (S.filter === 'locations') return renderLocations();
     const list = S.outages.filter(outageVisible).slice().sort((a, b) => (b.active - a.active) || (b.start - a.start));
     if (!list.length) { el.list.innerHTML = `<li class="empty">No outages in the ${S.windowH === 1 ? 'last hour' : `last ${S.windowH} hours`}.</li>`; return; }
     el.list.innerHTML = list.map((o) => {
       const where = o.locations.length === 1 ? o.locations[0].name : `${o.locations.length} locations`;
-      return `<li class="row ${o.kind}${o.active ? ' active' : ''}${o === S.selected ? ' sel' : ''}" data-id="${esc(o.id)}">`
+      const sel = o === S.selected;
+      let h = `<li class="row ${o.kind}${o.active ? ' active' : ''}${sel ? ' sel' : ''}" data-id="${esc(o.id)}">`
         + `<div class="ico">${iconHtml(o)}</div>`
         + `<div><div class="nm">${esc(o.name)}</div><div class="meta">${esc(where)} · ${fmtDur(o.durationS)}</div></div>`
         + `<div class="ago">${o.active ? 'ACTIVE' : fmtAgo(o.ageMin)}</div></li>`;
+      if (sel) h += outageDetailHtml(o);
+      return h;
     }).join('');
     const selRow = el.list.querySelector('.row.sel');
     if (selRow) selRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -2683,10 +2709,22 @@
       zoomTo(Math.max(view.zoom, 2.4), [g.lon, g.lat]);
       return;
     }
+    // A location inside the expanded detail: fly to it.
+    const rdLoc = e.target.closest('[data-rdloc]');
+    if (rdLoc && S.rdLocs) {
+      const loc = S.rdLocs[+rdLoc.dataset.rdloc];
+      if (loc && S.selected) { userInput(); sfx('select'); S.locPick = loc; flyTo({ locations: [loc] }, 1400); }
+      return;
+    }
+    if (e.target.closest('.rd-more')) { return; }
+    // Ignore clicks inside the expanded detail body.
+    if (e.target.closest('.row-detail')) return;
     const row = e.target.closest('.row');
     if (!row) return;
     userInput();
-    select(S.outages.find((o) => o.id === row.dataset.id) || null);
+    const id = row.dataset.id;
+    // Tapping the open row again collapses it.
+    select((S.selected && S.selected.id === id) ? null : (S.outages.find((o) => o.id === id) || null));
   });
   el.panel.addEventListener('pointerdown', userInput);
 
