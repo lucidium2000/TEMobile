@@ -4197,30 +4197,31 @@
   // stuttering 40-50. Steps back up when there's headroom. ?maxfps=30 forces it.
   let last = now(), workAvg = 8, frameCap = num('maxfps', 60) <= 30 ? 30 : 60, lastDraw = 0;
   const FORCED_CAP = num('maxfps', 0) > 0 && num('maxfps', 0) <= 30;
-  /* The earth rumbles while the globe is being turned or is coasting from a
-   * flick (screen speed, px/ms, so it means the same at any zoom); the slow
-   * idle drift and camera flights stay quiet. Hysteresis keeps it steady. */
-  let rbLon = null, rbLat = 0, rbSp = 0, rbOn = false, rbQuiet = 0;
+  /* The earth rumbles whenever a person moves it - any speed, however slow -
+   * and while it coasts on from their flick. The automatic idle drift,
+   * scripted spins and camera flights stay quiet. A finger catching or
+   * holding it still stops the sound at once; coasting to a stop settles. */
+  let rbLon = null, rbLat = 0, rbOn = false, rbQuiet = 0;
   function earthRumble(dt) {
     if (!window.Sfx || !window.Sfx.rumble || dt <= 0) return;
     const dLon = rbLon == null ? 0 : wrapLon(view.lon - rbLon), dLat = view.lat - rbLat;
     rbLon = view.lon; rbLat = view.lat;
     const degPerPx = 180 / (Math.PI * layout().base * view.zoom);
-    const sp = S.flight ? 0 : Math.hypot(dLon, dLat) / degPerPx / dt;
-    rbSp = rbSp * 0.7 + sp * 0.3;
-    if (!rbOn && rbSp > 0.3) { rbOn = true; rbQuiet = 0; window.Sfx.rumble(true); }
-    else if (rbOn) {
-      if (S.dragging) {
-        // A finger holding the globe still (or catching it mid-spin) stops
-        // the sound at once - no settle.
-        rbQuiet = sp < 0.03 ? rbQuiet + dt : 0;
-        if (rbQuiet > 60) { rbOn = false; rbSp = 0; window.Sfx.rumble(false, true); }
-      } else {
-        rbQuiet = rbSp < 0.08 ? rbQuiet + dt : 0;        // coasted to a stop: let it settle
-        // ...unless a quick tap just stopped it: that's abrupt too.
-        if (rbQuiet > 120) { rbOn = false; window.Sfx.rumble(false, performance.now() - S.lastInput < 400); }
-      }
+    const sp = Math.hypot(dLon, dLat) / degPerPx / dt;   // px per ms
+    const coasting = Math.abs(S.vel.lon) > 0.0005 || Math.abs(S.vel.lat) > 0.0005;
+    const human = !S.spin && !S.flight && (S.dragging || coasting);
+    if (!rbOn) {
+      if (human && sp > 0.01) { rbOn = true; rbQuiet = 0; window.Sfx.rumble(true); }
+      return;
     }
+    if (S.dragging) {
+      rbQuiet = sp < 0.005 ? rbQuiet + dt : 0;              // finger held still
+      if (rbQuiet > 80) { rbOn = false; window.Sfx.rumble(false, true); }
+    } else if (!human || sp < 0.005) {
+      rbQuiet += dt;
+      // Coasted to a stop: slow settle. A tap that just stopped it: abrupt.
+      if (rbQuiet > 100) { rbOn = false; window.Sfx.rumble(false, performance.now() - S.lastInput < 400 || !!S.spin || !!S.flight); }
+    } else rbQuiet = 0;
   }
   function frame(t) {
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
