@@ -724,15 +724,45 @@
   function netGen(q, ck) {
     if (ck === 'wifi') return { label: 'Wi-Fi', how: 'Connected over Wi-Fi' };
     if (ck === 'eth') return null;
-    const et = conn && conn.effectiveType, rtt = q && q.rtt, down = lastSpeed && lastSpeed.at && Date.now() - lastSpeed.at < 20 * 60e3 ? lastSpeed.down : null;   // a speed test from another network an hour ago says nothing
+    const et = conn && conn.effectiveType, rtt = q && q.rtt, fresh = (x) => x && x.at && Date.now() - x.at < 20 * 60e3;
+    // Best throughput we have from the last 20 minutes: the full speed test or
+    // the quick background sample (a speed test on another network says nothing).
+    const down = Math.max(fresh(lastSpeed) ? lastSpeed.down : 0, fresh(genProbe) ? genProbe.down : 0) || null;
     if (!navigator.onLine || (rtt == null && !down && !et)) return null;
     let g;
-    if (et === '2g' || et === 'slow-2g' || et === '3g') g = '3G';
-    else if (down != null) g = down >= 100 || (down >= 50 && rtt != null && rtt < 30) ? '5G' : down >= 3 ? '4G' : '3G';
-    else if (rtt != null) g = rtt < 30 ? '5G' : rtt < 150 ? '4G' : '3G';
+    if (conn && conn.downlinkMax > 150 && conn.downlinkMax !== Infinity) g = '5G';    // where the browser reports the radio's ceiling
+    else if (et === '2g' || et === 'slow-2g' || et === '3g') g = '3G';
+    else if (down != null) g = down >= 80 || (down >= 35 && rtt != null && rtt < 45) ? '5G' : down >= 3 ? '4G' : '3G';
+    else if (rtt != null) g = rtt < 38 ? '5G' : rtt < 150 ? '4G' : '3G';
     else g = '4G';
-    return { label: g, how: `Estimated from measured speed and latency (${g}-class) - browsers don't report the radio type` };
+    const bits = [down != null ? `${Math.round(down)} Mbps` : '', rtt != null ? `${Math.round(rtt)} ms` : ''].filter(Boolean).join(', ');
+    return { label: g, how: `${g} estimated from measured speed and latency (${bits || 'browser estimate'}) - browsers don't report the radio type` };
   }
+  /* A quick background speed sample (~4 MB from the nearest Cloudflare edge)
+   * for the 5G / 4G call: on Home, not on known Wi-Fi, at most every 10
+   * minutes and again when the network changes. */
+  let genProbe = null, genBusy = false;
+  try { genProbe = JSON.parse(localStorage.getItem('te-m-genprobe') || 'null'); } catch (_) { /* */ }
+  async function probeGen(force) {
+    if (genBusy || !navigator.onLine || document.hidden || tab !== 'home') return;
+    const ct = conn && conn.type; if (ct === 'wifi' || ct === 'ethernet') return;
+    if (!force && genProbe && Date.now() - genProbe.at < 10 * 60e3) return;
+    if (conn && conn.saveData) return;   // the user asked for less data use
+    genBusy = true;
+    try {
+      const r = await fetch(`https://speed.cloudflare.com/__down?bytes=4000000&r=${Math.random()}`, { cache: 'no-store' });
+      const rd = r.body.getReader(); let got = 0, first = 0;
+      for (;;) { const { done, value } = await rd.read(); if (done) break; if (!first) first = performance.now(); got += value.length; }
+      const sec = (performance.now() - first) / 1000;
+      if (got > 1e6 && sec > 0) { genProbe = { at: Date.now(), down: got * 8 / sec / 1e6 }; try { localStorage.setItem('te-m-genprobe', JSON.stringify(genProbe)); } catch (_) { /* */ } }
+    } catch (_) { /* best effort */ }
+    genBusy = false;
+    if (tab === 'home') refreshHome();
+  }
+  if (conn && conn.addEventListener) conn.addEventListener('change', () => { genProbe = null; setTimeout(() => probeGen(true), 1500); });
+  setInterval(() => probeGen(false), 60e3);
+  setTimeout(() => probeGen(false), 5000);
+
   function quality() {
     // 0-5 bars from what's measured: the edge round trip first, then the
     // browser's own estimate, then the last speed test.
@@ -1349,13 +1379,13 @@
     } else { bat.hidden = true; $('hmDevBatTxt').textContent = ''; }
     // 2) Connection: quality + round trip, with a Wi-Fi / cellular icon.
     const ct = conn && conn.type, ck = ct === 'wifi' ? 'wifi' : ct === 'cellular' ? 'cell' : ct === 'ethernet' ? 'eth' : '';
-    $('hmNetIco').innerHTML = ck ? NET_ICO[ck] : '';
     $('hmBars').className = 'bars q' + q.bars;
     const gen = netGen(q, ck), gEl = $('hmGen');
+    $('hmNetIco').innerHTML = ck && !(ck === 'cell' && gen) ? NET_ICO[ck] : '';   // the 5G / 4G badge already says cellular
     gEl.hidden = !gen; gEl.textContent = gen ? gen.label : '';
     if (gen) gEl.title = gen.how;
     $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
-    const typeWord = { wifi: 'Wi-Fi', cell: 'Cellular', eth: 'Ethernet' }[ck] || (!gen && conn && conn.effectiveType ? conn.effectiveType.toUpperCase() + '-class' : '');   // the badge already says 5G / 4G / 3G
+    const typeWord = { wifi: 'Wi-Fi', cell: gen ? '' : 'Cellular', eth: 'Ethernet' }[ck] || (!gen && conn && conn.effectiveType ? conn.effectiveType.toUpperCase() + '-class' : '');   // the badge already says 5G / 4G / 3G
     $('hmNetSub').textContent = [q.label, typeWord].filter(Boolean).join(' · ');
     const edgeC = window.RoomNet && window.RoomNet.edge && window.RoomNet.edge.colo, rm = A.room && A.room();
     const isp = rm && rm.org ? String(rm.org).replace(/^AS\d+\s+/, '').replace(/,?\s*(Inc|LLC|Ltd|Corporation|Corp|Communications)\.?$/i, '') : '';
