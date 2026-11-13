@@ -46,7 +46,7 @@
     if (name === 'weather') refreshWeather();
     if (name === 'globe') updateOTabs();
     if (name === 'tenant') renderTenant();
-    if (name === 'news') renderNews();
+    if (name === 'news') renderHomeFeed();
   }
 
   // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
@@ -130,15 +130,6 @@
     if (ep) ep.hidden = !on;
     if (on) { TEConn.refresh(); renderTenantOutages(); renderTEEndpoint(); }
   }
-  // This Device = the old Home + the phone merged: the live connection timeline
-  // and per-service timelines sit under the hero, device detail under the feed.
-  (function buildThisDevice() {
-    // Front screen shows summary tiles (Connection, Services); the connection
-    // and service timelines live on the Network tab. Only the device detail
-    // (battery / location / device) moves under "Happening now" here.
-    const extra = $('hmDeviceExtra');
-    if (extra) ['phBat', 'phLoc', 'phDev'].forEach((id) => { const el = $(id); if (el) extra.appendChild(el); });
-  })();
   function renderTenantOutages() {
     if (!window.TEConn || !TEConn.on()) return;
     TEConn.refresh();
@@ -174,7 +165,7 @@
   });
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
   // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
-  const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];
+  const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];   // Network / Device are detail views, not tabs
   // ── Seamless pager: drag left/right and the screens follow your finger (hold
   // and they hold), release to complete or snap back. Arrows / taps animate the
   // same way. A view slides over / off the globe, which stays as the backdrop.
@@ -205,7 +196,7 @@
     if (pg.nbrEl) pg.nbrEl.hidden = false;
   }
   addEventListener('pointerdown', (e) => {
-    if (pg || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (pg || (e.pointerType === 'mouse' && e.button !== 0) || TAB_ORDER.indexOf(tab) < 0) return;
     const t = e.target; if (t && t.closest && t.closest(PG_IGNORE)) return;
     // Only start from the outer 25% on either side; the middle 50% is left for
     // other gestures (globe, drawer, taps) so paging doesn't steal them.
@@ -583,7 +574,7 @@
   const live = [];
   let liveBusy = false, liveWarm = false, liveL4 = null;
   async function livePing() {
-    if (liveBusy || tab !== 'phone' || document.hidden) return;
+    if (liveBusy || tab !== 'phone' || document.hidden || $('phNet').hidden) return;
     liveBusy = true;
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 3000);
     let ms = null;
@@ -662,8 +653,8 @@
   if (navigator.getBattery) {
     navigator.getBattery().then((b) => {
       battery = b;
-      ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'].forEach((ev) => b.addEventListener(ev, () => tab === 'home' && refreshBattery()));
-      if (tab === 'home') refreshBattery();
+      ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'].forEach((ev) => b.addEventListener(ev, () => { if (tab === 'phone') refreshBattery(); else if (tab === 'home') refreshHome(); }));
+      if (tab === 'phone') refreshBattery(); else if (tab === 'home') refreshHome();
     }).catch(() => {});
   }
   function refreshBattery() {
@@ -788,7 +779,7 @@
   }
 
   function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); renderTEEndpoint(); }
-  setInterval(() => { if (tab === 'home') refreshLoc(); }, 5000);
+  setInterval(() => { if (tab === 'phone') refreshLoc(); }, 5000);
 
   // ── Phone: match this device to its ThousandEyes Endpoint Agent ───────────
   // The browser can't read the installed agent's ID, so the match is
@@ -947,31 +938,31 @@
   // ── Home: one glance at every tab; each card opens its tab ──────────────
   const fmtAgo = (min) => (min < 60 ? `${Math.max(1, Math.round(min))}m ago` : min < 1440 ? `${Math.floor(min / 60)}h ${Math.round(min % 60)}m ago` : `${Math.round(min / 1440)}d ago`);
   let homeRings = {};
-  const WIFI_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>';
-  const CELL_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-3M9 20v-7M14 20v-11M19 20V4"/></svg>';
-  // Device card summary from what the browser exposes.
-  function deviceCard() {
-    const os = uaHints && uaHints.platform ? `${uaHints.platform} ${String(uaHints.platformVersion || '').replace(/(\.0)+$/, '')}`.trim() : (navigator.platform || 'Device');
-    const model = uaHints && uaHints.model ? uaHints.model : '';
-    const mem = navigator.deviceMemory ? `${navigator.deviceMemory} GB` : '';
-    const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : '';
-    const left = battery && !battery.charging && isFinite(battery.dischargingTime) && battery.dischargingTime > 0 ? `${fmtDur(battery.dischargingTime)} left` : '';
-    return { title: model || os || 'This device', sub: [model ? os : cores, mem, left].filter(Boolean).join(' · ') };
+  // Home card helpers.
+  const NET_ICO = {
+    wifi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg>',
+    cell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20v-3M9 20v-6M14 20v-9M19 20V5"/></svg>',
+    eth: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="8" width="12" height="9" rx="1.5"/><path d="M9.5 8V5h5v3M10 17v3M14 17v3"/></svg>',
+  };
+  function milesBetween(la1, lo1, la2, lo2) {
+    const r = Math.PI / 180, a = Math.sin(((la2 - la1) * r) / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(((lo2 - lo1) * r) / 2) ** 2;
+    return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
-  const connIcon = () => ((conn && conn.type === 'cellular') ? CELL_SVG : WIFI_SVG);
-  const haversineMi = (la1, lo1, la2, lo2) => { const R = 3958.8, r = Math.PI / 180, dLa = (la2 - la1) * r, dLo = (lo2 - lo1) * r; const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(a)); };
-  // Internet card: 5 bars = no known network issues nearby; fewer the closer an
-  // active Internet Insights network outage is (one bar per 500-mile ring).
-  function internetHealth(os) {
-    const room = window.TEApp && window.TEApp.room && window.TEApp.room();
-    const net = os.filter((o) => o.kind === 'network' && o.active);
-    if (!net.length) return { bars: 5, label: 'No known issues' };
-    if (!room || !isFinite(room.lat)) return { bars: Math.max(1, 5 - Math.min(4, net.length)), label: `${net.length} active network outage${net.length > 1 ? 's' : ''}` };
-    let best = Infinity, near = '';
-    net.forEach((o) => o.locations.forEach((l) => { if (!isFinite(l.lat)) return; const d = haversineMi(room.lat, room.lon, l.lat, l.lon); if (d < best) { best = d; near = l.label || l.name; } }));
-    if (!isFinite(best)) return { bars: 5, label: 'No known issues' };
-    const bars = Math.max(1, Math.min(5, Math.ceil(best / 500)));
-    return { bars, label: bars >= 5 ? 'No issues within 2,500 mi' : `${near} · ${Math.round(best).toLocaleString()} mi away` };
+  // The device essentials: model (or OS when the model is hidden) and a short
+  // spec line - OS version, cores, memory.
+  function deviceSummary() {
+    const ua = navigator.userAgent, h = uaHints || {};
+    let model = h.model || '', os = '';
+    if (h.platform === 'Android' || /Android/.test(ua)) {
+      const v = (h.platformVersion || '').split('.')[0] || (ua.match(/Android (\d+)/) || [])[1] || '';
+      os = ('Android ' + v).trim();
+      if (!model) { const m = ua.match(/Android [\d.]+; ([^;)]+)/); if (m && m[1] !== 'K') model = m[1]; }
+    } else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+      const m = ua.match(/OS (\d+)[_.](\d+)/); os = m ? `iOS ${m[1]}.${m[2]}` : 'iOS';
+      if (!model) model = /iPad/.test(ua) || /Macintosh/.test(ua) ? 'iPad' : 'iPhone';
+    } else os = platform().split(' · ')[0];
+    const specs = [model ? os : '', navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} cores` : '', navigator.deviceMemory ? `${navigator.deviceMemory} GB` : ''].filter(Boolean).join(' · ');
+    return { model: model || os || 'This phone', specs };
   }
   function refreshHome() {
     const A = window.TEApp;
@@ -985,48 +976,83 @@
     const hero = $('hmHero');
     hero.dataset.state = !os.length && !A.outages ? 'wait' : act.length >= 5 ? 'bad' : act.length ? 'warn' : 'ok';
     const q = quality();
-    refreshBattery(); refreshLoc(); refreshDev();
-    // Device card (model / OS / memory + battery), detail behind a tap.
-    const d = deviceCard();
-    $('hmDevV').textContent = d.title;
-    $('hmDevSub').textContent = d.sub;
-    const lv = battery ? Math.round(battery.level * 100) : null;
-    $('hmBat').hidden = lv == null;
-    if (lv != null) { $('hmBat').firstElementChild.style.width = lv + '%'; $('hmBat').className = 't-bat' + (lv <= 20 ? ' low' : '') + (battery.charging ? ' charging' : ''); }
-    // Connection card: RTT + Wi-Fi / cellular icon.
+    // ── Four cards, clockwise along the path the traffic takes ──
+    // 1) Device: the essentials (model, OS, cores, memory) and a small battery.
+    const dv = deviceSummary();
+    $('hmDevV').textContent = dv.model;
+    $('hmDevSub').textContent = dv.specs;
+    const bat = $('hmBat');
+    if (battery) {
+      const lv = Math.round(battery.level * 100);
+      bat.hidden = false;
+      bat.firstElementChild.style.width = lv + '%';
+      bat.className = 't-bat' + (lv <= 20 ? ' low' : '') + (battery.charging ? ' chg' : '');
+      const left = fmtDur(battery.charging ? battery.chargingTime : battery.dischargingTime);
+      $('hmDevBatTxt').textContent = `${lv}%` + (battery.charging ? (lv >= 100 ? ' · full' : left ? ` · full in ${left}` : ' · charging') : left ? ` · ${left} left` : '');
+    } else { bat.hidden = true; $('hmDevBatTxt').textContent = ''; }
+    // 2) Connection: quality + round trip, with a Wi-Fi / cellular icon.
+    const ct = conn && conn.type, ck = ct === 'wifi' ? 'wifi' : ct === 'cellular' ? 'cell' : ct === 'ethernet' ? 'eth' : '';
+    $('hmNetIco').innerHTML = ck ? NET_ICO[ck] : '';
+    $('hmBars').className = 'bars q' + q.bars;
     $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
-    $('hmNetSub').textContent = q.label + (lastSpeed ? ` · ${Math.round(lastSpeed.down)} Mbps` : '');
-    $('hmConnIco').innerHTML = connIcon();
-    // SaaS card (service checks, from the live service rows).
+    $('hmNetSub').textContent = [q.label, { wifi: 'Wi-Fi', cell: 'Cellular', eth: 'Ethernet' }[ck], lastSpeed ? `${Math.round(lastSpeed.down)} Mbps` : ''].filter(Boolean).join(' · ');
+    // 3) Internet: Internet Insights network issues near you - 5 bars when
+    //    there are none within 2,000 mi, losing a bar per 500 mi closer.
+    const room = A.room && A.room();
+    let near = null;
+    if (room && isFinite(room.lat)) {
+      for (const o of os) {
+        if (o.kind !== 'network' || !o.active) continue;
+        for (const l of o.locations) { const d = milesBetween(room.lat, room.lon, l.lat, l.lon); if (!near || d < near.d) near = { d, o, l }; }
+      }
+    }
+    const ib = !room ? 0 : !near || near.d >= 2000 ? 5 : Math.max(1, Math.floor(near.d / 500) + 1);
+    $('hmInetBars').className = 'bars q' + ib;
+    const inet = $('hmInet');
+    inet.dataset.oid = near && near.d < 2000 ? near.o.id : '';
+    if (!room) { $('hmInetV').innerHTML = '–'; $('hmInetSub').textContent = 'Locating…'; }
+    else if (ib === 5) { $('hmInetV').innerHTML = 'Clear'; $('hmInetSub').textContent = 'No known issues nearby'; }
+    else {
+      $('hmInetV').innerHTML = `${Math.round(near.d).toLocaleString()}<small>mi</small>`;
+      $('hmInetSub').textContent = `${near.o.name} · ${near.l.label || near.l.name}`;
+    }
+    inet.dataset.state = ib <= 1 ? 'bad' : ib <= 2 ? 'warn' : 'ok';
+    // 4) SaaS: the service checks at a glance (details on Network).
     const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
       name: (r.querySelector('.svc-name') || {}).textContent || '', lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
     const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length, bad = svcs.filter((x) => x.lvl === 'bad'), warn = svcs.filter((x) => x.lvl === 'warn');
+    const lat = ((window.RoomNet && window.RoomNet.probes) || []).map((p) => p.last).filter((v) => v != null);
+    const avg = lat.length ? Math.round(lat.reduce((x, y) => x + y, 0) / lat.length) : null;
     $('hmSvcDots').innerHTML = svcs.map((x) => `<i class="svc-${x.lvl}"></i>`).join('');
     $('hmSvcV').innerHTML = svcs.length ? `${good}<small>/${svcs.length}</small>` : '–';
-    $('hmSvcSub').textContent = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : 'All reachable';
+    $('hmSvcSub').textContent = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : `All reachable${avg != null ? ` · ${avg} ms avg` : ''}`;
     $('hmSvc').dataset.state = bad.length ? 'bad' : warn.length ? 'warn' : 'ok';
-    // Internet card: distance-based health from Internet Insights network outages.
-    const ii = internetHealth(os);
-    $('hmIntBars').className = 'int-bars q' + ii.bars;
-    $('hmIntV').innerHTML = `${ii.bars}<small>/5</small>`;
-    $('hmIntSub').textContent = ii.label;
-    $('hmInt').dataset.state = ii.bars >= 4 ? 'ok' : ii.bars >= 2 ? 'warn' : 'bad';
 
-    // Hero rings mirror the four cards, inner to outer: Device, Connection,
-    // Internet, SaaS (fuller = healthier).
-    const devR = battery ? Math.round(battery.level * 100) : (navigator.onLine ? 100 : 0);
-    const connR = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
-    const intR = ii.bars * 20;
-    const saasR = svcs.length ? Math.round((good / svcs.length) * 100) : 0;
-    // The inside (Device) ring sits with the middle of its gap at 4:30; every
-    // other ring starts from that same point and runs clockwise to its value.
-    const ringBase = 225 - 1.8 * Math.max(0, Math.min(100, devR));
-    [['rgDevice', devR], ['rgNet', connR], ['rgIINet', intR], ['rgIIApp', saasR]].forEach(([id, v]) => setRing(id, v, ringBase));
+    // Hero rings (fuller = healthier), each tied directly to what it measures:
+    //  Device  = this phone's own connection quality.
+    //  Network = that connection blended with the services it can reach.
+    //  Apps / Internet (Global Outages) = how many outages in the last 24 hours.
+    const dev = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
+    const svcScore = svcs.length ? (good / svcs.length) * 100 : null;
+    const net = svcScore == null ? dev : Math.round((dev + svcScore) / 2);
+    // Global Outages: count of outages in the last 24h (0 outages = full ring,
+    // ~60 = empty). Active outages count a little extra.
+    const since24 = Date.now() - 24 * 3600e3;
+    const count = (kind) => os.reduce((n, o) => n + ((o.kind === 'network') === (kind === 'network') && o.start >= since24 ? (o.active ? 1.5 : 1) : 0), 0);
+    const outScore = (n) => Math.max(0, Math.round(100 - Math.min(100, (n / 60) * 100)));
+    const iiNet = outScore(count('network')), iiApp = outScore(count('application'));
+    setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
+    const legRow = (x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
+    // Apps + Internet are out on the public internet (external); Network and
+    // this Device are things you run (internal).
+    $('hmRingLegend').innerHTML =
+      `<div class="rg-grp"><em class="rg-cat">Global Outages</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
+      + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
     homeRings = {
-      rgIIApp: { name: 'SaaS', color: '#00bceb', val: saasR, desc: 'Your SaaS service checks (Webex, Microsoft, Google, AWS, Zoom) that are answering.' },
-      rgIINet: { name: 'Internet', color: '#f15e22', val: intR, desc: 'Internet health near you: full when no Internet Insights network outage is within 2,500 miles.' },
-      rgNet: { name: 'Connection', color: '#78be20', val: connR, desc: 'This phone\u2019s connection quality to the nearest internet edge.' },
-      rgDevice: { name: 'Device', color: '#7c3aed', val: devR, desc: battery ? 'This phone\u2019s battery level.' : 'This device is online (battery isn\u2019t shared by this browser).' },
+      rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Global application outages in the last 24 hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.' },
+      rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Global network outages in the last 24 hours across ISPs and backbones. Fewer outages fills the ring.' },
+      rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your connection blended with the service checks it reaches (Webex, Microsoft, Google, AWS, Zoom).' },
+      rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s own connection quality to the nearest internet edge.' },
     };
   }
   // This Device: a compact overview of the service checks - every service's
@@ -1067,12 +1093,14 @@
       return `<span class="svcc-lg ${lvl}"><i style="background:${col}"></i>${esc(p.name || p.label || '')} <b>${ms}</b></span>`;
     }).join('');
   }
-  function setRing(id, v, base) {
+  function setRing(id, v) {
     const el = $(id); if (!el) return;
     const c = Math.max(0, Math.min(100, v || 0));
     el.style.strokeDashoffset = String(100 - c);
-    // Shared start for all rings, set from the inside ring (see refreshHome).
-    el.style.setProperty('--rg-base', (base == null ? 45 : base).toFixed(1) + 'deg');
+    // Park so the MIDDLE of this ring's gap sits at the 4:30 clock position.
+    // Arc starts at 3 o'clock and draws clockwise for c%; its gap-mid is 180deg
+    // from its arc-mid, so base rotation = 225 - 1.8*c keeps the gap at 4:30.
+    el.style.setProperty('--rg-base', (225 - 1.8 * c).toFixed(1) + 'deg');
     // Original per-ring spread (8 + 0.34*(100-c)) scaled to 1/5, so fuller rings
     // spin clearly faster than emptier ones, at half the previous overall speed.
     el.style.setProperty('--rg-dur', (1.6 + (100 - c) * 0.068).toFixed(2) + 's');
@@ -1105,30 +1133,14 @@
       const res = await Promise.all(qs.map((q) => fetch(`https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=6&numericFilters=created_at_i>${since},points>40&query=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)));
       const seen = new Set(), out = [];
       res.forEach((d) => d && d.hits && d.hits.forEach((h) => { if (h.title && h.url && !seen.has(h.title)) { seen.add(h.title); out.push({ title: h.title, url: h.url, t: (h.created_at_i || 0) * 1000 }); } }));
-      homeNews = out.sort((a, b) => b.t - a.t).slice(0, 10);
-      if (tab === 'home') renderHomeFeed();
-      if (tab === 'news') renderNews();
+      homeNews = out.sort((a, b) => b.t - a.t).slice(0, 4);
+      if (tab === 'news') renderHomeFeed();
     } catch (_) { /* best-effort */ }
   }
   // Row builders - one per feed kind (a single item renders as a plain row).
   const alertRow = (n) => `<li class="feed-alert al-exp sev-${sevCls(n.sev)}" data-alert="1" data-aid="${esc(alKey(n))}"><div class="al-row"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}${CHEV}</span></div><div class="al-detail">${alertDetail(n, true)}</div></li>`;
   const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
   const newsRow = (n) => `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`;
-  // The News tab: active outages as headlines, then network / security news.
-  function renderNews() {
-    const host = $('newsList'); if (!host) return;
-    const A = window.TEApp;
-    const act = (A && A.outages ? A.outages() : []).filter((o) => o.active).sort((a, b) => b.locations.length - a.locations.length).slice(0, 5);
-    const news = homeNews.slice().sort((a, b) => b.t - a.t);
-    const parts = act.map((o) => outageRow(o, A)).concat(news.map(newsRow));
-    host.innerHTML = parts.length ? parts.join('') : '<li class="empty">No headlines right now</li>';
-    loadHomeNews();
-  }
-  $('newsList').addEventListener('click', (e) => {
-    const li = e.target.closest('li'); if (!li) return;
-    if (li.dataset.url) { window.open(li.dataset.url, '_blank', 'noopener'); return; }
-    if (li.dataset.id && window.TEApp) { if (window.Sfx) window.Sfx.play('tap'); setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 60); }
-  });
   // Which rolled-up groups the user has expanded (kept across the 4s refresh).
   const openGroups = new Set();
   function feedGroup(key, cls, ico, rows, label, sub, tag) {
@@ -1167,18 +1179,17 @@
     const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = act.length ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
     loadHomeNews();
   }
-  document.querySelectorAll('#viewHome [data-go]').forEach((el) => el.addEventListener('click', () => {
+  // Cards and links that open another view. A card can also carry an outage
+  // to select (Internet -> the nearest issue) or a section to scroll to.
+  document.querySelectorAll('#viewHome [data-go], #viewNews [data-go]').forEach((el) => el.addEventListener('click', () => {
     if (window.Sfx) window.Sfx.play('tap');
     setTab(el.dataset.go);
+    if (el.dataset.oid && window.TEApp) setTimeout(() => window.TEApp.selectOutage(el.dataset.oid), 60);
+    if (el.dataset.scroll) setTimeout(() => { const t = $(el.dataset.scroll); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 80);
   }));
-  // Device card: tap to reveal / hide the full device detail.
-  $('hmDev').addEventListener('click', () => {
-    const dd = $('hmDevDetail'); if (!dd) return;
-    dd.hidden = !dd.hidden; $('hmDev').classList.toggle('open', !dd.hidden);
-    if (window.Sfx) window.Sfx.play('tap');
-    if (!dd.hidden) { refreshBattery(); refreshLoc(); refreshDev(); }
-  });
-  if ($('hmList')) $('hmList').addEventListener('click', (e) => {
+  // Detail views (Network, Device) aren't tabs: a way back Home.
+  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); setTab('home'); }));
+  $('hmList').addEventListener('click', (e) => {
     const head = e.target.closest('.grp-head');                  // tap a roll-up summary to expand / collapse it
     if (head) {
       const g = head.closest('.feed-group'); if (!g) return;
@@ -1195,8 +1206,8 @@
     if (li.classList.contains('feed-alert')) { const op = li.classList.toggle('open'); if (op) openAlerts.add(li.dataset.aid); else openAlerts.delete(li.dataset.aid); return; }   // tap an alert for its deeper detail
     if (li.dataset.id && window.TEApp) { setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 50); return; }
   });
-  addEventListener('te-conn', () => { if (tab === 'home') refreshHome(); });
-  addEventListener('te-data', () => { if (tab === 'home') refreshHome(); });
+  addEventListener('te-conn', () => { if (tab === 'news') renderHomeFeed(); });
+  addEventListener('te-data', () => { if (tab === 'news') renderHomeFeed(); });
 
   // ── Home rings: press / hover a ring to see what it means; slide a finger
   // across the rings and it follows to each one. ───────────────────────────
@@ -1244,7 +1255,7 @@
     if (tab === 'home') refreshHome();
     if (tab === 'weather' && window.TEApp && !$('wxCard').classList.contains('other')) window.TEApp.renderForecast();
   });
-  setInterval(() => { if (tab === 'home') refreshHome(); }, 4000);
+  setInterval(() => { if (tab === 'home') refreshHome(); else if (tab === 'news') renderHomeFeed(); }, 4000);
 
   // ── Weather: its own globe (radar, power) under a sheet - folded to the
   // layer switches, or open for the full forecast ──────────────────────────

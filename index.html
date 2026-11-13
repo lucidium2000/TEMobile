@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=180">
-  <link rel="stylesheet" href="css/mobile.css?v=74">
+  <link rel="stylesheet" href="css/mobile.css?v=68">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -284,24 +284,25 @@
           </svg>
           <span class="rg-center"><img class="rg-eye" src="assets/te-eye-center.png" alt=""></span>
         </span>
+        <span class="rg-legend" id="hmRingLegend"></span>
       </span>
     </button>
-    <!-- The flow of data: Device + Connection on top, down to Internet, with
-         SaaS alongside. Four cards; Connection/SaaS open Network for detail. -->
-    <div class="hm-flow">
-      <button class="tile dev" id="hmDev"><span class="t-k">Device</span><span class="t-bat" id="hmBat"><i></i></span><b class="t-v" id="hmDevV">&ndash;</b><span class="t-s" id="hmDevSub"></span></button>
-      <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection</span><span class="conn-ico" id="hmConnIco"></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
-      <button class="tile" data-go="tests" id="hmSvc"><span class="t-k">SaaS</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
-      <button class="tile int" data-go="globe" id="hmInt"><span class="t-k">Internet</span><span class="int-bars" id="hmIntBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmIntV">&ndash;</b><span class="t-s" id="hmIntSub"></span></button>
-      <!-- The journey: Device -> Connection -> Internet -> SaaS. A packet runs
-           each link in turn and lights the card it reaches. -->
-      <span class="flow-link fl1" aria-hidden="true"><i></i></span>
-      <span class="flow-link fl2" aria-hidden="true"><i></i></span>
-      <span class="flow-link fl3" aria-hidden="true"><i></i></span>
+    <!-- Home = the full flow at a glance, clockwise: Device -> Connection ->
+         Internet -> SaaS. Each card opens its detail. -->
+    <div class="hm-grid hm-flow">
+      <button class="tile tile-dev" data-go="phone" id="hmDev"><span class="t-k">Device</span><span class="t-bat" id="hmBat" hidden><i></i></span><b class="t-v" id="hmDevV">&ndash;</b><span class="t-s" id="hmDevSub"></span><span class="t-s t-s2" id="hmDevBatTxt"></span></button>
+      <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection<i class="t-ico" id="hmNetIco"></i></span><span class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
+      <button class="tile" data-go="tests" data-scroll="services" id="hmSvc"><span class="t-k">SaaS</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
+      <button class="tile" data-go="globe" id="hmInet"><span class="t-k">Internet</span><span class="bars" id="hmInetBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmInetV">&ndash;</b><span class="t-s" id="hmInetSub"></span></button>
     </div>
-    <section class="hm-devdetail" id="hmDevDetail" hidden>
-      <!-- Full device / battery / location detail (moved in by mobile.js). -->
-      <div id="hmDeviceExtra"></div>
+  </main>
+
+  <!-- News: active outage headlines first, then network & security news. -->
+  <main class="view" id="viewNews" hidden>
+    <header class="view-head"><h2>News</h2><p>Outages now, plus network &amp; security headlines</p></header>
+    <section class="hm-latest">
+      <button class="hm-label" data-go="globe"><span id="hmFeedLabel">Happening now</span><em>See all</em></button>
+      <ol class="h-list" id="hmList"></ol>
     </section>
   </main>
 
@@ -349,7 +350,7 @@
   </main>
 
   <main class="view" id="viewTests" hidden>
-    <header class="view-head"><h2>Network</h2><p>This phone&rsquo;s connection, live</p></header>
+    <header class="view-head"><button class="view-back" type="button" data-back>&lsaquo; Home</button><h2>Network</h2><p>This phone&rsquo;s connection, live</p></header>
     <section class="m-card nc" id="ncCard">
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0"/><circle cx="12" cy="19.5" r="1"/></svg><span class="sec-name">Your connection</span><span class="nc-live" id="ncLive"><i></i>Live</span></h2>
       <div class="nc-top">
@@ -387,8 +388,8 @@
   </main>
 
   <main class="view" id="viewPhone" hidden>
-    <header class="view-head"><h2>This phone</h2><p>What the browser can see</p></header>
-    <section class="m-card sec" id="phNet">
+    <header class="view-head"><button class="view-back" type="button" data-back>&lsaquo; Home</button><h2>Device</h2><p>This phone, as the browser sees it</p></header>
+    <section class="m-card sec" id="phNet" hidden>
       <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg><span class="sec-name">Connection</span></h2>
       <div class="sig"><div class="bars" id="phBars"><i></i><i></i><i></i><i></i><i></i></div><div><b id="phQual">&ndash;</b><span id="phType"></span></div></div>
       <div class="nc-tl ph-tl"><div class="ph-live"><span><i></i>Live &middot; every second</span><b id="phLiveMs">&ndash;</b></div><div class="nc-spark" id="phSpark"></div><div class="nc-axis"><span id="phT0"></span><span>now</span></div><div class="ph-lstats" id="phLStats"></div></div>
@@ -421,11 +422,6 @@
   <main class="view" id="viewTenant" hidden>
     <header class="view-head"><h2>ThousandEyes</h2><p>Your tenant, live</p></header>
     <div id="tnRoot"></div>
-  </main>
-
-  <main class="view" id="viewNews" hidden>
-    <header class="view-head"><h2>News</h2><p>Network &amp; security headlines</p></header>
-    <ol class="h-list" id="newsList"></ol>
   </main>
 
   <nav class="tabbar" id="tabbar" aria-label="Sections">
@@ -464,7 +460,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=60"></script>
+  <script src="js/mobile.js?v=56"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

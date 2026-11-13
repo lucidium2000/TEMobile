@@ -293,7 +293,7 @@ body { background: #03050a; }
 .hm-hero[data-state="warn"] { --c: #fbbf24; --c2: 251, 191, 36; }
 .hm-hero[data-state="bad"] { --c: var(--orange); --c2: 241, 94, 34; }
 .hero-row { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-.rings { position: relative; width: 236px; height: 236px; display: block; flex: none; margin: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
+.rings { position: relative; width: 206px; height: 206px; display: block; flex: none; margin: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
 .rings::before { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: radial-gradient(circle, rgba(var(--c2), .3), transparent 70%); animation: ringglow 3.2s ease-in-out infinite; }
 @keyframes ringglow { 50% { opacity: .4; transform: scale(.9); } }
 .rings-svg { position: relative; width: 100%; height: 100%; display: block; }
@@ -303,7 +303,7 @@ body { background: #03050a; }
 .rings.spin .rg-val circle { animation: rgOnce var(--rg-dur, 3s) cubic-bezier(.33, 0, .15, 1) 1 both; }
 @keyframes rgOnce { from { transform: rotate(calc(var(--rg-base, 225deg) - 360deg)); } to { transform: rotate(var(--rg-base, 225deg)); } }
 .rg.r-dev   { stroke: #7c3aed; filter: drop-shadow(0 0 5px rgba(124, 58, 237, .8)); }   /* This Device - violet */
-.rg.r-net   { stroke: #78be20; filter: drop-shadow(0 0 5px rgba(120, 190, 32, .6)); }
+.rg.r-net   { stroke: #34d399; filter: drop-shadow(0 0 5px rgba(52, 211, 153, .6)); }
 .rg.r-iinet { stroke: #f15e22; filter: drop-shadow(0 0 6px rgba(241, 94, 34, .7)); }   /* Internet / network - orange */
 .rg.r-app   { stroke: #00bceb; filter: drop-shadow(0 0 5px rgba(0, 188, 235, .65)); }   /* Apps - Cisco blue */
 .rg-center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; pointer-events: none; }
@@ -324,44 +324,6 @@ body { background: #03050a; }
 .hero-s { margin-top: 4px; max-width: 30ch; font-size: .82em; color: var(--ink-3); }
 
 .hm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
-/* Home data-flow: the journey Device -> Connection -> Internet -> SaaS
-   (clockwise round the 2x2). One steady colour: a solid link between each pair
-   of cards with a bright packet that runs them in turn on a 3s loop. */
-.hm-flow { --g: 16px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: var(--g); margin-bottom: 18px; position: relative; }
-.hm-flow .tile { min-height: 152px; }
-.hm-flow #hmDev { --nc: 124, 58, 237; }
-.hm-flow #hmNet { --nc: 120, 190, 32; }
-.hm-flow #hmInt { --nc: 241, 94, 34; }
-.hm-flow #hmSvc { --nc: 0, 188, 235; }
-.hm-flow .t-k::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; vertical-align: 1px; background: rgb(var(--nc)); }
-.flow-link { position: absolute; z-index: 3; pointer-events: none; border-radius: 2px; background: rgba(22, 189, 235, .45); box-shadow: 0 0 6px rgba(22, 189, 235, .35); overflow: hidden; }
-.flow-link i { position: absolute; border-radius: 2px; opacity: 0; background: #fff; box-shadow: 0 0 8px 2px rgba(22, 189, 235, .95); }
-/* Device -> Connection: top row, left to right */
-.fl1 { height: 3px; width: var(--g); left: calc(50% - var(--g) / 2); top: calc((100% - var(--g)) / 4 - 1.5px); }
-.fl1 i { top: 0; left: 0; width: 7px; height: 3px; animation: pktR 3s linear infinite 0s; }
-/* Connection -> Internet: right column, top to bottom */
-.fl2 { width: 3px; height: var(--g); top: calc(50% - var(--g) / 2); left: calc((100% - var(--g)) * 3 / 4 + var(--g) - 1.5px); }
-.fl2 i { left: 0; top: 0; width: 3px; height: 7px; animation: pktD 3s linear infinite 1s; }
-/* Internet -> SaaS: bottom row, right to left */
-.fl3 { height: 3px; width: var(--g); left: calc(50% - var(--g) / 2); top: calc((100% - var(--g)) * 3 / 4 + var(--g) - 1.5px); }
-.fl3 i { top: 0; right: 0; width: 7px; height: 3px; animation: pktL 3s linear infinite 2s; }
-@keyframes pktR { 0% { left: -7px; opacity: 1; } 30% { left: 100%; opacity: 1; } 31%, 100% { left: 100%; opacity: 0; } }
-@keyframes pktD { 0% { top: -7px; opacity: 1; } 30% { top: 100%; opacity: 1; } 31%, 100% { top: 100%; opacity: 0; } }
-@keyframes pktL { 0% { right: -7px; opacity: 1; } 30% { right: 100%; opacity: 1; } 31%, 100% { right: 100%; opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .flow-link i { animation: none; } }
-/* Device card: a name, not a number - smaller, two lines max. */
-.tile.dev .t-v { font-size: 1.22em; line-height: 1.18; letter-spacing: -.01em; margin-top: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.tile .conn-ico { color: var(--cyan); display: inline-flex; }
-.tile.int .t-v small { color: var(--ink-3); }
-.int-bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 20px; }
-.int-bars i { width: 4px; border-radius: 2px; background: rgba(255, 255, 255, .18); }
-.int-bars i:nth-child(1) { height: 32%; } .int-bars i:nth-child(2) { height: 49%; } .int-bars i:nth-child(3) { height: 66%; } .int-bars i:nth-child(4) { height: 83%; } .int-bars i:nth-child(5) { height: 100%; }
-.int-bars.q5 i:nth-child(-n+5), .int-bars.q4 i:nth-child(-n+4) { background: var(--ok); }
-.int-bars.q3 i:nth-child(-n+3), .int-bars.q2 i:nth-child(-n+2) { background: var(--warn); }
-.int-bars.q1 i:nth-child(-n+1) { background: var(--bad); }
-.hm-dev.open, .tile.dev.open { outline: 1px solid rgba(255, 255, 255, .18); }
-.hm-devdetail { margin: 0 0 18px; }
-.hm-devdetail .m-card { margin-bottom: 10px; }
 .tile {
   position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "k i" "v v" "s s"; align-items: center;
   min-height: 128px; padding: 14px 14px 13px; border-radius: 22px; text-align: left; color: inherit; overflow: hidden;
@@ -382,6 +344,21 @@ body { background: #03050a; }
 .t-dots .svc-ok, .t-dots .svc-info { background: var(--ok); box-shadow: 0 0 6px rgba(52, 211, 153, .7); }
 .t-dots .svc-warn { background: var(--warn); } .t-dots .svc-bad { background: var(--bad); box-shadow: 0 0 6px rgba(244, 63, 94, .7); }
 #hmSvc[data-state="bad"] .t-s { color: var(--bad); }
+/* Home flow cards: Device -> Connection -> Internet -> SaaS */
+.hm-flow { margin-bottom: 14px; }
+.hm-flow .t-s { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+.tile-dev { grid-template-areas: "k i" "v v" "s s" "b b"; }
+.tile-dev .t-v { font-size: 1.3em; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tile .t-s2 { grid-area: b; margin-top: 2px; color: var(--ink-2); font-weight: 600; }
+.t-bat.chg i { background: var(--cyan, #16bdeb); box-shadow: 0 0 6px rgba(22, 189, 235, .6); }
+.t-k .t-ico { display: inline-flex; vertical-align: -2px; margin-left: 6px; color: var(--cyan, #16bdeb); }
+.t-k .t-ico svg { width: 13px; height: 13px; }
+.t-k .t-ico:empty { display: none; }
+#hmInet .t-v { font-size: 1.9em; }
+#hmInet[data-state="bad"] .t-s { color: var(--bad); }
+#hmInet[data-state="warn"] .t-s { color: var(--warn); }
+/* Detail views reached from a card (Network, Device): back to Home */
+.view-back { display: inline-flex; align-items: center; margin: 0 0 6px -2px; padding: .3em .75em .3em .55em; border-radius: 99px; border: 1px solid var(--hair); background: rgba(255, 255, 255, .05); color: var(--cyan, #16bdeb); font-weight: 700; font-size: .8em; cursor: pointer; }
 .t-bat { position: relative; width: 30px; height: 15px; border: 1.5px solid rgba(226, 232, 240, .5); border-radius: 4px; padding: 1.5px; }
 .t-bat::after { content: ""; position: absolute; right: -4px; top: 4px; width: 2px; height: 5px; border-radius: 0 2px 2px 0; background: rgba(226, 232, 240, .5); }
 .t-bat i { display: block; height: 100%; border-radius: 2px; background: var(--ok); }
@@ -726,7 +703,7 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .hm-svcc > .sec-title { margin-bottom: 6px; padding-top: .5em; padding-bottom: .5em; }
 .svcc-btn { margin-left: auto; padding: .28em .7em; border-radius: 99px; border: 1px solid var(--hair); background: none; color: var(--cyan); font-weight: 700; font-size: .82em; letter-spacing: 0; text-transform: none; cursor: pointer; }
 .svcc-grid { position: relative; height: 54px; margin: 0 0 8px; border-radius: 12px; background: rgba(0, 0, 0, .28); border: 1px solid var(--hair); overflow: hidden; }
-.svcc-svg { position: absolute; inset: 4px 7px 11px; width: calc(100% - 10px); height: calc(100% - 15px); }
+.svcc-svg { position: absolute; inset: 4px 7px 11px; width: calc(100% - 14px); height: calc(100% - 15px); }
 /* Tighter This Device overview cards */
 #phNet { padding-top: 2px; padding-bottom: 10px; }
 #phNet > .sec-title { margin-bottom: 6px; padding-top: .5em; padding-bottom: .5em; }
