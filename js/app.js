@@ -4261,6 +4261,7 @@
       BOUNCE.ph = 1;
     },
   };
+  let lastLift = 0;
   function onDrop(e) {
     const a = e.acceleration, g = e.accelerationIncludingGravity;
     if (!a || !g || a.x == null || g.x == null) return;
@@ -4269,7 +4270,11 @@
     const ux = g.x - a.x, uy = g.y - a.y, uz = g.z - a.z, um = Math.hypot(ux, uy, uz);
     if (um < 6) return;                                  // free fall or nonsense: no reliable "up"
     const up = (a.x * ux + a.y * uy + a.z * uz) / um;    // m/s^2 along up; negative = pushed down
-    if (up < -3) window.Drop.kick((-up - 2) / 5);    // a firm push (half the old -6 m/s^2)
+    // A lift is an upward surge, then a downward one as it stops - that stop
+    // must not count as a push. Only a downward surge that comes first does.
+    const t = performance.now();
+    if (up > 2.5) lastLift = t;
+    if (up < -3 && t - lastLift > 450) window.Drop.kick((-up - 2) / 5);    // a firm push down
   }
   if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
   function stepBounce(dt) {
