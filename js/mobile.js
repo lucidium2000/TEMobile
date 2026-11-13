@@ -61,7 +61,9 @@
     return act || homeNews.some((n) => (n.kind === 'outage' || n.kind === 'status') && n.t >= hr);
   }
   function tabSounds(name) {
+    if (window.Haptic) window.Haptic.tap();   // a tick on every screen change
     if (!window.Sfx) return;
+    if (name === 'home') sfx('powerUp');
     if (name === 'globe' || name === 'tenant') { sfx('drawerOpen'); sfx('settle', 420); }
     if (name === 'weather') { sfx('radar'); sfx('settle', 420); }
     let hot = false; try { hot = (name === 'globe' || name === 'news') && somethingActive(name); } catch (_) { /* news not loaded yet */ }

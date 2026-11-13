@@ -14,7 +14,7 @@
   const qs = new URLSearchParams(location.search);
   const MUTED = qs.get('sound') === '0';
   const VOLUME = Math.max(0, Math.min(2, parseFloat(qs.get('volume')) || 1));
-  const MASTER = 0.18 * VOLUME;          // keep it tasteful: everything sits low
+  const MASTER = 0.09 * VOLUME;          // keep it tasteful: everything sits low (half of the old 0.18)
 
   let ctx = null, master = null;
   function unlock() {
@@ -45,7 +45,13 @@
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(v, t0 + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g).connect(master);
+    let out = osc.connect(g);
+    if (o.lp) {   // optional low-pass, optionally opening up over the tone
+      const f = ctx.createBiquadFilter(); f.type = 'lowpass';
+      f.frequency.setValueAtTime(o.lp, t0); if (o.lp2) f.frequency.exponentialRampToValueAtTime(o.lp2, t0 + dur);
+      out = out.connect(f);
+    }
+    out.connect(master);
     osc.start(t0); osc.stop(t0 + dur + 0.02);
   }
 
@@ -98,6 +104,7 @@
     settle:   () => { tone(130, 0.12, { to: 60, vol: 0.7 }); noise(0.015, 0.5, { f: 3000, q: 4, attack: 0.001 }); },
     spin:     () => noise(0.45, 0.7, { type: 'lowpass', f: 350, to: 900, attack: 0.18 }),
     radar:    () => echoTone(1500, 0.6, 0.36, 0.18, 0.35),
+    powerUp:  () => { tone(80, 0.6, { to: 880, vol: 0.18, type: 'sawtooth', lp: 300, lp2: 6000, attack: 0.05 }); tone(1760, 0.4, { vol: 0.16, delay: 0.6 }); },   // #27
     warn:     () => { tone(440, 0.12, { vol: 0.16, type: 'square' }); tone(440, 0.12, { vol: 0.16, type: 'square', delay: 0.2 }); },
     tap:      () => tone(1800, 0.035, { vol: 0.35 }),
     on:       () => { tone(660, 0.09, { vol: 0.5 }); tone(990, 0.12, { vol: 0.5, delay: 0.07 }); },
@@ -135,4 +142,35 @@
     },
     get muted() { return MUTED; },
   };
+
+  /* Haptics: a light tick on button presses and screen changes.
+   * Android: navigator.vibrate. iPhone (iOS 18+): Safari has no vibrate API,
+   * but toggling an <input type=checkbox switch> gives the system's switch
+   * haptic, so a hidden one is clicked from inside the tap. ?haptics=0 = off. */
+  const NO_HAPTICS = qs.get('haptics') === '0';
+  let hLabel = null, hLast = 0;
+  function hapticEl() {
+    if (hLabel || !document.body) return hLabel;
+    hLabel = document.createElement('label');
+    hLabel.setAttribute('aria-hidden', 'true');
+    hLabel.style.cssText = 'position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+    const i = document.createElement('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1;
+    hLabel.appendChild(i); document.body.appendChild(hLabel);
+    return hLabel;
+  }
+  window.Haptic = {
+    tap() {
+      if (NO_HAPTICS) return;
+      const t = performance.now(); if (t - hLast < 70) return; hLast = t;
+      try {
+        if (navigator.vibrate) { navigator.vibrate(8); return; }
+        const l = hapticEl(); if (l) l.click();
+      } catch (_) { /* */ }
+    },
+  };
+  // Any button-like press ticks (the hidden switch's own clicks are skipped).
+  document.addEventListener('click', (e) => {
+    if (hLabel && hLabel.contains(e.target)) return;
+    if (e.target.closest && e.target.closest('button, a[href], [role="button"], [data-go], [data-tab], .tile, li[data-url], label, select, input[type="checkbox"]')) window.Haptic.tap();
+  }, true);
 })();

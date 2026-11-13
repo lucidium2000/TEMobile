@@ -2741,6 +2741,29 @@
     return degPerPx;
   }
 
+  /** Weather: a slow flight to the viewer's location, zoomed so a 1,000-mile
+   *  radius around them just fits the open globe area (header to drawer). */
+  const WX_RADIUS_RAD = 1000 / 3959;
+  function wxFocusHome() {
+    const r = S.room;
+    if (!r || !isFinite(r.lat) || !isFinite(r.lon) || !WXV()) return;
+    const L = layout(), ga = S.globeArea;
+    const half = 0.92 * Math.min(window.innerWidth / 2, ga ? (ga.bottom - ga.top) / 2 : window.innerHeight / 4);
+    // The camera is a perspective one, so the near surface is magnified:
+    // project a point 1,000 miles out through it and search for the zoom
+    // that puts it at the edge of the open area.
+    const D = SCENE.eye * S.w, zf = SCENE.depth * S.w, th = WX_RADIUS_RAD;
+    const reach = (zoom) => { const R = L.base * zoom, sinA = Math.sin(Math.atan(R / D)), Rw = sinA * (D + zf) / (1 - sinA);
+      return Rw * Math.sin(th) * D / (D + zf + Rw * (1 - Math.cos(th))); };
+    let lo = ZOOM_MIN, hi = ZOOM_MAX;
+    for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (reach(m) < half) lo = m; else hi = m; }
+    const z = clampZoom(lo);
+    const from = [view.lon, view.lat], to = [r.lon, clampLat(r.lat)];
+    S.spin = null; S.follow = null;
+    S.flight = { interp: d3.geoInterpolate(from, to), z0: view.zoom, z1: z, lift: Math.min(0.3, d3.geoDistance(from, to) / Math.PI * 0.5), t0: now(), dur: 3200 };
+    S.vel.lon = S.vel.lat = 0;
+  }
+
   /** Animated zoom, optionally re-centring on a lon/lat. Reuses the flight path. */
   function zoomTo(z, centre) {
     const from = [view.lon, view.lat];
@@ -4127,6 +4150,8 @@
       S.viewMode = mode;
       if (mode !== 'globe') { if (S.touring) setTour(false); closePowerCard(); }
       if (mode === 'home' && S.getRadarMode && S.getRadarMode() === 'off' && S.setRadarMode) S.setRadarMode('loop');
+      // Weather: drift in slowly to the viewer, framing ~1,000 miles around them.
+      if (mode === 'weather') requestAnimationFrame(() => requestAnimationFrame(wxFocusHome));   // after the sheet sets its height
     },
     /** Tenant: the alert locations to pin [{key, label, lat, lon, sev, count, links:[{lon,lat}]}]. */
     setTenantPoints(list) { S.tnPoints = (list || []).filter((p) => isFinite(p.lat) && isFinite(p.lon)).map((p) => ({ ...p, v: unitVec(p.lon, p.lat) })); if (S.tnSel && !S.tnPoints.some((p) => p.key === S.tnSel)) S.tnSel = null; },
