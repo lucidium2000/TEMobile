@@ -919,6 +919,9 @@
       ctx.restore();
     }
 
+    // On a phone the globe is small, so shrink the glowing markers - the big
+    // halos otherwise swamp the map and hide where the outage actually is.
+    const mk = (typeof innerWidth !== 'undefined' && innerWidth <= 900) ? 0.56 : 1;
     // Older first, so the freshest outages paint on top (order fixed at ingest).
     for (const o of S.drawOrder) {
       if (!outageVisible(o)) continue;
@@ -932,7 +935,7 @@
       for (const loc of o.locations) {
         const p = proj.point(loc.lon, loc.lat, loc.v);
         if (!p) continue;
-        const r = (3.2 + Math.sqrt(loc.n) * 1.6) * k * (isSel ? 1.35 : 1);
+        const r = (3.2 + Math.sqrt(loc.n) * 1.6) * k * (isSel ? 1.35 : 1) * mk;
 
         // Pulse rings on active and selected outages.
         if (o.active || isSel) {
@@ -942,7 +945,7 @@
             // Positive modulo: a negative longitude offset must not give a negative radius.
             const t = ((((now + i * period / 2 + (loc.lon * 37 | 0)) % period) + period) % period) / period;
             ctx.strokeStyle = `rgba(${RGB[o.kind]},${((1 - t) * 0.7 * dim).toFixed(3)})`;
-            ctx.beginPath(); ctx.arc(p[0], p[1], r + t * 26 * k, 0, 2 * Math.PI); ctx.stroke();
+            ctx.beginPath(); ctx.arc(p[0], p[1], r + t * 26 * k * mk, 0, 2 * Math.PI); ctx.stroke();
           }
         }
         // Glow + core + highlight: one stamp.

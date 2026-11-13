@@ -210,14 +210,18 @@ body.sheet-min .panel .list, body.sheet-min .panel .te-alerts { display: none; }
 .card-locs .loc-more { color: var(--cyan); cursor: pointer; font-weight: 700; }
 .card-locs .loc-more::before { display: none; }
 /* Flow arrows: edge affordances that follow the traffic flow between tabs */
-.flow-arrow { position: fixed; top: 47%; transform: translateY(-50%); z-index: 105; width: 36px; height: 62px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(22, 189, 235, .5); color: var(--cyan, #16bdeb); background: rgba(12, 22, 38, .82); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .5), 0 0 16px rgba(22, 189, 235, .22); }
-.flow-prev { left: 0; border-left: 0; border-radius: 0 16px 16px 0; }
-.flow-next { right: 0; border-right: 0; border-radius: 16px 0 0 16px; }
+/* Minimal chevron hints - no box, just a small indicator you can swipe */
+.flow-arrow { position: fixed; top: 50%; transform: translateY(-50%); z-index: 105; width: 22px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--cyan, #16bdeb); opacity: .5; cursor: pointer; -webkit-tap-highlight-color: transparent; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .7)); }
+.flow-arrow svg { width: 20px; height: 20px; }
+.flow-prev { left: 3px; }
+.flow-next { right: 3px; }
 .flow-arrow[hidden] { display: none; }
-.flow-arrow:active { background: rgba(22, 189, 235, .28); color: #fff; }
-.flow-next:not([hidden]) { animation: flowBeckon 2.4s ease-in-out infinite; }
-@keyframes flowBeckon { 0%, 100% { transform: translateY(-50%); } 50% { transform: translateY(-50%) translateX(-4px); } }
-@media (prefers-reduced-motion: reduce) { .flow-next { animation: none; } }
+.flow-arrow:active { opacity: 1; }
+.flow-prev:not([hidden]) { animation: flowBeckonL 2.6s ease-in-out infinite; }
+.flow-next:not([hidden]) { animation: flowBeckonR 2.6s ease-in-out infinite; }
+@keyframes flowBeckonR { 0%, 100% { transform: translateY(-50%); opacity: .5; } 50% { transform: translateY(-50%) translateX(3px); opacity: .85; } }
+@keyframes flowBeckonL { 0%, 100% { transform: translateY(-50%); opacity: .5; } 50% { transform: translateY(-50%) translateX(-3px); opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .flow-arrow { animation: none; } }
 .sheet-grab { display: block; width: 100%; height: 22px; margin: 0 0 -4px; position: relative; z-index: 2; pointer-events: auto; }
 .sheet-grab::before { content: ""; display: block; width: 44px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: rgba(226, 232, 240, .35); }
 .pwr-wrap .pwr-list { max-height: none !important; overflow: visible !important; }

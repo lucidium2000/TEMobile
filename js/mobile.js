@@ -196,21 +196,27 @@
   }
   $('flowPrev').addEventListener('click', () => goTab(-1));
   $('flowNext').addEventListener('click', () => goTab(1));
-  // Swipe left = next, swipe right = previous. Ignore gestures that begin on the
-  // globe, the outage drawer, a live chart or a form control (they own the drag).
-  let swX = 0, swY = 0, swT = 0, swOk = false;
-  const NOSWIPE = '#globe, #panel, .flow-arrow, .nc-spark, .rn-spark, .sp-graph, .tl-chart, #timeline, canvas, input, textarea, select, [contenteditable]';
-  addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) { swOk = false; return; }
-    const t = e.target;
-    if (t && t.closest && t.closest(NOSWIPE)) { swOk = false; return; }
-    swX = e.clientX; swY = e.clientY; swT = Date.now(); swOk = true;
-  }, { passive: true });
-  addEventListener('pointerup', (e) => {
+  // Swipe left = next, swipe right = previous. Tracks the whole gesture (pointer
+  // and touch), ignoring only the globe, drawer and form controls. A short guard
+  // stops pointer + touch from both firing for one swipe.
+  let swX = 0, swY = 0, swT = 0, swOk = false, swLX = 0, swLY = 0, lastNav = 0;
+  const NOSWIPE = '#globe, #panel, .flow-arrow, input, textarea, select, [contenteditable]';
+  function swStart(x, y, t) { if (t && t.closest && t.closest(NOSWIPE)) { swOk = false; return; } swX = swLX = x; swY = swLY = y; swT = Date.now(); swOk = true; }
+  function swMove(x, y) { if (swOk) { swLX = x; swLY = y; } }
+  function swEnd() {
     if (!swOk) return; swOk = false;
-    const dx = e.clientX - swX, dy = e.clientY - swY;
-    if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy) * 1.7 && Date.now() - swT < 700) goTab(dx < 0 ? 1 : -1);
-  }, { passive: true });
+    const dx = swLX - swX, dy = swLY - swY, dt = Date.now() - swT;
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.25 || dt > 900) return;
+    const now = Date.now(); if (now - lastNav < 500) return; lastNav = now;
+    goTab(dx < 0 ? 1 : -1);
+  }
+  addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button !== 0) { swOk = false; return; } swStart(e.clientX, e.clientY, e.target); }, { passive: true });
+  addEventListener('pointermove', (e) => swMove(e.clientX, e.clientY), { passive: true });
+  addEventListener('pointerup', swEnd, { passive: true });
+  addEventListener('pointercancel', swEnd, { passive: true });
+  addEventListener('touchstart', (e) => { const t = e.touches[0]; if (t) swStart(t.clientX, t.clientY, e.target); }, { passive: true });
+  addEventListener('touchmove', (e) => { const t = e.touches[0]; if (t) swMove(t.clientX, t.clientY); }, { passive: true });
+  addEventListener('touchend', swEnd, { passive: true });
   // A service row opens its path trace - on the globe.
   $('roomNetRows').addEventListener('click', (e) => {
     if (e.target.closest('.svc-edit, .svc-grip') || $('services').classList.contains('editing')) return;
