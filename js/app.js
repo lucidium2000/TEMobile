@@ -67,7 +67,7 @@
   const sfx = (name) => { if (window.Sfx) window.Sfx.play(name); };
   const RGB = { network: '241,94,34', application: '22,189,235', power: '251,191,36' };
   const RAD = Math.PI / 180;
-  const ZOOM_MIN = 0.6, ZOOM_MAX = 8;
+  const ZOOM_MIN = 0.3, ZOOM_MAX = 8;
   const SPIN_RESUME_MS = 12000;
   // Interface zoom (css --ui-zoom): screen pixels -> pixels inside a zoomed element.
   const UIZ = Math.max(0.5, Math.min(1.5, parseFloat(qs.get('ui')) || 1));
@@ -145,7 +145,7 @@
   };
 
   // ── State ────────────────────────────────────────────────────────────────
-  const DEFAULT_ZOOM = Math.max(0.6, Math.min(3, num('zoom', 1.2)));
+  const DEFAULT_ZOOM = Math.max(0.3, Math.min(3, num('zoom', 0.6)));   // half the old 1.2
   const view = { lon: -40, lat: 22, zoom: DEFAULT_ZOOM };   // centre of the visible face
   // Render resolution scale: 1 = full device resolution. Lowered automatically
   // if the device can't keep up (see adaptScale), or fixed with ?scale=.
@@ -1107,7 +1107,7 @@
     const pts = o.locations.map((l) => [l.lon, l.lat]);
     const centre = pts.length > 1 ? d3.geoCentroid({ type: 'MultiPoint', coordinates: pts }) : pts[0];
     const spread = Math.max(0, ...pts.map((p) => d3.geoDistance(p, centre)));
-    const zoom = Math.max(DEFAULT_ZOOM, Math.min(2.6, 1.05 / (spread + 0.32)));
+    const zoom = Math.max(DEFAULT_ZOOM, Math.min(1.3, 0.525 / (spread + 0.32)));   // half the old framing
     return { lon: centre[0], lat: clampLat(centre[1] - 6 / zoom), zoom };   // sit it a touch above centre
   }
 

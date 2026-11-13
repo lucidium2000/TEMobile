@@ -992,6 +992,16 @@
     $('hmClock').textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     $('hmDate').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
     if (!A) return;
+    // Weather here, under the clock.
+    const w = A.weather ? A.weather() : {}, wc = w.now && w.now.current, rmW = A.room && A.room();
+    const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
+    if (wc) {
+      if (A.drawWx) A.drawWx($('hmWxIcon'), wc.weather_code, wc.is_day === 1, 26);
+      $('hmWxT').textContent = Math.round(wc.temperature_2m) + '\u00b0';
+      $('hmWxC').textContent = (WMO[wc.weather_code] || '').replace(/^./, (x) => x.toUpperCase());
+    }
+    $('hmWxP').textContent = (w.brief && w.brief.city) || (rmW && rmW.city) || '';
+    $('hmWx').classList.toggle('alert', !!((w.brief && w.brief.alertInfo) || []).length);
     // Hero: how many outages are active right now.
     const os = A.outages ? A.outages() : [], h = A.windowH ? A.windowH() : 24;
     const act = os.filter((o) => o.active), win = h === 1 ? 'the last hour' : `the last ${h} hours`;

@@ -943,3 +943,21 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .ep-kv > div { display: flex; justify-content: space-between; gap: 12px; padding: .46em 0; border-top: 1px solid var(--hair); }
 .ep-kv dt { color: var(--ink-3); font-size: .82em; }
 .ep-kv dd { margin: 0; font-weight: 600; font-size: .85em; text-align: right; overflow-wrap: anywhere; }
+
+/* ══ Home: header (logo | clock + weather here), then the rings and the four
+   cards centred in the space below. Rings sit above their legend, larger. ══ */
+#viewHome:not([hidden]) { display: flex; flex-direction: column; }
+#viewHome .hm-body { margin-block: auto; }                /* centres; collapses to 0 if it overflows */
+.hm-top { align-items: flex-start; }
+.hm-clock { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.hm-wx { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: right; }
+.hm-wx canvas { width: 26px; height: 26px; flex: none; }
+.hm-top .hm-wx b { font-size: 1.15em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hm-top .hm-wx-txt { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-size: 1em; color: inherit; }
+.hm-wx-txt em { font-style: normal; font-size: .72em; color: var(--ink-2); font-weight: 600; }
+.hm-wx-txt i { font-style: normal; font-size: .66em; color: var(--ink-3); }
+.hm-wx.alert em { color: var(--warn); }
+.rings-hero .hero-row { flex-direction: column; gap: 16px; }
+.rings-hero .rings { width: min(68vw, 290px); height: min(68vw, 290px); }
+.rings-hero .rg-eye { width: 36px; }
+.rings-hero .rg-legend { flex-direction: row; justify-content: center; align-items: flex-start; gap: 34px; }

@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=180">
-  <link rel="stylesheet" href="css/mobile.css?v=71">
+  <link rel="stylesheet" href="css/mobile.css?v=72">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -267,7 +267,8 @@
 
   <!-- ── Mobile: Home (an overview of every tab), Weather, Tests, Phone ── -->
   <main class="view" id="viewHome" hidden>
-    <header class="hm-top"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><p><b id="hmClock"></b><span id="hmDate"></span></p></header>
+    <header class="hm-top"><img class="home-logo" src="assets/te-logo.png" alt="ThousandEyes"><div class="hm-clock"><p><b id="hmClock"></b><span id="hmDate"></span></p><button class="hm-wx" type="button" data-go="weather" id="hmWx" aria-label="Weather here - open the forecast"><canvas id="hmWxIcon" width="26" height="26"></canvas><b id="hmWxT">&ndash;</b><span class="hm-wx-txt"><em id="hmWxC"></em><i id="hmWxP"></i></span></button></div></header>
+    <div class="hm-body">
     <button class="hm-hero rings-hero" data-go="globe" id="hmHero">
       <span class="hero-row">
         <span class="rings" aria-hidden="true">
@@ -294,6 +295,7 @@
       <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection<i class="t-ico" id="hmNetIco"></i></span><span class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span><span class="t-s t-s2" id="hmNetSub2"></span></button>
       <button class="tile" data-go="tests" data-scroll="services" id="hmSvc"><span class="t-k">SaaS</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span><span class="t-s t-s2" id="hmSvcSub2"></span></button>
       <button class="tile" data-go="globe" id="hmInet"><span class="t-k">Global Outages</span><span class="t-glb"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3Z"/></svg></span><b class="t-v" id="hmInetV">&ndash;</b><span class="t-s" id="hmInetSub"></span><span class="t-s t-s2" id="hmInetSub2"></span></button>
+    </div>
     </div>
   </main>
 
@@ -456,11 +458,11 @@
   <script src="js/glglobe.js?v=28"></script>
   <script src="js/glass.js?v=88"></script>
   <script src="js/logos.js?v=1"></script>
-  <script src="js/app.js?v=235"></script>
+  <script src="js/app.js?v=237"></script>
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=58"></script>
+  <script src="js/mobile.js?v=59"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
