@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=180">
-  <link rel="stylesheet" href="css/mobile.css?v=67">
+  <link rel="stylesheet" href="css/mobile.css?v=68">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -294,7 +294,11 @@
       <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection</span><span class="conn-ico" id="hmConnIco"></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
       <button class="tile" data-go="tests" id="hmSvc"><span class="t-k">SaaS</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
       <button class="tile int" data-go="globe" id="hmInt"><span class="t-k">Internet</span><span class="int-bars" id="hmIntBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmIntV">&ndash;</b><span class="t-s" id="hmIntSub"></span></button>
-      <span class="flow-down" aria-hidden="true"><svg viewBox="0 0 12 48" width="12" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="fd-line" d="M6 2v38"/><path class="fd-head" d="M2 36l4 6 4-6"/></svg></span>
+      <!-- The journey: Device -> Connection -> Internet -> SaaS. A packet runs
+           each link in turn and lights the card it reaches. -->
+      <span class="flow-link fl1" aria-hidden="true"><i></i></span>
+      <span class="flow-link fl2" aria-hidden="true"><i></i></span>
+      <span class="flow-link fl3" aria-hidden="true"><i></i></span>
     </div>
     <section class="hm-devdetail" id="hmDevDetail" hidden>
       <!-- Full device / battery / location detail (moved in by mobile.js). -->
