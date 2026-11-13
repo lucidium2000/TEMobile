@@ -744,7 +744,7 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .ph-lstats b small { text-transform: none; font-size: .9em; color: var(--ink-3); margin-left: 1px; }
 
 /* ── iPhone install hint ── */
-.ios-hint { position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabh) + 14px); z-index: 120; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: 20px; background: rgba(10, 16, 28, .82); -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); border: 1px solid rgba(22, 189, 235, .35); box-shadow: 0 10px 40px rgba(0, 0, 0, .55), 0 0 24px rgba(22, 189, 235, .18); opacity: 0; transform: translateY(16px); transition: opacity .3s, transform .3s; }
+.ios-hint { position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 120; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: 20px; background: rgba(10, 16, 28, .82); -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); border: 1px solid rgba(22, 189, 235, .35); box-shadow: 0 10px 40px rgba(0, 0, 0, .55), 0 0 24px rgba(22, 189, 235, .18); opacity: 0; transform: translateY(-16px); transition: opacity .3s, transform .3s; }
 .ios-hint.on { opacity: 1; transform: none; }
 .ios-hint img { flex: none; border-radius: 11px; }
 .ih-txt { flex: 1; min-width: 0; font-size: .82em; line-height: 1.4; color: var(--ink-2); }

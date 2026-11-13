@@ -2086,8 +2086,13 @@
     try { seen = localStorage.getItem('te-m-ioshint') === '1'; } catch (_) { /* */ }
     if (!ios || installed || seen || /[?&]nohint\b/.test(location.search)) return;
     const el = $('iosHint');
-    const close = () => { el.classList.remove('on'); setTimeout(() => { el.hidden = true; }, 300); try { localStorage.setItem('te-m-ioshint', '1'); } catch (_) { /* */ } };
+    const hide = () => { el.classList.remove('on'); setTimeout(() => { el.hidden = true; }, 300); };
+    const close = () => { clearTimeout(autoT); hide(); try { localStorage.setItem('te-m-ioshint', '1'); } catch (_) { /* */ } };
+    let autoT = 0;
     $('iosHintX').addEventListener('click', close);
-    setTimeout(() => { el.hidden = false; requestAnimationFrame(() => el.classList.add('on')); }, 2500);
+    // Untouched, it slides away after 10 s (and shows again next launch);
+    // touching it keeps it up until it's dismissed.
+    el.addEventListener('pointerdown', (e) => { if (!e.target.closest('#iosHintX')) clearTimeout(autoT); });
+    setTimeout(() => { el.hidden = false; requestAnimationFrame(() => el.classList.add('on')); autoT = setTimeout(hide, 10000); }, 2500);
   })();
 })();
