@@ -4275,16 +4275,16 @@
     // while moving down -> bounce, at once. A lift jolts downward too as it
     // stops, but it's still moving UP then, so that never counts.
     const t = performance.now(), dt = dropT ? Math.min(0.1, (t - dropT) / 1000) : 0.016; dropT = t;
-    if (up < -3) {
+    if (up < -1.5) {                                    // half the push it used to take
       // Judged once, as the jolt starts: was the phone already moving up?
-      if (!dropJolt) dropJolt = { ok: dropV < 0.12 && t - lastLift > 250, peak: -up };
+      if (!dropJolt) dropJolt = { ok: dropV < 0.05 && t - lastLift > 500, peak: -up };
       else dropJolt.peak = Math.max(dropJolt.peak, -up);
     } else if (dropJolt) {                                // jolt over: bounce, sized by its peak
-      if (dropJolt.ok) window.Drop.kick((dropJolt.peak - 2) / 5);
+      if (dropJolt.ok) window.Drop.kick((dropJolt.peak - 1) / 2.5);
       dropJolt = null;
     }
-    dropV = dropV * Math.exp(-dt / 1.0) + up * dt;
-    if (up > 3) lastLift = t;
+    dropV = dropV * Math.exp(-dt / 2.0) + up * dt;
+    if (up > 1) lastLift = t;
   }
   if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
   function stepBounce(dt) {
