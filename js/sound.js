@@ -29,6 +29,8 @@
       master.connect(lp).connect(ctx.destination);
     } catch (_) { ctx = null; }
   }
+  // iOS: play as "ambient" so the ring/silent switch mutes these sounds.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch (_) { /* */ }
   ['pointerdown', 'keydown'].forEach((t) => window.addEventListener(t, unlock, { capture: true, passive: true }));
 
   /** One tone: soft attack, exponential release, optional pitch glide. */
@@ -64,7 +66,39 @@
     src.start(t0); src.stop(t0 + dur + 0.02);
   }
 
+  /** Filtered noise with a sweeping cutoff; o: type, f, to, q, attack, delay. */
+  let noiseBuf = null;
+  function noise(dur, vol, o = {}) {
+    if (!ctx) return;
+    const t0 = ctx.currentTime + (o.delay || 0), a = o.attack || 0.01;
+    if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = o.type || 'bandpass'; f.Q.value = o.q || 1;
+    f.frequency.setValueAtTime(o.f || 1000, t0); if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t0 + a + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dur);
+    src.connect(f).connect(g).connect(master);
+    src.start(t0); src.stop(t0 + a + dur + 0.05);
+  }
+  /** A tone through a feedback echo (the radar ping). */
+  function echoTone(freq, dur, vol, time, fb) {
+    if (!ctx) return;
+    const t0 = ctx.currentTime, osc = ctx.createOscillator(), g = ctx.createGain(), d = ctx.createDelay(), k = ctx.createGain();
+    osc.frequency.value = freq; d.delayTime.value = time; k.gain.value = fb;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(master); g.connect(d); d.connect(k).connect(d); d.connect(master);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+    setTimeout(() => { try { d.disconnect(); k.disconnect(); } catch (_) { /* */ } }, 3000);
+  }
+
   const SOUNDS = {
+    // Soundboard picks: #7 whoosh in, #11 drawer settle, #15 globe rotate,
+    // #19 radar ping, #24 warning pulse.
+    drawerOpen: () => noise(0.25, 0.7, { f: 300, to: 3200, q: 1.4, attack: 0.15 }),
+    settle:   () => { tone(130, 0.12, { to: 60, vol: 0.7 }); noise(0.015, 0.5, { f: 3000, q: 4, attack: 0.001 }); },
+    spin:     () => noise(0.45, 0.7, { type: 'lowpass', f: 350, to: 900, attack: 0.18 }),
+    radar:    () => echoTone(1500, 0.6, 0.36, 0.18, 0.35),
+    warn:     () => { tone(440, 0.12, { vol: 0.16, type: 'square' }); tone(440, 0.12, { vol: 0.16, type: 'square', delay: 0.2 }); },
     tap:      () => tone(1800, 0.035, { vol: 0.35 }),
     on:       () => { tone(660, 0.09, { vol: 0.5 }); tone(990, 0.12, { vol: 0.5, delay: 0.07 }); },
     off:      () => { tone(880, 0.09, { vol: 0.45 }); tone(587, 0.12, { vol: 0.45, delay: 0.07 }); },

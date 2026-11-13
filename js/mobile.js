@@ -50,6 +50,23 @@
       morphT = setTimeout(() => { el.classList.remove('morph-in'); line.classList.remove('go'); }, 900);
     }));
   }
+  // Sounds as a tab opens: the drawer whooshes up and settles (Weather pings
+  // its radar instead of the whoosh); Outages and News pulse a warning when
+  // something is happening now.
+  const sfx = (n, ms) => { if (!window.Sfx) return; if (ms) setTimeout(() => window.Sfx.play(n), ms); else window.Sfx.play(n); };
+  function somethingActive(name) {
+    const A = window.TEApp, act = A && A.outages ? A.outages().some((o) => o.active) : false;
+    if (name === 'globe') return act;
+    const hr = Date.now() - 3600e3;
+    return act || homeNews.some((n) => (n.kind === 'outage' || n.kind === 'status') && n.t >= hr);
+  }
+  function tabSounds(name) {
+    if (!window.Sfx) return;
+    if (name === 'globe' || name === 'tenant') { sfx('drawerOpen'); sfx('settle', 420); }
+    if (name === 'weather') { sfx('radar'); sfx('settle', 420); }
+    let hot = false; try { hot = (name === 'globe' || name === 'news') && somethingActive(name); } catch (_) { /* news not loaded yet */ }
+    if (hot) sfx('warn', name === 'globe' ? 620 : 150);
+  }
   function setTab(name, fromPop) {
     // Weather again (Show radar, a county): fold the sheet to show its globe.
     if (name === 'weather' && tab === 'weather') { foldWx(true); return; }
@@ -60,6 +77,7 @@
     const prevTab = tab;
     tab = name;
     if (prevTab !== name && MORPH_TABS.includes(prevTab) && MORPH_TABS.includes(name)) morphIn(name);
+    if (prevTab !== name) tabSounds(name);
     document.body.dataset.tab = name;
     for (const [k, v] of Object.entries(views)) v.hidden = k !== name;
     document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
@@ -1153,8 +1171,10 @@
       void panel.offsetWidth;
       panel.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
       panel.style.transform = `translateY(${maxPx - to}px)`; visH = to;
+      if (to > fromH + 30) sfx('drawerOpen');
       clearTimeout(settleT);
       settleT = setTimeout(() => {
+        if (Math.abs(to - fromH) > 8) sfx('settle');
         panel.style.transition = 'none'; panel.style.transform = '';
         applyH(to, false);
         try { localStorage.setItem('te-m-sheet', name); } catch (_) { /* */ }
@@ -1220,7 +1240,7 @@
     // A drag shouldn't also count as a tap on whatever it started on.
     panel.addEventListener('click', (e) => { if (eatClick) { e.stopPropagation(); e.preventDefault(); } }, true);
     // Tap the grab toggles collapsed <-> half.
-    grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min'); });
+    grab.addEventListener('click', () => { snapTo(document.body.classList.contains('sheet-min') ? 'mid' : 'min'); });
     // Selecting an outage: the drawer sits half up (opening it if collapsed,
     // leaving it if pulled taller) with the detail card scrolled to the top.
     list.addEventListener('click', (e) => {
@@ -1652,13 +1672,14 @@
       void view.offsetWidth;
       view.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
       view.style.transform = `translateY(${maxPx - to}px)`; vis = to;
+      if (to > fromH + 30) sfx('drawerOpen');
       clearTimeout(settleT);
-      settleT = setTimeout(() => apply(to), dur + 20);
+      settleT = setTimeout(() => { if (Math.abs(to - fromH) > 8) sfx('settle'); apply(to); }, dur + 20);
     }
     function snapTo(name) { const cur = vis || view.offsetHeight; hold(cur); settle(name, cur, 0); }
     const toMid = () => { clearTimeout(settleT); apply(snaps().mid); };
     requestAnimationFrame(toMid);
-    grab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); snapTo(min ? 'mid' : 'min'); });
+    grab.addEventListener('click', () => { snapTo(min ? 'mid' : 'min'); });
     view.addEventListener('click', (e) => {
       if (eat) { e.stopPropagation(); e.preventDefault(); return; }
       if (min && o.openOn && o.openOn(e)) snapTo('mid');

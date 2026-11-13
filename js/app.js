@@ -2692,6 +2692,7 @@
   // Mouse position over the globe, for weather on the city under it.
   canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') S.mouse = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerleave', () => { S.mouse = null; });
+  let spinSfxT = 0;
   canvas.addEventListener('pointermove', (e) => {
     if (!pts.has(e.pointerId)) return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -2713,6 +2714,9 @@
     const degPerPx = rotateByPixels(dx, dy);
     S.vel.lon += ((-dx * degPerPx) / dt - S.vel.lon) * 0.6; S.vel.lat += ((dy * degPerPx) / dt - S.vel.lat) * 0.6;
     capSpin();
+    // A fast turn (not a slow drag) rumbles: smoothed finger speed in px/ms.
+    down.sp = (down.sp || 0) * 0.6 + (Math.hypot(dx, dy) / dt) * 0.4;
+    if (down.sp > 1.1 && now() - spinSfxT > 520) { spinSfxT = now(); sfx('spin'); }
     down.lx = e.clientX; down.ly = e.clientY; down.lt = now();
   });
 
