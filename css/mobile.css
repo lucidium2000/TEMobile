@@ -414,9 +414,9 @@ body { background: #03050a; }
   padding-top: 0; border-radius: 28px 28px 0 0; border-top: 1px solid rgba(255, 255, 255, .1);
   background: linear-gradient(180deg, rgba(10, 14, 22, .9), rgba(4, 6, 11, .97));
   -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
-  box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); transition: height .3s ease;
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, .5); will-change: transform;
 }
-body.wx-min #viewWeather { height: calc(36dvh + var(--tabh)); overflow: hidden; }
+body.wx-min #viewWeather { overflow: hidden; }   /* heights are set by the drawer code */
 .wx-grab { position: sticky; top: 0; z-index: 3; height: 26px; margin: 0 -16px 2px; width: calc(100% + 32px); background: inherit; }
 #viewWeather .view-head { margin: 0 2px 10px; display: flex; align-items: baseline; justify-content: space-between; }
 #viewWeather .view-head h2 { font-size: 1.4em; }
@@ -473,7 +473,6 @@ body[data-tab="weather"] .wxbar { right: auto !important; left: 12px; align-item
 .wx-hours em { min-height: 1em; font-style: normal; font-size: .62em; font-weight: 700; color: #60a5fa; }
 .wx-hours b { font-size: .95em; }
 /* Folded: just the switches and the hours. */
-body.wx-min #viewWeather { height: calc(var(--tabh) + 196px); }
 #viewWeather .view-head { display: none; }
 /* The hours are atop the sheet; the forecast card needn't repeat them. */
 #viewWeather .wxc-hourly { display: none; }

@@ -203,7 +203,7 @@
     if (HOMEV() && S.homeBox) return { cx: S.homeBox.cx, cy: S.homeBox.cy, base };
     // Mobile Outages: centre the globe in the space between the header and the
     // drawer (the phone tells us that space when the drawer is down or half up).
-    if (!panelOnSide && !S.free && !WXV() && !HOMEV() && S.globeArea) return { cx: availW / 2, cy: (S.globeArea.top + S.globeArea.bottom) / 2, base };
+    if (!panelOnSide && !S.free && !HOMEV() && S.globeArea) return { cx: availW / 2, cy: (S.globeArea.top + S.globeArea.bottom) / 2, base };
     return { cx: availW / 2, cy: availH / 2 + (panelOnSide ? -h * 0.02 : 0), base };
   }
 

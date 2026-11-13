@@ -40,8 +40,9 @@
     document.querySelectorAll('#tabbar [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     try { sessionStorage.setItem('te-m-tab', name); } catch (_) { /* */ }
     if (name === 'globe' || name === 'weather' || name === 'home') window.dispatchEvent(new Event('resize'));
-    if (name === 'home') requestAnimationFrame(() => placeHomeGlobe(false));
+    if (name === 'home') requestAnimationFrame(() => { placeHomeGlobe(false); if (homeMeasure) homeMeasure(); });
     if (name === 'globe') requestAnimationFrame(() => { if (sheetToMid) sheetToMid(); reportGlobeArea(); });   // Outages always opens half up
+    if (name === 'weather') requestAnimationFrame(() => { if (wxToMid) wxToMid(); });                          // so does Weather
     if (name === 'phone') refreshPhone();
     if (name === 'tests') refreshTests();
     if (name === 'home') { refreshHome(); spinRings(); }
@@ -208,12 +209,12 @@
   // Outages: centre the globe in the band between the header and the drawer
   // when the drawer is down or half up; left alone when it's pulled all the way up.
   function reportGlobeArea() {
-    if (tab !== 'globe' || !window.TEApp || !window.TEApp.setGlobeArea) return;
-    const panel = $('panel'); if (!panel) return;
+    if ((tab !== 'globe' && tab !== 'weather') || !window.TEApp || !window.TEApp.setGlobeArea) return;
+    const panel = tab === 'weather' ? $('viewWeather') : $('panel'); if (!panel) return;
     const pr = panel.getBoundingClientRect();
     if (pr.height > innerHeight * 0.62) return;                 // all the way up: you can't see the globe anyway
-    const br = document.querySelector('.brand');
-    window.TEApp.setGlobeArea(br ? br.getBoundingClientRect().bottom : 0, pr.top);
+    const br = document.querySelector('.brand'), bb = br ? br.getBoundingClientRect().bottom : 0;
+    window.TEApp.setGlobeArea(bb > 0 ? bb : 56, pr.top);
   }
   // Open a view; for Outages, optionally show just SaaS ('application') or ISPs ('network').
   function goFiltered(name, filter) {
@@ -866,7 +867,7 @@
   // ── Outages: a draggable bottom-sheet drawer. Grab anywhere on the header
   // and slide up / down; it snaps to collapsed / half / tall. The outage detail
   // card lives INSIDE the drawer (not floating over the globe). ──────────────
-  var sheetToMid = null;   // var: setTab can run before this block
+  var sheetToMid = null, wxToMid = null, homeMidPx = () => Math.round(innerHeight * 0.46), homeMeasure = null;   // var: setTab can run before these blocks
   {
     const panel = $('panel'), grab = document.createElement('button');
     grab.className = 'sheet-grab'; grab.setAttribute('aria-label', 'Drag to resize the outage list');
@@ -885,9 +886,9 @@
     // Half up = level with the top of the Home cards, so the globe sits in the
     // same space on Home and Outages. (Measured off the Home screen, even when
     // it's hidden; falls back to 54% of the screen.)
-    let midCache = 0, midVh = 0;
-    function midH() {
-      if (midCache && midVh === vh()) return midCache;
+    let midCache = 0, topCache = 0, topVh = 0;
+    function cardsTop() {                       // top of the Home cards, in px from the screen top
+      if (topCache && topVh === vh()) return topCache;
       const v = $('viewHome'), f = v && v.querySelector('.hm-flow');
       let top = 0;
       if (f) {
@@ -896,13 +897,21 @@
         top = f.getBoundingClientRect().top + v.scrollTop;
         if (hid) { v.hidden = true; v.style.visibility = ''; }
       }
-      const bottom = panel.getBoundingClientRect().bottom || (vh() - 64);
-      const h = Math.round(bottom - top);
-      midVh = vh();
-      midCache = top > 0 && h > 200 && h < vh() * 0.8 ? h : Math.round(vh() * 0.54);
+      topVh = vh();
+      topCache = top > vh() * 0.2 && top < vh() * 0.8 ? Math.round(top) : Math.round(vh() * 0.46);
+      return topCache;
+    }
+    function midH() {
+      if (midCache) return midCache;
+      const bottom = panel.getBoundingClientRect().bottom;
+      if (!bottom) return Math.round(vh() - 64 - cardsTop());   // hidden: a guess, not cached
+      midCache = Math.max(200, Math.round(bottom - cardsTop()));
       return midCache;
     }
+    addEventListener('resize', () => { midCache = 0; });
+    homeMeasure = () => { topCache = 0; midCache = 0; cardsTop(); };   // exact while Home is on screen
     const snaps = () => ({ min: minH(), mid: midH(), max: Math.round(vh() * 0.86) });
+    homeMidPx = () => innerHeight - cardsTop();   // half up, as height from the screen bottom
     let curH = null;
     function applyH(px, animate) {
       const s = snaps();
@@ -1394,17 +1403,102 @@
   const wxView = $('viewWeather'), wxGrab = document.createElement('button');
   wxGrab.className = 'sheet-grab wx-grab'; wxGrab.setAttribute('aria-label', 'Show or hide the forecast');
   wxView.prepend(wxGrab);
-  let wxMin = true;
-  function foldWx(v) {
-    wxMin = v; document.body.classList.toggle('wx-min', v);
-    if (v) wxView.scrollTop = 0;
+  // Three stops like the Outages drawer: folded (switches + hours), half up
+  // (level with the Home cards - where it opens) and tall. It follows the
+  // finger, flicks to the next stop, and moves with a GPU transform.
+  let safeTop = null, wxMin = true, wxH = 0, wxVis = 0, wxMaxPx = 0, wxSettleT = 0;
+  const wxSnaps = () => {
+    const tabh = (($('tabbar') && $('tabbar').offsetHeight) || 64);
+    if (safeTop == null) { const p = document.createElement('div'); p.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top,0px);visibility:hidden'; document.body.appendChild(p); safeTop = p.offsetHeight; p.remove(); }
+    const max = Math.round(innerHeight - 64 - safeTop);
+    const min = Math.min(max, tabh + 196);
+    const homeTop = innerHeight - homeMidPx();   // same top as the Outages drawer at half
+    return { min, mid: Math.max(min + 40, Math.min(max, Math.round(innerHeight - homeTop))), max };
+  };
+  function wxApply(px) {
+    const s = wxSnaps();
+    px = Math.max(s.min, Math.min(s.max, px));
+    wxH = px; wxVis = px;
+    wxView.style.transition = 'none'; wxView.style.transform = '';
+    wxView.style.height = px + 'px';
+    wxMin = px <= s.min + 8;
+    document.body.classList.toggle('wx-min', wxMin);
+    if (wxMin) wxView.scrollTop = 0;
+    document.documentElement.style.setProperty('--wsheet-px', px + 'px');
+    reportGlobeArea();
   }
-  foldWx(true);
+  function wxHold(fromH) {
+    clearTimeout(wxSettleT);
+    wxMaxPx = wxSnaps().max;
+    document.body.classList.remove('wx-min');
+    wxView.style.transition = 'none';
+    wxView.style.height = wxMaxPx + 'px';
+    wxView.style.transform = `translateY(${wxMaxPx - fromH}px)`; wxVis = fromH;
+  }
+  function wxSettle(name, fromH, v) {
+    const to = wxSnaps()[name], dist = Math.abs(to - fromH);
+    const dur = Math.round(Math.max(170, Math.min(420, dist * 0.9 - Math.abs(v || 0) * 60)));
+    void wxView.offsetWidth;
+    wxView.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
+    wxView.style.transform = `translateY(${wxMaxPx - to}px)`; wxVis = to;
+    clearTimeout(wxSettleT);
+    wxSettleT = setTimeout(() => wxApply(to), dur + 20);
+  }
+  function wxSnapTo(name) { const cur = wxVis || wxView.offsetHeight; wxHold(cur); wxSettle(name, cur, 0); }
+  function foldWx(v) { wxSnapTo(v ? 'min' : 'mid'); }
+  wxToMid = () => { clearTimeout(wxSettleT); wxApply(wxSnaps().mid); };
+  requestAnimationFrame(() => wxApply(wxSnaps().mid));
   wxGrab.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); foldWx(!wxMin); });
-  // Scrolling or touching the forecast opens the sheet.
-  wxView.addEventListener('click', (e) => { if (wxMin && !e.target.closest('[data-fips], button') && e.target.closest('#wxCard, #pwrWrap, .wx-hours')) foldWx(false); });
-  const fitWx = () => document.documentElement.style.setProperty('--wsheet-px', wxView.offsetHeight + 'px');
-  if (window.ResizeObserver) new ResizeObserver(fitWx).observe(wxView);
+  // Touching the forecast while folded opens it half up.
+  wxView.addEventListener('click', (e) => { if (wxEat) { e.stopPropagation(); e.preventDefault(); return; } if (wxMin && !e.target.closest('[data-fips], button') && e.target.closest('#wxCard, #pwrWrap, .wx-hours')) foldWx(false); }, true);
+  // Drag anywhere: the grab always moves it; in the content, pushing up grows
+  // it first (then it scrolls), and pulling down at the top shrinks it.
+  let wg = null, wxEat = false;
+  const WX_NOGRAB = 'input, textarea, select';
+  function wgBegin(y, target, x) {
+    if (target && target.closest && target.closest(WX_NOGRAB) && !target.closest('.wx-grab')) { wg = null; return; }
+    const h = wxVis || wxView.offsetHeight;
+    wg = { x0: x || 0, y0: y, last: y, t: performance.now(), v: 0, h0: h, h, grab: !!(target && target.closest && target.closest('.wx-grab')), on: false };
+  }
+  function wgMove(y, ev, x) {
+    if (!wg) return;
+    const dy = wg.y0 - y;
+    if (!wg.on) {
+      if (Math.abs(dy) < 3 && Math.abs((x || 0) - wg.x0) < 3) return;
+      if (Math.abs((x || 0) - wg.x0) > Math.abs(dy)) { wg = null; return; }   // sideways: the hours strip scrolls
+      if (!wg.grab) {
+        const s = wxSnaps();
+        const take = dy > 0 ? wg.h0 < s.max - 4 : wxView.scrollTop <= 0;
+        if (!take) { wg = null; return; }
+      }
+      wg.on = true; wg.y0 = y; wxHold(wg.h0);
+    }
+    if (ev && ev.cancelable) ev.preventDefault();
+    const t = performance.now(), dt = Math.max(1, t - wg.t);
+    wg.v = 0.75 * ((wg.last - y) / dt) + 0.25 * wg.v; wg.last = y; wg.t = t;
+    const s = wxSnaps();
+    let h = wg.h0 + (wg.y0 - y);
+    if (h < s.min) h = s.min - Math.min(70, (s.min - h) * 0.35);
+    if (h > s.max) h = s.max + Math.min(14, (h - s.max) * 0.2);
+    wg.h = h; wxVis = h;
+    wxView.style.transform = `translateY(${wxMaxPx - h}px)`;
+  }
+  function wgEnd() {
+    if (!wg) return;
+    const G = wg; wg = null;
+    if (!G.on) return;
+    wxEat = true; setTimeout(() => { wxEat = false; }, 60);
+    const s = wxSnaps(), land = G.h + G.v * 220;
+    const stops = [['min', s.min], ['mid', s.mid], ['max', s.max]];
+    wxSettle(stops.reduce((a, b) => (Math.abs(b[1] - land) < Math.abs(a[1] - land) ? b : a))[0], G.h, G.v);
+  }
+  wxView.addEventListener('touchstart', (e) => { if (e.touches.length === 1) wgBegin(e.touches[0].clientY, e.target, e.touches[0].clientX); else wg = null; }, { passive: true });
+  wxView.addEventListener('touchmove', (e) => { if (wg && e.touches.length === 1) wgMove(e.touches[0].clientY, e, e.touches[0].clientX); }, { passive: false });
+  wxView.addEventListener('touchend', wgEnd); wxView.addEventListener('touchcancel', wgEnd);
+  wxView.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; wgBegin(e.clientY, e.target, e.clientX); if (wg) wg.mouse = true; });
+  addEventListener('pointermove', (e) => { if (wg && wg.mouse) wgMove(e.clientY, e, e.clientX); });
+  addEventListener('pointerup', () => { if (wg && wg.mouse) wgEnd(); });
+  addEventListener('resize', () => { if (tab === 'weather' && !wg) wxApply(wxSnaps()[wxMin ? 'min' : wxH >= wxSnaps().max - 4 ? 'max' : 'mid']); });
 
   let wxOpened = false;
   function syncLayers() {
