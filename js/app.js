@@ -4234,8 +4234,12 @@
    * size. iOS needs permission from a tap (asked with the tilt one).
    * ?drop=0 turns it off; ?drop=<0.5..2> scales it. */
   const DROP_K = qs.get('drop') === '0' || !GYRO_K ? 0 : Math.max(0.3, Math.min(2.5, parseFloat(qs.get('drop')) || 1));
-  const BOUNCE = { x: 0, v: 0, lastKick: 0 };
-  const DROP_W = 2 * Math.PI * 1.5, DROP_Z = 0.25;      // ~1.5 Hz, light damping: away, closer, home
+  // Tennis-ball model, in log-size units (x < 0 = farther away): thrown away
+  // under gravity, a hard bounce off the "ground", flies up past where it
+  // started (closer), then eases back home. Bigger push = deeper and higher.
+  const BOUNCE = { x: 0, v: 0, ph: 0, G: 0, D: 0, vb: 0, lastKick: 0 };
+  const DROP_FALL = 0.5, DROP_RISE = 0.75, DROP_HOME = 6.5;   // s to the ground, s up to the peak, settle rate
+  const DROP_DIR = qs.get('dropdir') === '-1' ? -1 : 1;      // ?dropdir=-1 flips it (comes at you first)
   window.Drop = {
     on: false,
     ask() {
@@ -4247,9 +4251,14 @@
     listen() { if (this.on) return; this.on = true; addEventListener('devicemotion', onDrop); },
     kick(strength) {   // also handy for testing: TEApp.drop(1)
       const t = performance.now();
-      if (t - BOUNCE.lastKick < 900 || S.dragging) return;
+      if (BOUNCE.ph || t - BOUNCE.lastKick < 900 || S.dragging) return;
       BOUNCE.lastKick = t;
-      BOUNCE.v -= 15 * Math.max(0.25, Math.min(1, strength)) * DROP_K;  // log-size per second (5x the first try)
+      const k = Math.max(0.3, Math.min(1, strength)) * DROP_K;
+      const D = 1.9 * k, C = 0.7 * k;                    // depth (to ~15% size) and how far past home it comes (~2x)
+      const G = 2 * (D + C) / (DROP_RISE * DROP_RISE);    // gravity that makes the rise take DROP_RISE
+      BOUNCE.G = G; BOUNCE.D = D; BOUNCE.vb = G * DROP_RISE;
+      BOUNCE.x = 0; BOUNCE.v = -(D - 0.5 * G * DROP_FALL * DROP_FALL) / DROP_FALL;   // thrown: reaches the ground in DROP_FALL
+      BOUNCE.ph = 1;
     },
   };
   function onDrop(e) {
@@ -4264,15 +4273,22 @@
   }
   if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
   function stepBounce(dt) {
-    if (!BOUNCE.x && !BOUNCE.v) return;
-    const h = Math.min(dt, 40) / 1000;
-    for (let i = 0; i < 4; i++) {   // small sub-steps keep the spring stable
-      const s4 = h / 4, acc = -DROP_W * DROP_W * BOUNCE.x - 2 * DROP_Z * DROP_W * BOUNCE.v;
-      BOUNCE.v += acc * s4; BOUNCE.x += BOUNCE.v * s4;
+    const B = BOUNCE; if (!B.ph) return;
+    const n = 6, h = Math.min(dt, 50) / 1000 / n;
+    for (let i = 0; i < n && B.ph; i++) {
+      if (B.ph === 1) {            // falling away, speeding up
+        B.v -= B.G * h; B.x += B.v * h;
+        if (B.x <= -B.D) { B.x = -B.D; B.v = B.vb; B.ph = 2; }   // hits the ground: bounces
+      } else if (B.ph === 2) {     // flying back up, slowing; passes home
+        B.v -= B.G * h; B.x += B.v * h;
+        if (B.v <= 0) B.ph = 3;                                  // the peak, closest to you
+      } else {                     // eases back home
+        B.v += (-DROP_HOME * DROP_HOME * B.x - 2 * DROP_HOME * B.v) * h; B.x += B.v * h;
+        if (Math.abs(B.x) < 0.002 && Math.abs(B.v) < 0.01) { B.x = B.v = 0; B.ph = 0; }
+      }
     }
-    BOUNCE.x = Math.max(-2.2, Math.min(1.4, BOUNCE.x));
-    if (Math.abs(BOUNCE.x) < 0.0005 && Math.abs(BOUNCE.v) < 0.005) BOUNCE.x = BOUNCE.v = 0;
   }
+
   function frame(t) {
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
     requestAnimationFrame(frame);
@@ -4296,7 +4312,7 @@
       if (!glr) drawSky();   // (also covers WebGL having been dropped mid-run)
       perfMark('sky');
       stepBounce(dt);
-      if (BOUNCE.x) { const z = view.zoom; view.zoom = z * Math.exp(BOUNCE.x); try { drawGlobe(t, layout()); } finally { view.zoom = z; } }
+      if (BOUNCE.x) { const z = view.zoom; view.zoom = z * Math.exp(BOUNCE.x * DROP_DIR); try { drawGlobe(t, layout()); } finally { view.zoom = z; } }
       else drawGlobe(t, layout());
       updateFloat();
       updateSheen();
