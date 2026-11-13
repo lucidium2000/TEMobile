@@ -318,7 +318,7 @@ body { background: #03050a; }
 /* One full turn on reveal, then park with each ring's gap centred at the 4:30 clock position */
 .rings.spin .rg-val circle { animation: rgOnce var(--rg-dur, 3s) cubic-bezier(.33, 0, .15, 1) 1 both; }
 @keyframes rgOnce { from { transform: rotate(calc(var(--rg-base, 225deg) - 360deg)); } to { transform: rotate(var(--rg-base, 225deg)); } }
-.rg.r-dev   { stroke: #7c3aed; filter: drop-shadow(0 0 5px rgba(124, 58, 237, .8)); }   /* This Device - violet */
+.rg.r-dev   { stroke: #2557e8; filter: drop-shadow(0 0 5px rgba(37, 87, 232, .85)); }   /* Device - dark blue */
 .rg.r-net   { stroke: #34d399; filter: drop-shadow(0 0 5px rgba(52, 211, 153, .6)); }
 .rg.r-iinet { stroke: #f15e22; filter: drop-shadow(0 0 6px rgba(241, 94, 34, .7)); }   /* Internet / network - orange */
 .rg.r-app   { stroke: #00bceb; filter: drop-shadow(0 0 5px rgba(0, 188, 235, .65)); }   /* Apps - Cisco blue */

@@ -1172,12 +1172,12 @@
     // this Device are things you run (internal).
     $('hmRingLegend').innerHTML =
       `<div class="rg-grp"><em class="rg-cat">Global Health (${hW}h)</em>${[['#00bceb', 'SaaS', iiApp, 'globe', 'application'], ['#f15e22', 'ISPs', iiNet, 'globe', 'network']].map(legRow).join('')}</div>`
-      + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net, 'tests'], ['#7c3aed', 'Device', dev, 'phone']].map(legRow).join('')}</div>`;
+      + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net, 'tests'], ['#2557e8', 'Device', dev, 'phone']].map(legRow).join('')}</div>`;
     homeRings = {
       rgIIApp: { name: 'SaaS', color: '#00bceb', val: iiApp, desc: `Global SaaS outages in the last ${hW} hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.` },
       rgIINet: { name: 'ISPs', color: '#f15e22', val: iiNet, desc: `Global ISP and backbone network outages in the last ${hW} hours. Fewer outages fills the ring.` },
       rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your connection blended with the service checks it reaches (Webex, Microsoft, Google, AWS, Zoom).' },
-      rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s own connection quality to the nearest internet edge.' },
+      rgDevice: { name: 'Device', color: '#2557e8', val: dev, desc: 'This phone\u2019s own connection quality to the nearest internet edge.' },
     };
   }
   // This Device: a compact overview of the service checks - every service's
