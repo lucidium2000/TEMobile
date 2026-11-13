@@ -4004,7 +4004,7 @@
       const v = S.views[mode], r = S.room;
       if (v) Object.assign(view, v);
       else if (mode === 'weather') Object.assign(view, r && isFinite(r.lat) ? { lon: r.lon, lat: Math.max(-55, Math.min(55, r.lat)), zoom: 2.3 } : { lon: -95, lat: 38, zoom: 1.5 });
-      else if (mode === 'home') Object.assign(view, { lon: r && isFinite(r.lon) ? r.lon : -40, lat: r && isFinite(r.lat) ? Math.max(-40, Math.min(50, r.lat)) : 25, zoom: DEFAULT_ZOOM });
+      else if (mode === 'home') Object.assign(view, { lon: r && isFinite(r.lon) ? r.lon : -40, lat: r && isFinite(r.lat) ? Math.max(-40, Math.min(50, r.lat)) : 25, zoom: DEFAULT_ZOOM * 1.25 });   // Home sits 25% closer
     },
     selectOutage(id) { const o = S.outages.find((x) => x.id === id); if (o) { userInput(); select(o); } },
     /** Mobile Home: the box (centre + radius, in px) to draw the globe in. */
