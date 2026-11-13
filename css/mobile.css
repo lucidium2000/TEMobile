@@ -324,6 +324,26 @@ body { background: #03050a; }
 .hero-s { margin-top: 4px; max-width: 30ch; font-size: .82em; color: var(--ink-3); }
 
 .hm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+/* Home data-flow: 4 cards (Device, Connection / SaaS, Internet) with a flowing
+   down-arrow from Connection to Internet. */
+.hm-flow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; position: relative; }
+.flow-down { position: absolute; left: 75%; top: 50%; transform: translate(-50%, -50%); color: var(--app); z-index: 3; pointer-events: none; filter: drop-shadow(0 0 6px rgba(22, 189, 235, .4)); }
+.flow-down .fd-line { stroke-dasharray: 5 6; animation: fdFlow 1s linear infinite; }
+@keyframes fdFlow { to { stroke-dashoffset: -11; } }
+.flow-down .fd-head { transform-origin: 6px 40px; animation: fdBob 1.8s ease-in-out infinite; }
+@keyframes fdBob { 50% { transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .flow-down .fd-line, .flow-down .fd-head { animation: none; } }
+.tile .conn-ico { color: var(--cyan); display: inline-flex; }
+.tile.int .t-v small { color: var(--ink-3); }
+.int-bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 20px; }
+.int-bars i { width: 4px; border-radius: 2px; background: rgba(255, 255, 255, .18); }
+.int-bars i:nth-child(1) { height: 32%; } .int-bars i:nth-child(2) { height: 49%; } .int-bars i:nth-child(3) { height: 66%; } .int-bars i:nth-child(4) { height: 83%; } .int-bars i:nth-child(5) { height: 100%; }
+.int-bars.q5 i:nth-child(-n+5), .int-bars.q4 i:nth-child(-n+4) { background: var(--ok); }
+.int-bars.q3 i:nth-child(-n+3), .int-bars.q2 i:nth-child(-n+2) { background: var(--warn); }
+.int-bars.q1 i:nth-child(-n+1) { background: var(--bad); }
+.hm-dev.open, .tile.dev.open { outline: 1px solid rgba(255, 255, 255, .18); }
+.hm-devdetail { margin: 0 0 18px; }
+.hm-devdetail .m-card { margin-bottom: 10px; }
 .tile {
   position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "k i" "v v" "s s"; align-items: center;
   min-height: 128px; padding: 14px 14px 13px; border-radius: 22px; text-align: left; color: inherit; overflow: hidden;
