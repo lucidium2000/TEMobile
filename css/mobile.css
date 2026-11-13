@@ -1010,3 +1010,10 @@ body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity
 #owSection .stats { margin-bottom: 0 !important; }
 #owSection { row-gap: 7px !important; }
 #owSection .filter-all { transform: translate(-50%, 30%); }
+
+/* Tab-bar dot: News (outage news in the last hour), Weather (severe alert here) */
+.tabbar button { position: relative; }
+.tabbar button.dot::after { content: ""; position: absolute; top: 9px; left: calc(50% + 9px); width: 9px; height: 9px; border-radius: 50%;
+  background: #f15e22; box-shadow: 0 0 0 2px rgba(5, 8, 15, .95), 0 0 10px rgba(241, 94, 34, .8); animation: tabDot 2s ease-in-out infinite; }
+@keyframes tabDot { 50% { box-shadow: 0 0 0 2px rgba(5, 8, 15, .95), 0 0 2px rgba(241, 94, 34, .3); } }
+@media (prefers-reduced-motion: reduce) { .tabbar button.dot::after { animation: none; } }

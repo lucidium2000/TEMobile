@@ -1262,6 +1262,7 @@
       if (d && d.items && d.items.length) {
         homeNews = d.items.filter((n) => n.title && n.url).map((n) => ({ title: n.title, url: n.url, t: n.t, kind: n.kind || 'outage', source: n.source || hostOf(n.url) }));
         if (tab === 'news') renderHomeFeed();
+        updateTabDots();
         return;
       }
     } catch (_) { /* fall through to Hacker News */ }
@@ -1397,10 +1398,27 @@
   }
   addEventListener('te-outages', () => tab === 'home' && refreshHome());
   addEventListener('te-weather', () => {
+    updateTabDots();
     if (tab === 'home') refreshHome();
     if (tab === 'weather' && window.TEApp && !$('wxCard').classList.contains('other')) window.TEApp.renderForecast();
   });
-  setInterval(() => { if (tab === 'home') refreshHome(); else if (tab === 'news') renderHomeFeed(); }, 4000);
+  // Tab-bar dots: News when there's outage news or a status incident from the
+  // last hour; Weather when there's a severe / extreme alert where you are.
+  function updateTabDots() {
+    const hr = Date.now() - 3600e3;
+    const newsHot = homeNews.some((n) => (n.kind === 'outage' || n.kind === 'status') && n.t >= hr);
+    const A = window.TEApp, w = A && A.weather ? A.weather() : {}, al = (w && w.brief && w.brief.alertInfo) || [];
+    const wxHot = al.some((x) => /^(extreme|severe)$/i.test(x.severity || ''));
+    const nb = document.querySelector('#tabbar [data-tab="news"]'), wb = document.querySelector('#tabbar [data-tab="weather"]');
+    if (nb) { nb.classList.toggle('dot', newsHot); nb.setAttribute('aria-label', newsHot ? 'News - new outage news in the last hour' : 'News'); }
+    if (wb) { wb.classList.toggle('dot', wxHot); wb.setAttribute('aria-label', wxHot ? 'Weather - severe weather alert here' : 'Weather'); }
+  }
+  setInterval(() => {
+    if (tab === 'home') refreshHome(); else if (tab === 'news') renderHomeFeed();
+    loadHomeNews();          // refreshes itself at most every 5 minutes, on any tab
+    updateTabDots();
+  }, 4000);
+  setTimeout(() => { loadHomeNews(); updateTabDots(); }, 1500);
 
   // ── Weather: its own globe (radar, power) under a sheet - folded to the
   // layer switches, or open for the full forecast ──────────────────────────

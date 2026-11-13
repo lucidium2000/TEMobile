@@ -77,6 +77,7 @@
       wind: [q.windDirection, q.windSpeed].filter(Boolean).join(' '), code: codeOf(q.shortForecast),
     }));
     const headlines = ((al && al.features) || []).map((x) => x.properties).filter((q) => q && q.event && q.status === 'Actual')
+      .sort((x, y) => (order[x.severity] ?? 4) - (order[y.severity] ?? 4))   // most serious first, so none is cut off
       .map((q) => ({ event: q.event, headline: q.headline || '', severity: q.severity || '' }));
     return {
       source: 'nws', city, periods: list, alertInfo: headlines.slice(0, 3),
