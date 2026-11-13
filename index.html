@@ -287,15 +287,13 @@
         <span class="rg-legend" id="hmRingLegend"></span>
       </span>
     </button>
-    <div class="hm-grid">
-      <button class="tile" data-go="tests" id="hmNet"><span class="t-k">Connection</span><span class="bars" id="hmBars"><i></i><i></i><i></i><i></i><i></i></span><b class="t-v" id="hmNetV">&ndash;</b><span class="t-s" id="hmNetSub"></span></button>
-      <button class="tile" data-go="tests" id="hmSvc"><span class="t-k">Services</span><span class="t-dots" id="hmSvcDots"></span><b class="t-v" id="hmSvcV">&ndash;</b><span class="t-s" id="hmSvcSub"></span></button>
-      <button class="tile" data-go="phone" id="hmPh"><span class="t-k">Battery</span><span class="t-bat" id="hmBat"><i></i></span><b class="t-v" id="hmBatV">&ndash;</b><span class="t-s" id="hmPhSub"></span></button>
-      <button class="tile" data-go="weather" id="hmWx"><span class="t-k">Weather</span><canvas id="hmWxIcon" width="34" height="34"></canvas><b class="t-v" id="hmWxTemp">&ndash;</b><span class="t-s" id="hmWxSub"></span></button>
-    </div>
+    <!-- The live connection timeline (#phNet) and per-service timelines (#services)
+         are moved in here, right under the hero, by mobile.js. -->
     <section class="hm-latest">
       <button class="hm-label" data-go="globe"><span id="hmFeedLabel">Happening now</span><em>See all</em></button>
       <ol class="h-list" id="hmList"></ol>
+      <!-- Battery / Location / Device sections are moved in here by mobile.js. -->
+      <div id="hmDeviceExtra"></div>
     </section>
   </main>
 
@@ -453,7 +451,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=41"></script>
+  <script src="js/mobile.js?v=42"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>

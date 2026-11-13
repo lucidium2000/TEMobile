@@ -129,6 +129,14 @@
     if (ep) ep.hidden = !on;
     if (on) { TEConn.refresh(); renderTenantOutages(); renderTEEndpoint(); }
   }
+  // This Device = the old Home + the phone merged: the live connection timeline
+  // and per-service timelines sit under the hero, device detail under the feed.
+  (function buildThisDevice() {
+    const hero = $('hmHero'), phNet = $('phNet'), services = $('services'), extra = $('hmDeviceExtra');
+    if (hero && phNet) hero.after(phNet);
+    if (phNet && services) phNet.after(services); else if (hero && services) hero.after(services);
+    if (extra) ['phBat', 'phLoc', 'phDev'].forEach((id) => { const el = $(id); if (el) extra.appendChild(el); });
+  })();
   function renderTenantOutages() {
     if (!window.TEConn || !TEConn.on()) return;
     TEConn.refresh();
@@ -455,7 +463,7 @@
     const [v4, v6] = await Promise.all([reach('https://1.1.1.1/cdn-cgi/trace'), reach('https://[2606:4700:4700::1111]/cdn-cgi/trace')]);
     info.v4 = v4; info.v6 = v6;
     netInfo = info;
-    if (tab === 'phone') refreshNet();
+    if (tab === 'home') refreshNet();
   }
   async function refreshNet() {
     loadNetInfo();
@@ -497,7 +505,7 @@
   const live = [];
   let liveBusy = false, liveWarm = false, liveL4 = null;
   async function livePing() {
-    if (liveBusy || tab !== 'phone' || document.hidden) return;
+    if (liveBusy || tab !== 'home' || document.hidden) return;
     liveBusy = true;
     const ac = new AbortController(), to = setTimeout(() => ac.abort(), 3000);
     let ms = null;
@@ -567,17 +575,17 @@
   }
   setInterval(livePing, 1000);
 
-  if (conn && conn.addEventListener) conn.addEventListener('change', () => { if (tab === 'phone') refreshNet(); });
-  addEventListener('online', () => tab === 'phone' && refreshNet());
-  addEventListener('offline', () => tab === 'phone' && refreshNet());
+  if (conn && conn.addEventListener) conn.addEventListener('change', () => { if (tab === 'home') refreshNet(); });
+  addEventListener('online', () => tab === 'home' && refreshNet());
+  addEventListener('offline', () => tab === 'home' && refreshNet());
 
   // ── Phone: battery (Chrome on Android; not Safari) ───────────────────────
   let battery = null;
   if (navigator.getBattery) {
     navigator.getBattery().then((b) => {
       battery = b;
-      ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'].forEach((ev) => b.addEventListener(ev, () => tab === 'phone' && refreshBattery()));
-      if (tab === 'phone') refreshBattery();
+      ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange'].forEach((ev) => b.addEventListener(ev, () => tab === 'home' && refreshBattery()));
+      if (tab === 'home') refreshBattery();
     }).catch(() => {});
   }
   function refreshBattery() {
@@ -702,7 +710,7 @@
   }
 
   function refreshPhone() { refreshNet(); refreshBattery(); refreshLoc(); refreshDev(); renderTEEndpoint(); }
-  setInterval(() => { if (tab === 'phone') { refreshNet(); refreshLoc(); } }, 5000);
+  setInterval(() => { if (tab === 'home') { refreshNet(); refreshLoc(); } }, 5000);
 
   // ── Phone: match this device to its ThousandEyes Endpoint Agent ───────────
   // The browser can't read the installed agent's ID, so the match is
@@ -775,8 +783,8 @@
     }
     host.innerHTML = html;
   }
-  addEventListener('te-conn', () => { if (tab === 'phone') renderTEEndpoint(); });
-  addEventListener('te-data', () => { if (tab === 'phone') renderTEEndpoint(); });
+  addEventListener('te-conn', () => { if (tab === 'tenant') renderTEEndpoint(); });
+  addEventListener('te-data', () => { if (tab === 'tenant') renderTEEndpoint(); });
 
   // ── Outages: the list is a sheet - folded to its counts, or open ──────
   {
@@ -819,38 +827,14 @@
     const hero = $('hmHero');
     hero.dataset.state = !os.length && !A.outages ? 'wait' : act.length >= 5 ? 'bad' : act.length ? 'warn' : 'ok';
     renderHomeFeed();
-    // Weather tile.
-    const w = A.weather ? A.weather() : {}, c = w.now && w.now.current, room = A.room && A.room();
-    const WMO = (window.WxBrief && window.WxBrief.WMO) || {};
-    const alerts = (w.brief && w.brief.alertInfo) || [];
-    if (c) {
-      if (A.drawWx) A.drawWx($('hmWxIcon'), c.weather_code, c.is_day === 1, 30);
-      $('hmWxTemp').textContent = Math.round(c.temperature_2m) + '°';
-    }
-    $('hmWx').classList.toggle('alert', !!alerts.length);
-    $('hmWxSub').textContent = alerts.length ? alerts[0].event
-      : [c ? (WMO[c.weather_code] || '').replace(/^./, (x) => x.toUpperCase()) : '', (w.brief && w.brief.city) || (room && room.city) || ''].filter(Boolean).join(' · ');
-    // Connection tile.
+    // This Device now hosts the live phone sections in place: the per-second
+    // connection timeline, the per-service timelines, battery, location, device.
     const q = quality();
-    $('hmBars').className = 'bars q' + q.bars;
-    $('hmNetV').innerHTML = q.rtt != null ? `${Math.round(q.rtt)}<small>ms</small>` : '–';
-    $('hmNetSub').textContent = q.label + (lastSpeed ? ` · ${Math.round(lastSpeed.down)} Mbps` : '');
-    // Services tile.
+    refreshNet(); refreshBattery(); refreshLoc(); refreshDev();
+    // Service health feeds the Network ring (from the live service rows).
     const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
-      name: (r.querySelector('.svc-name') || {}).textContent || '', lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
-    const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length, bad = svcs.filter((x) => x.lvl === 'bad'), warn = svcs.filter((x) => x.lvl === 'warn');
-    $('hmSvcDots').innerHTML = svcs.map((x) => `<i class="svc-${x.lvl}"></i>`).join('');
-    $('hmSvcV').innerHTML = svcs.length ? `${good}<small>/${svcs.length}</small>` : '–';
-    $('hmSvcSub').textContent = !svcs.length ? '' : bad.length ? `${bad[0].name} not responding` : warn.length ? `${warn[0].name} slow` : svcs.some((x) => x.lvl === 'wait') ? 'Checking…' : 'All reachable';
-    $('hmSvc').dataset.state = bad.length ? 'bad' : warn.length ? 'warn' : 'ok';
-    // Battery tile (or location, where the browser hides the battery).
-    const lv = battery ? Math.round(battery.level * 100) : null;
-    $('hmPh').querySelector('.t-k').textContent = lv != null ? 'Battery' : 'This phone';
-    $('hmBat').hidden = lv == null;
-    $('hmBat').firstElementChild.style.width = (lv || 0) + '%';
-    $('hmBat').className = 't-bat' + (lv != null && lv <= 20 ? ' low' : '');
-    $('hmBatV').innerHTML = lv != null ? `${lv}<small>%</small>` : (navigator.onLine ? 'Online' : 'Offline');
-    $('hmPhSub').textContent = [lv != null && battery.charging ? 'Charging' : '', room ? room.city : ''].filter(Boolean).join(' · ');
+      lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
+    const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length;
 
     // Hero rings (fuller = healthier): This Device, My Network (services, plus
     // tenant if connected), Internet Insights network, and applications (outer).
