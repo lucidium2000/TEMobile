@@ -4275,10 +4275,13 @@
     // while moving down -> bounce, at once. A lift jolts downward too as it
     // stops, but it's still moving UP then, so that never counts.
     const t = performance.now(), dt = dropT ? Math.min(0.1, (t - dropT) / 1000) : 0.016; dropT = t;
-    if (up < -1.5) {                                    // half the push it used to take
+    // Hands push down on a slant, so a jolt anywhere within 60 degrees of
+    // straight down counts at its full strength, not just its vertical part.
+    const am = Math.hypot(a.x, a.y, a.z), down = -up >= 0.5 * am ? am : -up;
+    if (down > 1.5) {                                   // half the push it used to take
       // Judged once, as the jolt starts: was the phone already moving up?
-      if (!dropJolt) dropJolt = { ok: dropV < 0.05 && t - lastLift > 500, peak: -up };
-      else dropJolt.peak = Math.max(dropJolt.peak, -up);
+      if (!dropJolt) dropJolt = { ok: dropV < 0.05 && t - lastLift > 500, peak: down };
+      else dropJolt.peak = Math.max(dropJolt.peak, down);
     } else if (dropJolt) {                                // jolt over: bounce, sized by its peak
       if (dropJolt.ok) window.Drop.kick((dropJolt.peak - 1) / 2.5);
       dropJolt = null;
