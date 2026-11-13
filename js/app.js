@@ -2692,7 +2692,6 @@
   // Mouse position over the globe, for weather on the city under it.
   canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') S.mouse = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointerleave', () => { S.mouse = null; });
-  let spinSfxT = 0;
   canvas.addEventListener('pointermove', (e) => {
     if (!pts.has(e.pointerId)) return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -2714,9 +2713,6 @@
     const degPerPx = rotateByPixels(dx, dy);
     S.vel.lon += ((-dx * degPerPx) / dt - S.vel.lon) * 0.6; S.vel.lat += ((dy * degPerPx) / dt - S.vel.lat) * 0.6;
     capSpin();
-    // A fast turn (not a slow drag) rumbles: smoothed finger speed in px/ms.
-    down.sp = (down.sp || 0) * 0.6 + (Math.hypot(dx, dy) / dt) * 0.4;
-    if (down.sp > 1.1 && now() - spinSfxT > 520) { spinSfxT = now(); sfx('spin'); }
     down.lx = e.clientX; down.ly = e.clientY; down.lt = now();
   });
 
@@ -4201,12 +4197,29 @@
   // stuttering 40-50. Steps back up when there's headroom. ?maxfps=30 forces it.
   let last = now(), workAvg = 8, frameCap = num('maxfps', 60) <= 30 ? 30 : 60, lastDraw = 0;
   const FORCED_CAP = num('maxfps', 0) > 0 && num('maxfps', 0) <= 30;
+  /* The earth rumbles while the globe is being turned or is coasting from a
+   * flick (screen speed, px/ms, so it means the same at any zoom); the slow
+   * idle drift and camera flights stay quiet. Hysteresis keeps it steady. */
+  let rbLon = null, rbLat = 0, rbSp = 0, rbOn = false, rbQuiet = 0;
+  function earthRumble(dt) {
+    if (!window.Sfx || !window.Sfx.rumble || dt <= 0) return;
+    const dLon = rbLon == null ? 0 : wrapLon(view.lon - rbLon), dLat = view.lat - rbLat;
+    rbLon = view.lon; rbLat = view.lat;
+    const degPerPx = 180 / (Math.PI * layout().base * view.zoom);
+    const sp = S.flight ? 0 : Math.hypot(dLon, dLat) / degPerPx / dt;
+    rbSp = rbSp * 0.7 + sp * 0.3;
+    if (!rbOn && rbSp > 0.3) { rbOn = true; rbQuiet = 0; window.Sfx.rumble(true); }
+    else if (rbOn) {
+      rbQuiet = rbSp < 0.08 ? rbQuiet + dt : 0;          // stopped for a moment: let it settle
+      if (rbQuiet > 120) { rbOn = false; window.Sfx.rumble(false); }
+    }
+  }
   function frame(t) {
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
     requestAnimationFrame(frame);
     // Mobile: the globe only draws while a tab that shows it is up (saves battery).
     const vt = document.body.dataset.tab;
-    if (vt && vt !== 'globe' && vt !== 'weather' && vt !== 'home' && vt !== 'tenant') return;
+    if (vt && vt !== 'globe' && vt !== 'weather' && vt !== 'home' && vt !== 'tenant') { if (rbOn) { rbOn = false; window.Sfx.rumble(false); } return; }
     // While the camera is on, render at 30: the globe shares the GPU with the
     // hand/face models, and a slow-turning globe looks nearly the same at 30.
     const cap = (window.Glass && window.Glass.on) || vt === 'home' ? 30 : frameCap;   // Home's small globe is fine at 30
@@ -4218,6 +4231,7 @@
     perfT = t0;
     try {
       step(t, dt);
+      earthRumble(dt);
       easeLayout(dt);
       ctx.setTransform(S.pr, 0, 0, S.pr, 0, 0);
       if (!glr) drawSky();   // (also covers WebGL having been dropped mid-run)

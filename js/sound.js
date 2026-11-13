@@ -130,6 +130,60 @@
     zoom:     () => tone(500, 0.12, { to: 900, vol: 0.3, type: 'triangle' }),
   };
 
+  /* Earth-moving rumble (soundboard #2, "tectonic shift"): a steady deep
+   * rumble that holds while the globe is moving, and on stopping fades out
+   * slowly with a low settle. Driven by Sfx.rumble(true/false) every frame. */
+  let rb = null, rbOn = false, rbSince = 0, brownBuf = null;
+  function brown() {
+    if (brownBuf) return brownBuf;
+    const n = ctx.sampleRate * 4; brownBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = brownBuf.getChannelData(0); let l = 0;
+    for (let i = 0; i < n; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.5; }
+    return brownBuf;
+  }
+  function rumbleGraph() {
+    const src = ctx.createBufferSource(); src.buffer = brown(); src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 130;
+    const ng = ctx.createGain(); ng.gain.value = 1;
+    const osc = ctx.createOscillator(); osc.frequency.value = 30;
+    const sg = ctx.createGain(); sg.gain.value = 0.45;
+    const bus = ctx.createGain(); bus.gain.value = 0;
+    src.connect(lp).connect(ng).connect(bus); osc.connect(sg).connect(bus); bus.connect(master);
+    src.start(); osc.start();
+    return { bus, osc, lp };
+  }
+  function settle() {   // the slow finish: a heavy low thud and a darkening rumble tail
+    const t0 = ctx.currentTime + 0.05;
+    tone(55, 0.9, { to: 28, vol: 0.55, attack: 0.02, delay: 0.05 });
+    const src = ctx.createBufferSource(); src.buffer = brown();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(300, t0); f.frequency.exponentialRampToValueAtTime(80, t0 + 0.8);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.7, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.8);
+    src.connect(f).connect(g).connect(master); src.start(t0, Math.random() * 3); src.stop(t0 + 0.85);
+  }
+  function rumble(on) {
+    if (MUTED || !ctx || on === rbOn) return;
+    if (on && ctx.state === 'suspended') ctx.resume();
+    rbOn = on;
+    try {
+      if (!rb) rb = rumbleGraph();
+      const t = ctx.currentTime, g = rb.bus.gain, fr = rb.osc.frequency, lp = rb.lp.frequency;
+      g.cancelScheduledValues(t); g.setValueAtTime(g.value, t);
+      fr.cancelScheduledValues(t); fr.setValueAtTime(fr.value, t);
+      lp.cancelScheduledValues(t); lp.setValueAtTime(lp.value, t);
+      if (on) {
+        rbSince = performance.now();
+        g.linearRampToValueAtTime(1, t + 0.35);     // quick, steady swell - then holds
+        fr.linearRampToValueAtTime(30, t + 0.3); lp.linearRampToValueAtTime(130, t + 0.3);
+      } else {
+        g.setTargetAtTime(0, t, 0.5);               // ~2 s slow fade
+        fr.exponentialRampToValueAtTime(22, t + 1.8); lp.exponentialRampToValueAtTime(70, t + 1.8);
+        if (performance.now() - rbSince > 350) settle();   // a real move earns the settle; a nudge just fades
+      }
+    } catch (_) { /* */ }
+  }
+
+  document.addEventListener('visibilitychange', () => { if (document.hidden) rumble(false); });
+
   // Rate limit per sound so bursts (e.g. many list re-renders) never stack up.
   const lastPlayed = {};
   window.Sfx = {
@@ -141,6 +195,7 @@
       lastPlayed[name] = now;
       try { SOUNDS[name](); } catch (_) { /* never let sound break the UI */ }
     },
+    rumble,
     get muted() { return MUTED; },
   };
 
