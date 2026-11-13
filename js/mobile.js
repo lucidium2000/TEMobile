@@ -25,7 +25,7 @@
   };
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
-  const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone'), tenant: $('viewTenant') };
+  const views = { home: $('viewHome'), weather: $('viewWeather'), tests: $('viewTests'), phone: $('viewPhone'), tenant: $('viewTenant'), news: $('viewNews') };
   let tab = 'home';
   function setTab(name, fromPop) {
     // Weather again (Show radar, a county): fold the sheet to show its globe.
@@ -46,6 +46,7 @@
     if (name === 'weather') refreshWeather();
     if (name === 'globe') updateOTabs();
     if (name === 'tenant') renderTenant();
+    if (name === 'news') renderNews();
   }
 
   // ── Outages: the user's own ThousandEyes tenant - active alerts ───────────
@@ -173,7 +174,7 @@
   });
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
   // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
-  const TAB_ORDER = ['home', 'tests', 'globe', 'tenant', 'weather'];
+  const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];
   // ── Seamless pager: drag left/right and the screens follow your finger (hold
   // and they hold), release to complete or snap back. Arrows / taps animate the
   // same way. A view slides over / off the globe, which stays as the backdrop.
@@ -1079,14 +1080,30 @@
       const res = await Promise.all(qs.map((q) => fetch(`https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=6&numericFilters=created_at_i>${since},points>40&query=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)));
       const seen = new Set(), out = [];
       res.forEach((d) => d && d.hits && d.hits.forEach((h) => { if (h.title && h.url && !seen.has(h.title)) { seen.add(h.title); out.push({ title: h.title, url: h.url, t: (h.created_at_i || 0) * 1000 }); } }));
-      homeNews = out.sort((a, b) => b.t - a.t).slice(0, 4);
+      homeNews = out.sort((a, b) => b.t - a.t).slice(0, 10);
       if (tab === 'home') renderHomeFeed();
+      if (tab === 'news') renderNews();
     } catch (_) { /* best-effort */ }
   }
   // Row builders - one per feed kind (a single item renders as a plain row).
   const alertRow = (n) => `<li class="feed-alert al-exp sev-${sevCls(n.sev)}" data-alert="1" data-aid="${esc(alKey(n))}"><div class="al-row"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}${CHEV}</span></div><div class="al-detail">${alertDetail(n, true)}</div></li>`;
   const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
   const newsRow = (n) => `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`;
+  // The News tab: active outages as headlines, then network / security news.
+  function renderNews() {
+    const host = $('newsList'); if (!host) return;
+    const A = window.TEApp;
+    const act = (A && A.outages ? A.outages() : []).filter((o) => o.active).sort((a, b) => b.locations.length - a.locations.length).slice(0, 5);
+    const news = homeNews.slice().sort((a, b) => b.t - a.t);
+    const parts = act.map((o) => outageRow(o, A)).concat(news.map(newsRow));
+    host.innerHTML = parts.length ? parts.join('') : '<li class="empty">No headlines right now</li>';
+    loadHomeNews();
+  }
+  $('newsList').addEventListener('click', (e) => {
+    const li = e.target.closest('li'); if (!li) return;
+    if (li.dataset.url) { window.open(li.dataset.url, '_blank', 'noopener'); return; }
+    if (li.dataset.id && window.TEApp) { if (window.Sfx) window.Sfx.play('tap'); setTab('globe'); setTimeout(() => window.TEApp.selectOutage(li.dataset.id), 60); }
+  });
   // Which rolled-up groups the user has expanded (kept across the 4s refresh).
   const openGroups = new Set();
   function feedGroup(key, cls, ico, rows, label, sub, tag) {
@@ -1252,7 +1269,7 @@
   // Back to the last tab - last, once everything above is set up.
   let start = 'home';
   try { start = sessionStorage.getItem('te-m-tab') || 'home'; } catch (_) { /* */ }
-  const startTab = (start !== 'phone' && (views[start] || start === 'globe')) ? start : 'home';
+  const startTab = (!['phone', 'tests'].includes(start) && (views[start] || start === 'globe')) ? start : 'home';
   setTab(startTab);
   // Seed history so the very first Back has a tab to return to, and route Back
   // / Forward through the tabs rather than off the page.
