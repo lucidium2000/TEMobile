@@ -93,7 +93,9 @@
       ]);
       if (al) cache.alerts = pick(al, 'alerts', 'results', 'result');
       if (ep) cache.endpoints = pick(ep, 'agents', 'results', 'result', 'endpointAgents');
-      if (ts) cache.tests = pick(ts, 'tests', 'results', 'result');
+      // Only this account group's own tests: /v7/tests also lists tests other
+      // groups live-share in, and saved instant-test events.
+      if (ts) cache.tests = pick(ts, 'tests', 'results', 'result').filter((t) => !t.liveShare && !t.savedEvent);
       cache.at = Date.now();
       fireData();
       // Each alert's details name the agents that saw it (and their numbers),

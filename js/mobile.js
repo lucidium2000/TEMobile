@@ -202,6 +202,7 @@
     ['teConnCard', 'phTE'].forEach((id) => { const el = $(id); if (el) root.appendChild(el); });
     const al = $('teTenant'), sec = $('tnAlSec'); if (al && sec) sec.appendChild(al);
   })();
+  let tnAllTests = false;   // the full tests list is folded until asked for
   let tnLocShown = false;   // Affected locations stays tucked away until asked for
   function renderTenant() {
     const on = !!(window.TEConn && TEConn.on());
@@ -348,7 +349,43 @@
     tests.forEach((t) => { const k = typeLabel(t.type || ''); byType[k] = (byType[k] || 0) + 1; });
     const alertingList = [...alertingTests].map((id) => { const t = tests.find((x) => String(x.testId || x.id) === id); const al = alerts.map(normAlert).filter((n) => n.testId === id); return { id, name: (t && (t.testName || t.name)) || (al[0] && al[0].title) || 'Test ' + id, n: al.length, sev: al.reduce((s, n) => ((AL_SEV[n.sev] || 0) > (AL_SEV[s] || 0) ? n.sev : s), 'INFO'), type: t ? typeLabel(t.type) : (al[0] && al[0].type) || '' }; });
     $('tnTests').innerHTML = `<div class="tn-chips">${Object.entries(byType).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span>${esc(k || 'Other')} <b>${v}</b></span>`).join('')}</div>`
-      + (alertingList.length ? `<ol class="tn-tests">${alertingList.sort((a, b) => (AL_SEV[b.sev] || 0) - (AL_SEV[a.sev] || 0) || b.n - a.n).map((t) => `<li class="${sevCls(t.sev)}"><span class="tn-dot"></span><div><b>${esc(t.name)}</b><span>${esc([t.type, t.n + ' alert' + (t.n === 1 ? '' : 's')].filter(Boolean).join(' \u00b7 '))}</span></div></li>`).join('')}</ol>` : '<p class="te-clear">No tests alerting right now.</p>');
+      + (alertingList.length ? `<ol class="tn-tests">${alertingList.sort((a, b) => (AL_SEV[b.sev] || 0) - (AL_SEV[a.sev] || 0) || b.n - a.n).map((t) => testRow(t.id, t.name, [t.type, t.n + ' alert' + (t.n === 1 ? '' : 's')], sevCls(t.sev), traceable(tests.find((x) => String(x.testId || x.id) === t.id), t.type))).join('')}</ol>` : '<p class="te-clear">No tests alerting right now.</p>');
+    // Every other test, folded away; tap one for its last path trace.
+    const rest = tests.filter((t) => !alertingTests.has(String(t.testId || t.id))).sort((a, b) => (b.enabled !== false) - (a.enabled !== false) || String(a.testName || '').localeCompare(String(b.testName || '')));
+    if (rest.length) $('tnTests').innerHTML += `<button type="button" class="al-seen tn-all${tnAllTests ? ' open' : ''}" data-alltests aria-expanded="${tnAllTests}">All tests (${rest.length})<i></i></button>`
+      + (tnAllTests ? `<ol class="tn-tests tn-tests-all">${rest.map((t) => testRow(String(t.testId || t.id), t.testName || t.name || 'Test', [typeLabel(t.type || ''), t.enabled === false ? 'disabled' : (t.interval ? (t.interval >= 60 ? Math.round(t.interval / 60) + ' min' : t.interval + ' s') : '')], t.enabled === false ? 'off' : '', t.enabled !== false && traceable(t))).join('')}</ol>` : '');
+  }
+  // Tests that keep a hop-by-hop path (network measurements).
+  const traceable = (t, label) => !/bgp|dns|endpoint/i.test((t && t.type) || label || '') && (!t || t.enabled !== false);
+  const testRow = (id, name, bits, cls, tr) => `<li class="${cls}${tr ? ' tr' : ''}"${tr ? ` data-trace="${esc(id)}" data-title="${esc(name)}"` : ''}><span class="tn-dot"></span><div><b>${esc(name)}</b><span>${esc(bits.filter(Boolean).join(' \u00b7 '))}</span></div>${tr ? '<em class="tn-tr">Trace \u203a</em>' : ''}</li>`;
+  $('tnTests').addEventListener('click', (e) => {
+    if (e.target.closest('[data-alltests]')) {
+      if (window.Sfx) window.Sfx.play('tap');
+      tnAllTests = !tnAllTests; renderTenantMore();
+      if (tnAllTests) reveal($('tnTests').querySelector('.tn-tests-all'), true);
+      return;
+    }
+    const li = e.target.closest('[data-trace]'); if (!li) return;
+    const id = li.dataset.trace, seen = [];
+    for (const a of TEConn.alerts()) { const n = normAlert(a); if (n.testId === id) seen.push(...(tnModel.byAlert.get(String(n.id)) || [])); }
+    openTrace(id, li.dataset.title, seen);
+  });
+  // Bring something that just opened on the Tenant sheet into view (above the
+  // tab bar), without scrolling its top out of sight.
+  function reveal(el, topOnly) {
+    const v = $('viewTenant'); if (!v || !el) return;
+    setTimeout(() => {
+      const vr = v.getBoundingClientRect(), tb = $('tabbar') ? $('tabbar').getBoundingClientRect().top : innerHeight;
+      const bottom = Math.min(vr.bottom, tb) - 12, top = vr.top + 44, r = el.getBoundingClientRect();
+      // Too tall for the half-up drawer: raise it to full height, then retry.
+      if (!topOnly && r.height > bottom - top && vr.top > 160 && tnSheet && !reveal.raising) {
+        reveal.raising = true; tnSheet.snapTo('max');
+        setTimeout(() => { reveal.raising = false; reveal(el); }, 480); return;
+      }
+      let d = topOnly ? r.top - top : Math.max(0, r.bottom - bottom);
+      if (r.top - d < top) d = r.top - top;   // tall: line its top up instead
+      if (d > 4) v.scrollBy({ top: d, behavior: 'smooth' });
+    }, 60);
   }
   // A location row: pick it (globe turns there) and show its alerts.
   $('tnLocs').addEventListener('click', (e) => {
@@ -358,6 +395,7 @@
     tnPick = was ? null : k;
     $('tnLocs').querySelectorAll('.tn-loc').forEach((x) => x.classList.toggle('open', x.dataset.key === tnPick));
     if (window.TEApp && TEApp.focusTenant) TEApp.focusTenant(tnPick, !was);
+    if (!was) reveal(li);
   });
   // The summary tiles jump to their section.
   $('tnStats').addEventListener('click', (e) => {
@@ -431,6 +469,7 @@
       if (op) openSeen.add(id); else openSeen.delete(id);
       sb.classList.toggle('open', op); sb.setAttribute('aria-expanded', op);
       const list = sb.closest('.al-detail').querySelector('.al-agents'); if (list) list.classList.toggle('open', op);
+      if (op) reveal(sb.closest('.te-al'));
       if (window.Sfx) window.Sfx.play('tap');
       return;
     }
@@ -449,6 +488,7 @@
     if (window.Sfx) window.Sfx.play('tap');
     const op = al.classList.toggle('open');
     if (op) openAlerts.add(al.dataset.aid); else openAlerts.delete(al.dataset.aid);
+    if (op && tab === 'tenant') reveal(al);
   });
   addEventListener('te-conn', () => { updateOTabs(); if (tab === 'tenant') renderTenant(); });
 

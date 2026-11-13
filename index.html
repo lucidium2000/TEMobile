@@ -9,6 +9,22 @@
   <meta name="author" content="Christopher Hunt">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>ThousandEyes Mobile</title>
+  <script>
+    // On a PC (mouse, no touch, not a phone or tablet) send the visitor to the
+    // desktop site. Only on the published site, so local testing still works;
+    // ?stay keeps a PC here (and is remembered for this tab).
+    (function () {
+      try {
+        var q = location.search, ua = navigator.userAgent || '';
+        if (/[?&]stay\b/.test(q)) { sessionStorage.setItem('te-stay', '1'); return; }
+        if (sessionStorage.getItem('te-stay') || !/\.github\.io$/.test(location.hostname)) return;
+        var mobile = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|BlackBerry|Opera Mini|IEMobile/i.test(ua)
+          || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))   // iPad asking for the desktop site
+          || (window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches);
+        if (!mobile) location.replace('https://tetools.net/outages');
+      } catch (_) { /* never block the app */ }
+    })();
+  </script>
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
@@ -20,7 +36,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=180">
-  <link rel="stylesheet" href="css/mobile.css?v=95">
+  <link rel="stylesheet" href="css/mobile.css?v=96">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -469,8 +485,8 @@
   <script src="js/app.js?v=253"></script>
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
-  <script src="js/te-connect.js?v=7"></script>
-  <script src="js/mobile.js?v=84"></script>
+  <script src="js/te-connect.js?v=8"></script>
+  <script src="js/mobile.js?v=86"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
