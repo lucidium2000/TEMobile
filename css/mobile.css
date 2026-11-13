@@ -48,7 +48,7 @@ body[data-tab="globe"] .wxbar { display: none !important; }
 /* ── Tests / Phone views ─────────────────────────────── */
 .view {
   position: fixed; left: 0; right: 0; top: 0; bottom: var(--tabh); z-index: 100; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;   /* vertical scroll stays native; horizontal drives the pager */
+  touch-action: pan-y;   /* vertical scroll only */
   will-change: transform;
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px 24px;
   background: radial-gradient(120% 60% at 50% 0%, rgba(22, 189, 235, .10), transparent 60%), linear-gradient(180deg, #070c18, #04060c 70%);

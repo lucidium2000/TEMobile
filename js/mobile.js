@@ -196,7 +196,6 @@
     if (b && b.dataset.tab !== tab) { if (window.Sfx) window.Sfx.play('tap'); setTab(b.dataset.tab); }
   });
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
-  // Edge arrows (tap) and left/right swipes follow the traffic flow. ─────────
   // Home: tell the globe where its box is (it's drawn by the shared canvas
   // behind the page). Snap while scrolling so it moves with the page.
   function placeHomeGlobe(snap) {
@@ -216,85 +215,12 @@
     const br = document.querySelector('.brand');
     window.TEApp.setGlobeArea(br ? br.getBoundingClientRect().bottom : 0, pr.top);
   }
-  const TAB_ORDER = ['home', 'globe', 'tenant', 'weather', 'news'];
   // Open a view; for Outages, optionally show just SaaS ('application') or ISPs ('network').
   function goFiltered(name, filter) {
     setTab(name);
     if (name === 'globe' && window.TEApp && window.TEApp.setFilter) window.TEApp.setFilter(filter || 'all');
   }   // Network / Device are detail views, not tabs
-  // ── Seamless pager: drag left/right and the screens follow your finger (hold
-  // and they hold), release to complete or snap back. Arrows / taps animate the
-  // same way. A view slides over / off the globe, which stays as the backdrop.
-  const screenEl = (name) => views[name] || null;   // null = the globe backdrop
-  const vw = () => window.innerWidth;
-  const clearT = (el) => { if (el) { el.style.transition = ''; el.style.transform = ''; } };
-  function settle(cur, nxt, toName) {
-    clearT(cur); clearT(nxt);
-    if (toName) setTab(toName); else if (nxt && nxt !== screenEl(tab)) nxt.hidden = true;
-  }
-  function slideTo(dir) {                              // programmatic (arrows / taps)
-    const to = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir]; if (!to) return;
-    const W = vw(), cur = screenEl(tab), nxt = screenEl(to), DUR = 280, E = 'cubic-bezier(.4,0,.2,1)';
-    if (nxt) { nxt.hidden = false; nxt.style.transition = 'none'; nxt.style.transform = `translateX(${dir > 0 ? W : -W}px)`; void nxt.offsetWidth; }
-    if (cur) cur.style.transition = `transform ${DUR}ms ${E}`;
-    if (nxt) nxt.style.transition = `transform ${DUR}ms ${E}`;
-    requestAnimationFrame(() => { if (cur) cur.style.transform = `translateX(${dir > 0 ? -W : W}px)`; if (nxt) nxt.style.transform = 'translateX(0)'; });
-    setTimeout(() => settle(cur, nxt, to), DUR + 30);
-  }
-  // Interactive finger-follow drag.
-  let pg = null;
-  const PG_IGNORE = 'input, textarea, select, [contenteditable]';
-  function pgNeighbor(dir) {
-    const name = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir] || null;
-    if (pg.nbrName === name) return;
-    if (pg.nbrEl && pg.nbrEl !== screenEl(tab)) { clearT(pg.nbrEl); pg.nbrEl.hidden = true; }
-    pg.nbrName = name; pg.nbrEl = name ? screenEl(name) : null;
-    if (pg.nbrEl) pg.nbrEl.hidden = false;
-  }
-  addEventListener('pointerdown', (e) => {
-    if (pg || (e.pointerType === 'mouse' && e.button !== 0) || TAB_ORDER.indexOf(tab) < 0) return;
-    const t = e.target; if (t && t.closest && t.closest(PG_IGNORE)) return;
-    // Only start from the outer 25% on either side; the middle 50% is left for
-    // other gestures (globe, drawer, taps) so paging doesn't steal them.
-    const W = vw();
-    if (e.clientX > W * 0.25 && e.clientX < W * 0.75) return;
-    pg = { x0: e.clientX, y0: e.clientY, axis: null, W, curEl: null, nbrEl: null, nbrName: undefined, dx: 0, dir: 0, moved: false, t0: Date.now() };
-  }, { capture: true, passive: true });
-  addEventListener('pointermove', (e) => {
-    if (!pg) return;
-    const dx = e.clientX - pg.x0, dy = e.clientY - pg.y0;
-    if (!pg.axis) {
-      if (Math.abs(dx) < 9 && Math.abs(dy) < 9) return;
-      pg.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (pg.axis === 'x') pg.curEl = screenEl(tab);
-    }
-    if (pg.axis !== 'x') return;                        // vertical: let it scroll
-    pg.moved = true;
-    const dir = dx < 0 ? 1 : -1; pg.dir = dir;
-    pgNeighbor(dir);
-    const d = pg.nbrName ? dx : dx * 0.28;              // rubber-band at the ends
-    pg.dx = d;
-    if (pg.curEl) { pg.curEl.style.transition = 'none'; pg.curEl.style.transform = `translateX(${d}px)`; }
-    if (pg.nbrEl) { pg.nbrEl.style.transition = 'none'; pg.nbrEl.style.transform = `translateX(${(dir > 0 ? pg.W : -pg.W) + d}px)`; }
-    if (e.cancelable) e.preventDefault();
-  }, { capture: true, passive: false });
-  function pgEnd(cancel) {
-    if (!pg) return; const p = pg; pg = null;
-    if (p.axis !== 'x' || !p.moved) { clearT(p.curEl); if (p.nbrEl && p.nbrEl !== screenEl(tab)) { clearT(p.nbrEl); p.nbrEl.hidden = true; } return; }
-    const W = p.W, dir = p.dir, DUR = 240, E = 'cubic-bezier(.4,0,.2,1)';
-    const to = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir];
-    const fast = (Date.now() - p.t0) < 350 && Math.abs(p.dx) > 40;
-    const commit = !cancel && to && (Math.abs(p.dx) > W * 0.32 || fast);
-    if (p.curEl) p.curEl.style.transition = `transform ${DUR}ms ${E}`;
-    if (p.nbrEl) p.nbrEl.style.transition = `transform ${DUR}ms ${E}`;
-    requestAnimationFrame(() => {
-      if (commit) { if (p.curEl) p.curEl.style.transform = `translateX(${dir > 0 ? -W : W}px)`; if (p.nbrEl) p.nbrEl.style.transform = 'translateX(0)'; }
-      else { if (p.curEl) p.curEl.style.transform = 'translateX(0)'; if (p.nbrEl) p.nbrEl.style.transform = `translateX(${dir > 0 ? W : -W}px)`; }
-    });
-    setTimeout(() => { if (commit) settle(p.curEl, p.nbrEl, to); else { clearT(p.curEl); if (p.nbrEl && p.nbrEl !== screenEl(tab)) { clearT(p.nbrEl); p.nbrEl.hidden = true; } } }, DUR + 30);
-  }
-  addEventListener('pointerup', () => pgEnd(false), { capture: true, passive: true });
-  addEventListener('pointercancel', () => pgEnd(true), { capture: true, passive: true });
+  // No side-swipe paging: switch screens with the tab bar or the cards.
   // A service row opens its path trace - on the globe.
   $('roomNetRows').addEventListener('click', (e) => {
     if (e.target.closest('.svc-edit, .svc-grip') || $('services').classList.contains('editing')) return;
