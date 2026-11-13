@@ -853,7 +853,7 @@
   function renderTEEndpoint() {
     const host = $('phTEBody'); if (!host) return;
     if (!window.TEConn || !TEConn.on()) {
-      host.innerHTML = '<p class="te-ep-hint">Connect your ThousandEyes tenant on the <b>Network</b> tab to match this device to its Endpoint Agent.</p>';
+      host.innerHTML = '<p class="te-ep-hint">Connect your ThousandEyes tenant above to match this device to its Endpoint Agent.</p>';
       return;
     }
     TEConn.refresh();
@@ -1035,14 +1035,15 @@
     const isp = rm && rm.org ? String(rm.org).replace(/^AS\d+\s+/, '').replace(/,?\s*(Inc|LLC|Ltd|Corporation|Corp|Communications)\.?$/i, '') : '';
     const speed = lastSpeed ? `${Math.round(lastSpeed.down)} Mbps` : conn && conn.downlink ? `~${conn.downlink} Mbps` : '';
     $('hmNetSub2').textContent = [isp, edgeC ? `${edgeC} edge` : '', speed].filter(Boolean).join(' · ');
-    // 3) Global Outages: the Internet Insights headline numbers - active now,
+    // 3) Global Health: the Internet Insights headline numbers - active now,
     //    then application vs network outages in the window, and what's active.
     const hW = A.windowH ? A.windowH() : 24, since = Date.now() - hW * 3600e3;
     const inWin = os.filter((o) => o.start >= since), nApp = inWin.filter((o) => o.kind !== 'network').length, nNetO = inWin.length - nApp;
     const live = os.filter((o) => o.active).sort((a, b) => b.locations.length - a.locations.length);
     const inet = $('hmInet');
     $('hmInetV').innerHTML = `${live.length}<small>active</small>`;
-    $('hmInetSub').textContent = `${nApp} app · ${nNetO} network · ${hW}h`;
+    $('hmInetSub').textContent = `${nApp} SaaS · ${nNetO} ISP outages`;
+    inet.querySelector('.t-k').textContent = `Global Health (${hW}h)`;
     $('hmInetSub2').textContent = live.length ? [...new Set(live.map((o) => o.name))].slice(0, 2).join(', ') + (live.length > 2 ? ` +${live.length - 2}` : '') : 'Nothing active now';
     inet.dataset.state = live.length >= 5 ? 'bad' : live.length ? 'warn' : 'ok';
     // 4) SaaS: the service checks at a glance (details on Network).
@@ -1065,26 +1066,27 @@
     // Hero rings (fuller = healthier), each tied directly to what it measures:
     //  Device  = this phone's own connection quality.
     //  Network = that connection blended with the services it can reach.
-    //  Apps / Internet (Global Outages) = how many outages in the last 24 hours.
+    //  SaaS / ISPs (Global Health) = how many outages in the Outages window.
     const dev = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
     const svcScore = svcs.length ? (good / svcs.length) * 100 : null;
     const net = svcScore == null ? dev : Math.round((dev + svcScore) / 2);
     // Global Outages: count of outages in the last 24h (0 outages = full ring,
     // ~60 = empty). Active outages count a little extra.
-    const since24 = Date.now() - 24 * 3600e3;
-    const count = (kind) => os.reduce((n, o) => n + ((o.kind === 'network') === (kind === 'network') && o.start >= since24 ? (o.active ? 1.5 : 1) : 0), 0);
-    const outScore = (n) => Math.max(0, Math.round(100 - Math.min(100, (n / 60) * 100)));
+    // Over the same window as the Outages page; ~60 outages a day empties a ring.
+    const count = (kind) => os.reduce((n, o) => n + ((o.kind === 'network') === (kind === 'network') && o.start >= since ? (o.active ? 1.5 : 1) : 0), 0);
+    const full = Math.max(6, (60 * hW) / 24);
+    const outScore = (n) => Math.max(0, Math.round(100 - Math.min(100, (n / full) * 100)));
     const iiNet = outScore(count('network')), iiApp = outScore(count('application'));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
     const legRow = (x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
     // Apps + Internet are out on the public internet (external); Network and
     // this Device are things you run (internal).
     $('hmRingLegend').innerHTML =
-      `<div class="rg-grp"><em class="rg-cat">Global Outages</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
+      `<div class="rg-grp"><em class="rg-cat">Global Health (${hW}h)</em>${[['#00bceb', 'SaaS', iiApp], ['#f15e22', 'ISPs', iiNet]].map(legRow).join('')}</div>`
       + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
     homeRings = {
-      rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Global application outages in the last 24 hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.' },
-      rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Global network outages in the last 24 hours across ISPs and backbones. Fewer outages fills the ring.' },
+      rgIIApp: { name: 'SaaS', color: '#00bceb', val: iiApp, desc: `Global SaaS outages in the last ${hW} hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.` },
+      rgIINet: { name: 'ISPs', color: '#f15e22', val: iiNet, desc: `Global ISP and backbone network outages in the last ${hW} hours. Fewer outages fills the ring.` },
       rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your connection blended with the service checks it reaches (Webex, Microsoft, Google, AWS, Zoom).' },
       rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s own connection quality to the nearest internet edge.' },
     };
@@ -1158,23 +1160,37 @@
   const OUTAGE_ICO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
   const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'news'; } };
+  // News: outage-focused headlines and status-page incidents, gathered
+  // server-side every few minutes (scripts/fetch_news.py, .github/workflows/
+  // news.yml) into the repo's data branch. Hacker News is the fallback.
+  const NEWS_URL = 'https://raw.githubusercontent.com/lucidium2000/TEMobile/data/news.json';
   let homeNews = [], newsAt = 0;
   async function loadHomeNews() {
-    if (homeNews.length && Date.now() - newsAt < 30 * 60e3) return;
+    if (homeNews.length && Date.now() - newsAt < 5 * 60e3) return;
     newsAt = Date.now();
-    const since = Math.floor((Date.now() - 21 * 864e5) / 1000), qs = ['internet outage', 'cybersecurity'];
     try {
-      const res = await Promise.all(qs.map((q) => fetch(`https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=6&numericFilters=created_at_i>${since},points>40&query=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)));
+      const d = await fetch(`${NEWS_URL}?t=${Math.floor(Date.now() / 60e3)}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null));
+      if (d && d.items && d.items.length) {
+        homeNews = d.items.filter((n) => n.title && n.url).map((n) => ({ title: n.title, url: n.url, t: n.t, kind: n.kind || 'outage', source: n.source || hostOf(n.url) }));
+        if (tab === 'news') renderHomeFeed();
+        return;
+      }
+    } catch (_) { /* fall through to Hacker News */ }
+    const since = Math.floor((Date.now() - 7 * 864e5) / 1000), qs = [['outage', 'outage'], ['cybersecurity', 'security']];
+    try {
+      const res = await Promise.all(qs.map(([q]) => fetch(`https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=10&numericFilters=created_at_i>${since}&query=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)));
       const seen = new Set(), out = [];
-      res.forEach((d) => d && d.hits && d.hits.forEach((h) => { if (h.title && h.url && !seen.has(h.title)) { seen.add(h.title); out.push({ title: h.title, url: h.url, t: (h.created_at_i || 0) * 1000 }); } }));
-      homeNews = out.sort((a, b) => b.t - a.t).slice(0, 4);
+      res.forEach((d, i) => d && d.hits && d.hits.forEach((h) => { if (h.title && h.url && !seen.has(h.title)) { seen.add(h.title); out.push({ title: h.title, url: h.url, t: (h.created_at_i || 0) * 1000, kind: qs[i][1], source: hostOf(h.url) }); } }));
+      homeNews = out.sort((a, b) => b.t - a.t);
       if (tab === 'news') renderHomeFeed();
     } catch (_) { /* best-effort */ }
   }
   // Row builders - one per feed kind (a single item renders as a plain row).
   const alertRow = (n) => `<li class="feed-alert al-exp sev-${sevCls(n.sev)}" data-alert="1" data-aid="${esc(alKey(n))}"><div class="al-row"><span class="ico">${ALERT_ICO}</span><span class="nm">${esc(n.title)}<small>${esc([n.cond, n.type].filter(Boolean).join(' \u00b7 '))}</small></span><span class="ago"><em class="feed-tag sev-${sevCls(n.sev)}">${esc(n.sev || 'ALERT')}</em>${n.start ? alertSince(n.start) : ''}${CHEV}</span></div><div class="al-detail">${alertDetail(n, true)}</div></li>`;
-  const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'Network' : 'Application'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
-  const newsRow = (n) => `<li class="feed-news" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small>${esc(hostOf(n.url))} \u00b7 news</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`;
+  const outageRow = (o, A) => `<li class="${o.kind} active" data-id="${esc(o.id)}"><span class="ico">${A.iconHtml ? A.iconHtml(o) : ''}</span><span class="nm">${esc(o.name)}<small>${o.kind === 'network' ? 'ISP' : 'SaaS'} \u00b7 ${esc(o.locations.length === 1 ? o.locations[0].name : o.locations.length + ' locations')}</small></span><span class="ago">Active</span></li>`;
+  const NEWS_TAG = { status: ['Status', 'st'], security: ['Security', 'sec'], outage: ['Outage', 'out'] };
+  const newsRow = (n) => { const tg = NEWS_TAG[n.kind] || NEWS_TAG.outage;
+    return `<li class="feed-news k-${tg[1]}" data-url="${esc(n.url)}"><span class="ico">${NEWS_ICO}</span><span class="nm">${esc(n.title)}<small><em class="feed-tag nt-${tg[1]}">${tg[0]}</em>${esc(n.source || hostOf(n.url))}</small></span><span class="ago">${fmtAgo((Date.now() - n.t) / 60e3)}</span></li>`; };
   // Which rolled-up groups the user has expanded (kept across the 4s refresh).
   const openGroups = new Set();
   function feedGroup(key, cls, ico, rows, label, sub, tag) {
@@ -1189,20 +1205,15 @@
     // major outage like a Microsoft one reads as the top headline.
     const act = (A && A.outages ? A.outages() : []).filter((o) => o.active)
       .sort((a, b) => (b.locations.length - a.locations.length) || (b.start || 0) - (a.start || 0));
-    // Recent news, newest first.
-    const news = homeNews.slice(0, 4).slice().sort((a, b) => b.t - a.t);
-
+    // News has its own tab now, so everything is shown expanded, in sections:
+    // what Internet Insights sees right now, then outage news and status-page
+    // incidents, then security.
     const parts = [];
-    // Show the top few outages as named headlines; roll any overflow.
-    const TOP = 4, lead = act.slice(0, TOP), rest = act.slice(TOP);
-    lead.forEach((o) => parts.push(outageRow(o, A)));
-    if (rest.length) {
-      const nNet = rest.filter((o) => o.kind === 'network').length, nApp = rest.length - nNet;
-      const oSub = [nNet ? `${nNet} network` : '', nApp ? `${nApp} application` : ''].filter(Boolean).join(' \u00b7 ');
-      parts.push(feedGroup('outages', 'g-outage', OUTAGE_ICO, rest.map((o) => outageRow(o, A)), 'more active outages', oSub, `<em class="feed-tag count">${rest.length}</em>`));
-    }
-    const nSub = news.length ? news[0].title : '';
-    parts.push(feedGroup('news', 'g-news', NEWS_ICO, news.map(newsRow), 'news stories', nSub, `<em class="feed-tag count">${news.length}</em>`));
+    const sec = (t, n) => `<li class="feed-sec">${t}<b>${n}</b></li>`;
+    if (act.length) { parts.push(sec('Active outages', act.length)); act.forEach((o) => parts.push(outageRow(o, A))); }
+    const out = homeNews.filter((n) => n.kind !== 'security').slice(0, 30), secn = homeNews.filter((n) => n.kind === 'security').slice(0, 12);
+    if (out.length) { parts.push(sec('Outage news', out.length)); out.forEach((n) => parts.push(newsRow(n))); }
+    if (secn.length) { parts.push(sec('Security', secn.length)); secn.forEach((n) => parts.push(newsRow(n))); }
 
     const html = parts.filter(Boolean).join('');
     host.innerHTML = html || '<li class="empty">All clear \u2014 no active alerts or outages</li>';
@@ -1210,7 +1221,7 @@
       if (openGroups.has(g.dataset.grp)) { g.classList.add('open'); const h = g.querySelector('.grp-head'); if (h) h.setAttribute('aria-expanded', 'true'); }
     });
     host.querySelectorAll('.feed-alert').forEach((li) => { if (openAlerts.has(li.dataset.aid)) li.classList.add('open'); });
-    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = act.length ? 'Happening now' : homeNews.length ? 'Network & security news' : 'All clear';
+    const lbl = $('hmFeedLabel'); if (lbl) lbl.textContent = act.length ? 'Happening now' : homeNews.length ? 'Outage & security news' : 'All clear';
     loadHomeNews();
   }
   // Cards and links that open another view. A card can also carry an outage

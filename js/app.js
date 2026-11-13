@@ -1512,7 +1512,7 @@
 
     el.card.className = 'card ' + o.kind;
     el.cardIcon.innerHTML = iconHtml(o);
-    el.cardKind.innerHTML = (o.kind === 'network' ? 'Network outage' : 'Application outage')
+    el.cardKind.innerHTML = (o.kind === 'network' ? 'ISP outage' : 'SaaS outage')
       + (o.active ? '<span class="pill">● ACTIVE</span>' : `<span class="pill cleared">✓ CLEARED ${clearedAgo(o)}</span>`);
     el.cardName.textContent = o.name;
     const metrics = [
@@ -3830,7 +3830,7 @@
   function fillFloat(o, metrics, locs) {
     floatEl.className = 'float ' + o.kind;
     document.getElementById('floatIcon').innerHTML = iconHtml(o);
-    document.getElementById('floatKind').innerHTML = (o.kind === 'network' ? 'Network outage' : 'Application outage')
+    document.getElementById('floatKind').innerHTML = (o.kind === 'network' ? 'ISP outage' : 'SaaS outage')
       + (o.active ? '<span class="pill">● ACTIVE</span>' : `<span class="pill cleared">✓ CLEARED ${clearedAgo(o)}</span>`);
     document.getElementById('floatName').textContent = o.name;
     document.getElementById('floatMetrics').innerHTML = metrics.slice(0, 3)

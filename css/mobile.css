@@ -961,3 +961,16 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .rings-hero .rings { width: min(68vw, 290px); height: min(68vw, 290px); }
 .rings-hero .rg-eye { width: 36px; }
 .rings-hero .rg-legend { flex-direction: row; justify-content: center; align-items: flex-start; gap: 34px; }
+
+/* News tab: sections, everything expanded; source tags on each story */
+.h-list .feed-sec { display: flex; align-items: center; justify-content: space-between; min-height: 0; padding: 14px 2px 6px; cursor: default; font-size: .68em; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+.h-list .feed-sec:first-child { padding-top: 8px; }
+.h-list .feed-sec b { font-weight: 800; color: var(--ink-2); letter-spacing: 0; }
+.h-list .feed-news .nm { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+.h-list .feed-news { padding: 6px 0; }
+.feed-tag.nt-out { color: #fff; background: rgba(241, 94, 34, .85); }
+.feed-tag.nt-st { color: #04121a; background: #fbbf24; }
+.feed-tag.nt-sec { color: #fff; background: rgba(124, 58, 237, .9); }
+.h-list .feed-news.k-out .ico { background: rgba(241, 94, 34, .14); color: #f15e22; }
+.h-list .feed-news.k-st .ico { background: rgba(251, 191, 36, .14); color: #fbbf24; }
+.h-list .feed-news.k-sec .ico { background: rgba(124, 58, 237, .16); color: #a78bfa; }

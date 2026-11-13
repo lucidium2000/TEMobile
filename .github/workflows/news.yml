@@ -1,0 +1,64 @@
+name: Refresh outage news
+
+# Pulls outage-focused news (Google News searches for service / ISP outages
+# and security incidents) and official status-page incidents (AWS, Azure,
+# Google Cloud, GitHub, Cloudflare, Zoom, Slack, Atlassian...) with
+# scripts/fetch_news.py, and publishes news.json to the `data` branch. The
+# app's News tab reads it from raw.githubusercontent.com, which sends CORS
+# headers - the source feeds themselves don't, so a browser can't read them.
+#
+# GitHub's cron is best-effort (for a small repository it can fire only every
+# few hours), so each run keeps refreshing every REFRESH_MIN minutes for most
+# of the 6-hour job limit and the next queued run takes over. The branch is
+# force-pushed as a single commit each round, so it never grows.
+
+on:
+  schedule:
+    - cron: '4-59/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: outage-news
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    env:
+      PUSH_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+      REFRESH_MIN: 5
+      RUN_MIN: 345
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refresh every few minutes
+        run: |
+          OUT="$RUNNER_TEMP/out"; mkdir -p "$OUT"
+          push() {
+            ( cd "$OUT"
+              [ -d .git ] || { git init -q -b data; git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"; }
+              git add -A
+              git commit -q --amend -m "$1" 2>/dev/null || git commit -q -m "$1"
+              for i in 1 2 3 4; do git push -q --force "$PUSH_URL" data:data && return 0; echo "push failed ($i), retrying"; sleep $((i * 10)); done
+              return 1 )
+          }
+          end=$(( $(date +%s) + RUN_MIN * 60 ))
+          round=0
+          while :; do
+            round=$((round + 1)); start=$(date +%s)
+            echo "::group::Round $round ($(date -u +%H:%MZ))"
+            if python3 -I scripts/fetch_news.py "$OUT/news.json"; then
+              push "Outage news $(date -u +%Y-%m-%dT%H:%MZ)" || echo "::warning::news push failed"
+            else
+              echo "::warning::news fetch failed; trying again next round"
+            fi
+            echo "::endgroup::"
+            now=$(date +%s)
+            [ $(( now + REFRESH_MIN * 60 )) -gt "$end" ] && break
+            wait=$(( REFRESH_MIN * 60 - (now - start) )); [ "$wait" -gt 0 ] && sleep "$wait"
+          done
+          echo "Done after $round rounds; the next scheduled run takes over."
