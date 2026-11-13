@@ -1027,3 +1027,8 @@ body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity
    to it (drag to turn, pinch to zoom, tap an outage to open it). */
 #viewHome, #viewHome .hm-body, #hmHero { pointer-events: none; }
 #viewHome .hm-top, #viewHome .hm-flow { pointer-events: auto; }
+/* Home cards over the live globe: frosted, but solid enough to read. */
+#viewHome .hm-flow .tile {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .03)), rgba(8, 12, 22, .62);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+}
