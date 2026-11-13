@@ -1638,29 +1638,21 @@
       + (!exp && locs.length > 8 ? `<li class="loc-more">+${locs.length - 8} more</li>` : '');
   }
 
-  // One-line read on the most probable cause, from the outage's shape: an app
-  // failing at the same time and place as a network outage is probably
-  // downstream of it; one failing everywhere at once is probably the service
-  // itself; a network outage spread across many cities points at backbone or
-  // peering; power cuts nearby are called out; very short ones are blips.
-  function probableCause(o) {
-    const locs = o.locations.slice().sort((a, b) => b.n - a.n), n = locs.length, top = locs[0] ? (locs[0].label || String(locs[0].name).split(',')[0]) : '';
-    const brief = !o.active && (o.durationS || 0) < 600;
-    const pwr = locs.map((l) => nearestPower(l.lon, l.lat)).find(Boolean);
-    const near = (x) => Math.abs(x.start - o.start) < 45 * 60e3 || (x.active && o.active);
-    const as = o.asn ? ` (AS${o.asn})` : '';
-    if (pwr) return `Possibly power-related \u2014 customers are without power near ${pwr.name}, ${pwr.state}.`;
-    if (o.kind === 'application') {
-      const names = new Set(locs.map((l) => l.name));
-      const net = S.outages.find((x) => x !== o && x.kind === 'network' && near(x) && x.locations.some((l) => names.has(l.name)));
-      if (net) { const at = net.locations.find((l) => names.has(l.name)); return `Likely downstream of the ${net.name} network outage${at ? ` in ${at.label || at.name}` : ''} \u2014 a path problem, not ${o.name} itself.`; }
-      if (brief) return `A short blip at ${o.name} \u2014 likely a brief server or deploy hiccup that recovered on its own.`;
-      if (n >= 5) return `Likely a ${o.name} service-side failure \u2014 ${o.servers || 'its'} server${o.servers === 1 ? '' : 's'} failing from ${n} places at once points at the app, not one network.`;
-      return `Likely a localized ${o.name} server or front-end problem near ${top}${o.servers ? ` (${o.servers} server${o.servers === 1 ? '' : 's'})` : ''}.`;
+  // A plain explanation of what the outage is - only what the data says (who,
+  // what kind, where, how much), no guess at the cause.
+  function outageSummary(o) {
+    const locs = o.locations.slice().sort((a, b) => b.n - a.n), n = locs.length;
+    const city = (l) => (l ? l.label || String(l.name).split(',')[0] : '');
+    const where = n === 1 ? `in ${city(locs[0])}` : `across ${n} locations, mostly ${city(locs[0])}`;
+    const is = o.active ? 'is' : 'was', are = o.active ? 'are' : 'were', see = o.active ? 'see' : 'saw', done = o.active ? '' : ' It has since cleared.';
+    if (o.kind === 'network') {
+      const as = o.asn ? ` (AS${o.asn})` : '';
+      const ifs = o.interfaces ? `${o.interfaces} network interface${o.interfaces === 1 ? '' : 's'}` : 'its network';
+      return `An ISP outage: ${o.name}${as} ${is} dropping traffic on ${ifs} ${where}, so connections routed through this provider there ${are} failing.${done}`;
     }
-    if (brief) return `A short blip inside ${o.name}${as} \u2014 likely a brief routing change or link flap.`;
-    if (n >= 4) return `Likely a backbone or peering problem inside ${o.name}${as} \u2014 ${o.interfaces || 'many'} interfaces failing across ${n} locations.`;
-    return `Likely a routing or link failure in ${o.name}${as} near ${top}${o.interfaces ? `, ${o.interfaces} interface${o.interfaces === 1 ? '' : 's'} affected` : ''}.`;
+    const svc = o.domains && o.domains.length ? ` (${o.domains.slice(0, 2).join(', ')}${o.domains.length > 2 ? '…' : ''})` : '';
+    const srv = o.servers ? `${o.servers} server${o.servers === 1 ? '' : 's'}` : 'its servers';
+    return `A SaaS outage: ${o.name}${svc} ${is} failing to answer correctly from ${srv} ${where}, so people using it there ${see} errors or couldn't connect.${done}`.replace("couldn't", o.active ? "can't" : "couldn't");
   }
   // The selected outage's detail, expanded inline right under its row (instead
   // of a separate card above the totals).
@@ -1682,7 +1674,7 @@
     const pwrNear = o.locations.map((l) => nearestPower(l.lon, l.lat)).find(Boolean);
     if (pwrNear) kv.push(['Power out nearby', `${pwrNear.name}, ${pwrNear.state} · ${Math.round(pwrNear.out).toLocaleString('en-US')}`]);
     return `<li class="row-detail ${o.kind}" data-detail="${esc(o.id)}">`
-      + `<p class="rd-cause"><b>Likely cause</b> ${esc(probableCause(o))}</p>`
+      + `<p class="rd-cause"><b>What this is</b> ${esc(outageSummary(o))}</p>`
       + `<div class="rd-metrics">${metrics.map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join('')}</div>`
       + (kv.length ? `<dl class="rd-kv">${kv.map(([k, v, c]) => `<div${c ? ` class="${c}"` : ''}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '')
       + `<div class="rd-h">Top locations <span>${locs.length}</span></div>`
