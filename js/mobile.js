@@ -931,18 +931,19 @@
       lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
     const good = svcs.filter((x) => x.lvl === 'ok' || x.lvl === 'info').length;
 
-    // Hero rings (fuller = healthier): This Device, My Network (services, plus
-    // tenant if connected), Internet Insights network, and applications (outer).
+    // Hero rings (fuller = healthier), each tied directly to what it measures:
+    //  Device  = this phone's own connection quality.
+    //  Network = that connection blended with the services it can reach.
+    //  Apps / Internet (Global Outages) = how many outages in the last 24 hours.
     const dev = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
-    // Tenant data is no longer blended in here - the Network ring is service checks.
-    let net = svcs.length ? Math.round((good / svcs.length) * 100) : null;
-    if (net == null) net = 0;
-    // Internet Insights rings: outages in the window (active hit hard, recently
-    // cleared ones dent, capped) so the ring is never full when outages occurred.
-    const netAll = os.filter((o) => o.kind === 'network'), appAll = os.filter((o) => o.kind !== 'network');
-    const nAct = netAll.filter((o) => o.active).length, aAct = appAll.filter((o) => o.active).length;
-    const iiNet = Math.max(0, Math.min(100, 100 - nAct * 16 - Math.min(30, (netAll.length - nAct) * 2.5)));
-    const iiApp = Math.max(0, Math.min(100, 100 - aAct * 16 - Math.min(30, (appAll.length - aAct) * 2.5)));
+    const svcScore = svcs.length ? (good / svcs.length) * 100 : null;
+    const net = svcScore == null ? dev : Math.round((dev + svcScore) / 2);
+    // Global Outages: count of outages in the last 24h (0 outages = full ring,
+    // ~60 = empty). Active outages count a little extra.
+    const since24 = Date.now() - 24 * 3600e3;
+    const count = (kind) => os.reduce((n, o) => n + ((o.kind === 'network') === (kind === 'network') && o.start >= since24 ? (o.active ? 1.5 : 1) : 0), 0);
+    const outScore = (n) => Math.max(0, Math.round(100 - Math.min(100, (n / 60) * 100)));
+    const iiNet = outScore(count('network')), iiApp = outScore(count('application'));
     setRing('rgDevice', dev); setRing('rgNet', net); setRing('rgIINet', iiNet); setRing('rgIIApp', iiApp);
     const legRow = (x) => `<span style="color:${x[0]}"><i style="background:${x[0]}"></i>${x[1]} <b>${x[2]}%</b></span>`;
     // Apps + Internet are out on the public internet (external); Network and
@@ -951,10 +952,10 @@
       `<div class="rg-grp"><em class="rg-cat">Global Outages</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
       + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
     homeRings = {
-      rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
-      rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
-      rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
-      rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
+      rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Global application outages in the last 24 hours (Microsoft 365, Zoom, Webex and more). Fewer outages fills the ring.' },
+      rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Global network outages in the last 24 hours across ISPs and backbones. Fewer outages fills the ring.' },
+      rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your connection blended with the service checks it reaches (Webex, Microsoft, Google, AWS, Zoom).' },
+      rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s own connection quality to the nearest internet edge.' },
     };
   }
   // This Device: a compact overview of the service checks - every service's
