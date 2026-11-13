@@ -1076,3 +1076,8 @@ body.sheet-tall .zoomctl { opacity: 0; pointer-events: none; transition: opacity
   animation: tileGlint .8s ease-out .15s both; }
 @keyframes tileGlint { from { background-position: 120% 0; } to { background-position: -40% 0; } }
 @media (prefers-reduced-motion: reduce) { #morphLine { display: none; } }
+
+/* Tilt parallax: the cards are the glass nearest you - they drift a few px
+   against the tilt while the globe and stars move behind them. */
+#viewHome .hm-flow, #viewHome .hm-top { transform: translate3d(calc(var(--tilt-x, 0) * -6px), calc(var(--tilt-y, 0) * -5px), 0); }
+@media (prefers-reduced-motion: reduce) { #viewHome .hm-flow, #viewHome .hm-top { transform: none; } }

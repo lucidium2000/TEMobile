@@ -259,7 +259,52 @@
   // ?leanzoom=0.85 brings back lean-to-zoom.
   const LEAN_ZOOM_GAIN = num('leanzoom', 0);
   const NO_POSE = { x: 0, y: 0, z: 0 };
-  const pose = () => (window.Glass && window.Glass.pose) || NO_POSE;
+  // Phone tilt parallax (gyroscope): when Glass mode isn't tracking a face,
+  // tilting the phone moves the camera's eye, so the globe and the stars shift
+  // against each other like a scene behind the glass. Relative to however you
+  // hold the phone - the neutral angle drifts after you over a few seconds.
+  // ?gyro=0 turns it off; ?gyro=<n> scales it (default 1).
+  const GYRO_K = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Math.max(0, num('gyro', 1));
+  const GYRO = { x: 0, y: 0, z: 0, tx: 0, ty: 0, b0: null, g0: null, t: 0, on: false };
+  if (GYRO_K > 0 && 'DeviceOrientationEvent' in window) {
+    const RANGE = 18;                                   // degrees of tilt for full effect
+    const onTilt = (e) => {
+      if (e.beta == null || e.gamma == null) return;
+      const t = performance.now(), dt = GYRO.t ? Math.min(200, t - GYRO.t) : 16; GYRO.t = t;
+      let b = e.beta, g = e.gamma;
+      if (GYRO.b0 == null) { GYRO.b0 = b; GYRO.g0 = g; }
+      // Landscape: swap the axes so "left/right" stays left/right on screen.
+      const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+      if (ang === 90) { const x = b; b = -g; g = x; } else if (ang === -90 || ang === 270) { const x = b; b = g; g = -x; }
+      if (GYRO.lastAng !== ang) { GYRO.lastAng = ang; GYRO.b0 = b; GYRO.g0 = g; }
+      const k = 1 - Math.exp(-dt / 3500);               // neutral follows you (~3.5 s)
+      GYRO.b0 += (b - GYRO.b0) * k; GYRO.g0 += (g - GYRO.g0) * k;
+      const c = (v) => Math.max(-1, Math.min(1, v));
+      GYRO.tx = c(((g - GYRO.g0) / RANGE) * GYRO_K);
+      GYRO.ty = c(((b - GYRO.b0) / RANGE) * GYRO_K);
+      GYRO.on = true;
+    };
+    const listen = () => addEventListener('deviceorientation', onTilt);
+    // iOS asks first, and only from a tap.
+    if (typeof DeviceOrientationEvent.requestPermission === 'function' && !qs.has('gyrotest')) {   // ?gyrotest: skip the ask (testing)
+      const ask = () => {
+        removeEventListener('touchend', ask, true); removeEventListener('click', ask, true);
+        DeviceOrientationEvent.requestPermission().then((r) => { if (r === 'granted') listen(); }).catch(() => {});
+      };
+      addEventListener('touchend', ask, true); addEventListener('click', ask, true);
+    } else listen();
+    // Smooth toward the target each frame, and hand the tilt to the page (the
+    // Home cards drift a few px the other way - they're the glass, nearest you).
+    const ease = () => {
+      requestAnimationFrame(ease);
+      if (!GYRO.on) return;
+      GYRO.x += (GYRO.tx - GYRO.x) * 0.12; GYRO.y += (GYRO.ty - GYRO.y) * 0.12;
+      const r = document.documentElement.style;
+      r.setProperty('--tilt-x', GYRO.x.toFixed(3)); r.setProperty('--tilt-y', GYRO.y.toFixed(3));
+    };
+    requestAnimationFrame(ease);
+  }
+  const pose = () => (window.Glass && window.Glass.on && window.Glass.pose) || (GYRO.on ? GYRO : NO_POSE);
 
   // ── Cached artwork ───────────────────────────────────────────────────────
   // Everything that looks the same frame to frame is drawn once into an
