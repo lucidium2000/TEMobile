@@ -133,10 +133,19 @@
   // This Device = the old Home + the phone merged: the live connection timeline
   // and per-service timelines sit under the hero, device detail under the feed.
   (function buildThisDevice() {
-    const hero = $('hmHero'), phNet = $('phNet'), services = $('services'), extra = $('hmDeviceExtra');
+    const hero = $('hmHero'), phNet = $('phNet'), extra = $('hmDeviceExtra');
+    // Connection timeline under the hero; the detailed service list stays on
+    // Network - This Device gets a compact overview chart instead.
     if (hero && phNet) hero.after(phNet);
-    if (phNet && services) phNet.after(services); else if (hero && services) hero.after(services);
     if (extra) ['phBat', 'phLoc', 'phDev'].forEach((id) => { const el = $(id); if (el) extra.appendChild(el); });
+    // Connection card: compact (status + timeline); "More details" reveals the
+    // stats row and the full key/value list.
+    if (phNet && !$('phMore')) {
+      const b = document.createElement('button');
+      b.id = 'phMore'; b.className = 'conn-more'; b.type = 'button'; b.textContent = 'More details'; b.setAttribute('aria-expanded', 'false');
+      const kv = $('phNetKv'); if (kv) phNet.insertBefore(b, kv); else phNet.appendChild(b);
+      b.addEventListener('click', () => { const exp = phNet.classList.toggle('conn-exp'); b.setAttribute('aria-expanded', exp ? 'true' : 'false'); b.textContent = exp ? 'Less detail' : 'More details'; });
+    }
   })();
   function renderTenantOutages() {
     if (!window.TEConn || !TEConn.on()) return;
@@ -910,6 +919,7 @@
     // connection timeline, the per-service timelines, battery, location, device.
     const q = quality();
     refreshNet(); refreshBattery(); refreshLoc(); refreshDev();
+    renderSvcOverview();
     // Service health feeds the Network ring (from the live service rows).
     const svcs = [...document.querySelectorAll('#roomNetRows .svc')].map((r) => ({
       lvl: (r.className.match(/svc-(ok|warn|bad|info|wait)/) || [])[1] || 'wait' }));
@@ -932,14 +942,45 @@
     // Apps + Internet are out on the public internet (external); Network and
     // this Device are things you run (internal).
     $('hmRingLegend').innerHTML =
-      `<div class="rg-grp"><em class="rg-cat">External</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
-      + `<div class="rg-grp"><em class="rg-cat">Internal</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
+      `<div class="rg-grp"><em class="rg-cat">Global Outages</em>${[['#00bceb', 'Apps', iiApp], ['#f15e22', 'Internet', iiNet]].map(legRow).join('')}</div>`
+      + `<div class="rg-grp"><em class="rg-cat">This Device</em>${[['#78be20', 'Network', net], ['#7c3aed', 'Device', dev]].map(legRow).join('')}</div>`;
     homeRings = {
       rgIIApp: { name: 'Apps', color: '#00bceb', val: iiApp, desc: 'Internet Insights \u2014 application outages, like Microsoft 365, Zoom and Webex. Fuller means fewer outages.' },
       rgIINet: { name: 'Internet', color: '#f15e22', val: iiNet, desc: 'Internet Insights \u2014 network outages across ISPs and backbones. Fuller means fewer outages.' },
       rgNet: { name: 'Network', color: '#78be20', val: net, desc: 'Your service checks: Webex, Microsoft, Google, AWS and Zoom.' },
       rgDevice: { name: 'Device', color: '#7c3aed', val: dev, desc: 'This phone\u2019s live connection quality to the nearest internet edge.' },
     };
+  }
+  // This Device: a compact overview of the service checks - every service's
+  // latency as an overlapping line on one grid, with a legend. Full per-service
+  // detail lives on the Network tab ("Details").
+  const SVCC_COLORS = ['#16bdeb', '#78be20', '#f15e22', '#a78bfa', '#fbbf24', '#f472b6'];
+  function renderSvcOverview() {
+    const grid = $('hmSvccGrid'), leg = $('hmSvccLegend'); if (!grid) return;
+    const probes = (window.RoomNet && window.RoomNet.probes) || [];
+    const now = Date.now(), span = 3600e3, t0 = now - span;
+    let maxMs = 60;
+    probes.forEach((p) => (p.samples || []).forEach((s) => { if (s.ms != null && s.t >= t0) maxMs = Math.max(maxMs, s.ms); }));
+    maxMs = Math.min(maxMs * 1.12, 600);
+    const W = 300, H = 76, X = (t) => ((t - t0) / span) * W, Y = (ms) => H - 3 - (Math.min(ms, maxMs) / maxMs) * (H - 8);
+    let paths = '';
+    probes.forEach((p, i) => {
+      const col = SVCC_COLORS[i % SVCC_COLORS.length];
+      const pts = (p.samples || []).filter((s) => s.t >= t0 && s.ms != null);
+      if (pts.length < 2) return;
+      const d = pts.map((s, k) => (k ? 'L' : 'M') + X(s.t).toFixed(1) + ' ' + Y(s.ms).toFixed(1)).join(' ');
+      paths += `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>`;
+    });
+    grid.innerHTML = paths
+      ? `<svg class="svcc-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${paths}</svg><span class="svcc-ax"><span>1h ago</span><span>now</span></span>`
+      : '<span class="svcc-wait">Checking services…</span>';
+    leg.innerHTML = probes.map((p, i) => {
+      const col = SVCC_COLORS[i % SVCC_COLORS.length];
+      const last = (p.samples || []).filter((s) => s.ms != null).slice(-1)[0];
+      const lvl = p.status === 'down' ? 'bad' : (p.status === 'slow' || p.status === 'warn') ? 'warn' : last ? 'ok' : 'wait';
+      const ms = last ? Math.round(last.ms) + ' ms' : (p.status === 'pending' ? '…' : 'no reply');
+      return `<span class="svcc-lg ${lvl}"><i style="background:${col}"></i>${esc(p.name || p.label || '')} <b>${ms}</b></span>`;
+    }).join('');
   }
   function setRing(id, v) {
     const el = $(id); if (!el) return;

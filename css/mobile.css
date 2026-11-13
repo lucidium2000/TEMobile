@@ -663,6 +663,27 @@ body.wx-min #viewWeather > :not(.wx-ctl):not(.wx-hours):not(.wx-grab) { opacity:
 .ph-live b small { font-size: .62em; font-weight: 700; color: var(--ink-3); margin-left: 2px; }
 .ph-live b.ok { color: #34d399; } .ph-live b.warn { color: #fbbf24; } .ph-live b.bad { color: #f43f5e; }
 #phSpark .rn-spark { height: 46px; }
+/* This Device: connection card is compact (status + live timeline). "More
+   details" reveals the stats row and the full key/value list. */
+#phNet .ph-lstats, #phNet .kv { display: none; }
+#phNet.conn-exp .ph-lstats { display: flex; }
+#phNet.conn-exp .kv { display: grid; }
+.conn-more { display: inline-block; margin: 2px 0 0; padding: .42em .9em; border-radius: 99px; border: 1px solid var(--hair); background: rgba(255, 255, 255, .05); color: var(--cyan); font-weight: 700; font-size: .82em; cursor: pointer; }
+.conn-more::after { content: " \25BE"; }
+#phNet.conn-exp .conn-more::after { content: " \25B4"; }
+/* Service-checks overview: one grid of overlapping latency lines + a legend,
+   with a Details link out to the Network tab. Compact by design. */
+.hm-svcc > .sec-title { display: flex; align-items: center; }
+.svcc-btn { margin-left: auto; padding: .28em .7em; border-radius: 99px; border: 1px solid var(--hair); background: none; color: var(--cyan); font-weight: 700; font-size: .82em; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.svcc-grid { position: relative; height: 76px; margin: 2px 0 8px; border-radius: 12px; background: rgba(0, 0, 0, .28); border: 1px solid var(--hair); overflow: hidden; }
+.svcc-svg { position: absolute; inset: 4px 7px 10px; width: calc(100% - 14px); height: calc(100% - 14px); }
+.svcc-ax { position: absolute; left: 9px; right: 9px; bottom: 2px; display: flex; justify-content: space-between; font-size: .6em; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; pointer-events: none; }
+.svcc-wait { display: grid; place-items: center; height: 100%; color: var(--ink-3); font-size: .82em; }
+.svcc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.svcc-lg { display: inline-flex; align-items: center; gap: 6px; font-size: .82em; font-weight: 600; white-space: nowrap; color: var(--ink-2); }
+.svcc-lg i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.svcc-lg b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
+.svcc-lg.bad b { color: var(--bad); } .svcc-lg.warn b { color: var(--warn); }
 .ph-lstats { display: flex; justify-content: space-between; gap: 4px; margin-top: 6px; font-size: .62em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
 .ph-lstats span { white-space: nowrap; }
 .ph-lstats b { color: var(--ink); font-variant-numeric: tabular-nums; }

@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#05070d">
   <link rel="stylesheet" href="css/app.css?v=179">
-  <link rel="stylesheet" href="css/mobile.css?v=60">
+  <link rel="stylesheet" href="css/mobile.css?v=61">
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
@@ -287,8 +287,13 @@
         <span class="rg-legend" id="hmRingLegend"></span>
       </span>
     </button>
-    <!-- The live connection timeline (#phNet) and per-service timelines (#services)
-         are moved in here, right under the hero, by mobile.js. -->
+    <!-- The live connection timeline (#phNet) is moved in under the hero by
+         mobile.js; the compact service-checks overview sits here. -->
+    <section class="m-card sec hm-svcc" id="hmSvcChart">
+      <h2 class="sec-title"><svg class="sec-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3l2-5 4 10 2-5h3M18 12h3"/></svg><span class="sec-name">Service checks</span><button class="svcc-btn" id="hmSvcMore" type="button" data-go="tests">Details &rsaquo;</button></h2>
+      <div class="svcc-grid" id="hmSvccGrid"></div>
+      <div class="svcc-legend" id="hmSvccLegend"></div>
+    </section>
     <section class="hm-latest">
       <button class="hm-label" data-go="globe"><span id="hmFeedLabel">Happening now</span><em>See all</em></button>
       <ol class="h-list" id="hmList"></ol>
@@ -455,7 +460,7 @@
   <script src="js/wxview.js?v=1"></script>
   <script src="js/te-ocr.js?v=2"></script>
   <script src="js/te-connect.js?v=5"></script>
-  <script src="js/mobile.js?v=45"></script>
+  <script src="js/mobile.js?v=46"></script>
   <script src="js/devlab.js?v=78"></script>
 </body>
 </html>
