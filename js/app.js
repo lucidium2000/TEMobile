@@ -291,6 +291,7 @@
       const ask = () => {
         removeEventListener('touchend', ask, true); removeEventListener('click', ask, true);
         DeviceOrientationEvent.requestPermission().then((r) => { if (r === 'granted') listen(); }).catch(() => {});
+        if (window.Drop) window.Drop.ask();   // same tap: motion (the drop bounce) too
       };
       addEventListener('touchend', ask, true); addEventListener('click', ask, true);
     } else listen();
@@ -4112,6 +4113,8 @@
   }
   // Hooks for the mobile tabs (js/mobile.js).
   window.TEApp = {
+    /** Test the drop bounce without shaking anything (strength 0..1). */
+    drop(k) { BOUNCE.lastKick = 0; window.Drop.kick(k == null ? 1 : k); },
     /** Turn the globe to a place and zoom in. */
     flyToPlace(lon, lat) { select(null); zoomTo(Math.max(view.zoom, 2.6), [lon, lat]); },
     /** This device's place (IP lookup, or the exact location if set). */
@@ -4223,6 +4226,53 @@
       if (rbQuiet > 100) { rbOn = false; window.Sfx.rumble(false, performance.now() - S.lastInput < 400 || !!S.spin || !!S.flight); }
     } else rbQuiet = 0;
   }
+  /* Drop bounce: push the phone down quickly (like it's falling) and the
+   * globe falls away from you, rebounds past where it was - closer - and
+   * settles back, like a ball. devicemotion's gravity-free acceleration is
+   * projected onto "up" (taken from gravity, so it works however the phone is
+   * held); a sharp downward push kicks an underdamped spring on the globe's
+   * size. iOS needs permission from a tap (asked with the tilt one).
+   * ?drop=0 turns it off; ?drop=<0.5..2> scales it. */
+  const DROP_K = qs.get('drop') === '0' || !GYRO_K ? 0 : Math.max(0.3, Math.min(2.5, parseFloat(qs.get('drop')) || 1));
+  const BOUNCE = { x: 0, v: 0, lastKick: 0 };
+  const DROP_W = 2 * Math.PI * 1.5, DROP_Z = 0.25;      // ~1.5 Hz, light damping: away, closer, home
+  window.Drop = {
+    on: false,
+    ask() {
+      if (!DROP_K || this.on || !('DeviceMotionEvent' in window)) return;
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission().then((r) => { if (r === 'granted') this.listen(); }).catch(() => {});
+      } else this.listen();
+    },
+    listen() { if (this.on) return; this.on = true; addEventListener('devicemotion', onDrop); },
+    kick(strength) {   // also handy for testing: TEApp.drop(1)
+      const t = performance.now();
+      if (t - BOUNCE.lastKick < 900 || S.dragging) return;
+      BOUNCE.lastKick = t;
+      BOUNCE.v -= 3 * Math.max(0.25, Math.min(1, strength)) * DROP_K;   // size fraction per second
+    },
+  };
+  function onDrop(e) {
+    const a = e.acceleration, g = e.accelerationIncludingGravity;
+    if (!a || !g || a.x == null || g.x == null) return;
+    // "Up" in the phone's frame: what's left of the gravity-included reading
+    // once the motion is taken out.
+    const ux = g.x - a.x, uy = g.y - a.y, uz = g.z - a.z, um = Math.hypot(ux, uy, uz);
+    if (um < 6) return;                                  // free fall or nonsense: no reliable "up"
+    const up = (a.x * ux + a.y * uy + a.z * uz) / um;    // m/s^2 along up; negative = pushed down
+    if (up < -6) window.Drop.kick((-up - 4) / 10);   // a deliberate push; walking stays under this
+  }
+  if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
+  function stepBounce(dt) {
+    if (!BOUNCE.x && !BOUNCE.v) return;
+    const h = Math.min(dt, 40) / 1000;
+    for (let i = 0; i < 4; i++) {   // small sub-steps keep the spring stable
+      const s4 = h / 4, acc = -DROP_W * DROP_W * BOUNCE.x - 2 * DROP_Z * DROP_W * BOUNCE.v;
+      BOUNCE.v += acc * s4; BOUNCE.x += BOUNCE.v * s4;
+    }
+    BOUNCE.x = Math.max(-0.45, Math.min(0.35, BOUNCE.x));
+    if (Math.abs(BOUNCE.x) < 0.0005 && Math.abs(BOUNCE.v) < 0.005) BOUNCE.x = BOUNCE.v = 0;
+  }
   function frame(t) {
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
     requestAnimationFrame(frame);
@@ -4245,7 +4295,9 @@
       ctx.setTransform(S.pr, 0, 0, S.pr, 0, 0);
       if (!glr) drawSky();   // (also covers WebGL having been dropped mid-run)
       perfMark('sky');
-      drawGlobe(t, layout());
+      stepBounce(dt);
+      if (BOUNCE.x) { const z = view.zoom; view.zoom = z * (1 + BOUNCE.x); try { drawGlobe(t, layout()); } finally { view.zoom = z; } }
+      else drawGlobe(t, layout());
       updateFloat();
       updateSheen();
     } catch (e) {
