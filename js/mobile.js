@@ -1018,7 +1018,10 @@
     const connR = navigator.onLine && q.bars != null ? Math.round((q.bars / 5) * 100) : 0;
     const intR = ii.bars * 20;
     const saasR = svcs.length ? Math.round((good / svcs.length) * 100) : 0;
-    setRing('rgDevice', devR); setRing('rgNet', connR); setRing('rgIINet', intR); setRing('rgIIApp', saasR);
+    // The inside (Device) ring sits with the middle of its gap at 4:30; every
+    // other ring starts from that same point and runs clockwise to its value.
+    const ringBase = 225 - 1.8 * Math.max(0, Math.min(100, devR));
+    [['rgDevice', devR], ['rgNet', connR], ['rgIINet', intR], ['rgIIApp', saasR]].forEach(([id, v]) => setRing(id, v, ringBase));
     homeRings = {
       rgIIApp: { name: 'SaaS', color: '#00bceb', val: saasR, desc: 'Your SaaS service checks (Webex, Microsoft, Google, AWS, Zoom) that are answering.' },
       rgIINet: { name: 'Internet', color: '#f15e22', val: intR, desc: 'Internet health near you: full when no Internet Insights network outage is within 2,500 miles.' },
@@ -1026,24 +1029,6 @@
       rgDevice: { name: 'Device', color: '#7c3aed', val: devR, desc: battery ? 'This phone\u2019s battery level.' : 'This device is online (battery isn\u2019t shared by this browser).' },
     };
   }
-  // Sync the hero rings with the card flow: as each card lights up, its ring
-  // glows and the centre shows its name and value.
-  const FLOW = [['hmDev', 'rgDevice'], ['hmNet', 'rgNet'], ['hmInt', 'rgIINet'], ['hmSvc', 'rgIIApp']];
-  let flowAct = -1;
-  setInterval(() => {
-    if (tab !== 'home' || document.hidden) return;
-    const a = $('hmDev') && $('hmDev').getAnimations().find((x) => x.animationName === 'nodePulse');
-    let k = -1;
-    if (a && a.currentTime != null) { const t = a.currentTime % 4000; if (t % 1000 < 850) k = Math.floor(t / 1000); }
-    if (k === flowAct) return;
-    flowAct = k;
-    FLOW.forEach(([, rid], i) => { const c = $(rid); if (c) c.classList.toggle('rg-glow', i === k); });
-    const lbl = $('rgCenterVal'), rings = document.querySelector('#hmHero .rings');
-    if (k < 0 || !homeRings[FLOW[k][1]]) { if (rings) rings.classList.remove('show-val'); return; }
-    const info = homeRings[FLOW[k][1]];
-    lbl.innerHTML = `<b style="color:${info.color}">${info.val}<small>%</small></b><span>${esc(info.name)}</span>`;
-    if (rings) rings.classList.add('show-val');
-  }, 100);
   // This Device: a compact overview of the service checks - every service's
   // latency as an overlapping line on one grid, with a legend. Full per-service
   // detail lives on the Network tab ("Details").
@@ -1082,14 +1067,12 @@
       return `<span class="svcc-lg ${lvl}"><i style="background:${col}"></i>${esc(p.name || p.label || '')} <b>${ms}</b></span>`;
     }).join('');
   }
-  function setRing(id, v) {
+  function setRing(id, v, base) {
     const el = $(id); if (!el) return;
     const c = Math.max(0, Math.min(100, v || 0));
     el.style.strokeDashoffset = String(100 - c);
-    // Every ring starts from the same origin (4:30) and runs clockwise to its
-    // value, so they're easy to compare. The arc starts at 3 o'clock, so a
-    // fixed 45deg rotation puts the shared start at 4:30.
-    el.style.setProperty('--rg-base', '45deg');
+    // Shared start for all rings, set from the inside ring (see refreshHome).
+    el.style.setProperty('--rg-base', (base == null ? 45 : base).toFixed(1) + 'deg');
     // Original per-ring spread (8 + 0.34*(100-c)) scaled to 1/5, so fuller rings
     // spin clearly faster than emptier ones, at half the previous overall speed.
     el.style.setProperty('--rg-dur', (1.6 + (100 - c) * 0.068).toFixed(2) + 's');
