@@ -179,7 +179,7 @@
     const i = TAB_ORDER.indexOf(tab), j = i + dir;
     if (i < 0 || j < 0 || j >= TAB_ORDER.length) return;
     if (window.Sfx) window.Sfx.play('tap');
-    setTab(TAB_ORDER[j]);
+    slideTo(dir);
   }
   function updateFlowArrows() {
     const i = TAB_ORDER.indexOf(tab), prev = $('flowPrev'), next = $('flowNext');
@@ -188,27 +188,75 @@
   }
   $('flowPrev').addEventListener('click', () => goTab(-1));
   $('flowNext').addEventListener('click', () => goTab(1));
-  // Swipe left = next, swipe right = previous. Tracks the whole gesture (pointer
-  // and touch), ignoring only the globe, drawer and form controls. A short guard
-  // stops pointer + touch from both firing for one swipe.
-  let swX = 0, swY = 0, swT = 0, swOk = false, swLX = 0, swLY = 0, lastNav = 0;
-  const NOSWIPE = '#globe, #panel, .flow-arrow, input, textarea, select, [contenteditable]';
-  function swStart(x, y, t) { if (t && t.closest && t.closest(NOSWIPE)) { swOk = false; return; } swX = swLX = x; swY = swLY = y; swT = Date.now(); swOk = true; }
-  function swMove(x, y) { if (swOk) { swLX = x; swLY = y; } }
-  function swEnd() {
-    if (!swOk) return; swOk = false;
-    const dx = swLX - swX, dy = swLY - swY, dt = Date.now() - swT;
-    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.25 || dt > 900) return;
-    const now = Date.now(); if (now - lastNav < 500) return; lastNav = now;
-    goTab(dx < 0 ? 1 : -1);
+  // ── Seamless pager: drag left/right and the screens follow your finger (hold
+  // and they hold), release to complete or snap back. Arrows / taps animate the
+  // same way. A view slides over / off the globe, which stays as the backdrop.
+  const screenEl = (name) => views[name] || null;   // null = the globe backdrop
+  const vw = () => window.innerWidth;
+  const clearT = (el) => { if (el) { el.style.transition = ''; el.style.transform = ''; } };
+  function settle(cur, nxt, toName) {
+    clearT(cur); clearT(nxt);
+    if (toName) setTab(toName); else if (nxt && nxt !== screenEl(tab)) nxt.hidden = true;
   }
-  addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button !== 0) { swOk = false; return; } swStart(e.clientX, e.clientY, e.target); }, { passive: true });
-  addEventListener('pointermove', (e) => swMove(e.clientX, e.clientY), { passive: true });
-  addEventListener('pointerup', swEnd, { passive: true });
-  addEventListener('pointercancel', swEnd, { passive: true });
-  addEventListener('touchstart', (e) => { const t = e.touches[0]; if (t) swStart(t.clientX, t.clientY, e.target); }, { passive: true });
-  addEventListener('touchmove', (e) => { const t = e.touches[0]; if (t) swMove(t.clientX, t.clientY); }, { passive: true });
-  addEventListener('touchend', swEnd, { passive: true });
+  function slideTo(dir) {                              // programmatic (arrows / taps)
+    const to = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir]; if (!to) return;
+    const W = vw(), cur = screenEl(tab), nxt = screenEl(to), DUR = 280, E = 'cubic-bezier(.4,0,.2,1)';
+    if (nxt) { nxt.hidden = false; nxt.style.transition = 'none'; nxt.style.transform = `translateX(${dir > 0 ? W : -W}px)`; void nxt.offsetWidth; }
+    if (cur) cur.style.transition = `transform ${DUR}ms ${E}`;
+    if (nxt) nxt.style.transition = `transform ${DUR}ms ${E}`;
+    requestAnimationFrame(() => { if (cur) cur.style.transform = `translateX(${dir > 0 ? -W : W}px)`; if (nxt) nxt.style.transform = 'translateX(0)'; });
+    setTimeout(() => settle(cur, nxt, to), DUR + 30);
+  }
+  // Interactive finger-follow drag.
+  let pg = null;
+  const PG_IGNORE = 'input, textarea, select, [contenteditable], .flow-arrow';
+  function pgNeighbor(dir) {
+    const name = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir] || null;
+    if (pg.nbrName === name) return;
+    if (pg.nbrEl && pg.nbrEl !== screenEl(tab)) { clearT(pg.nbrEl); pg.nbrEl.hidden = true; }
+    pg.nbrName = name; pg.nbrEl = name ? screenEl(name) : null;
+    if (pg.nbrEl) pg.nbrEl.hidden = false;
+  }
+  addEventListener('pointerdown', (e) => {
+    if (pg || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const t = e.target; if (t && t.closest && t.closest(PG_IGNORE)) return;
+    pg = { x0: e.clientX, y0: e.clientY, axis: null, W: vw(), curEl: null, nbrEl: null, nbrName: undefined, dx: 0, dir: 0, moved: false, t0: Date.now() };
+  }, { capture: true, passive: true });
+  addEventListener('pointermove', (e) => {
+    if (!pg) return;
+    const dx = e.clientX - pg.x0, dy = e.clientY - pg.y0;
+    if (!pg.axis) {
+      if (Math.abs(dx) < 9 && Math.abs(dy) < 9) return;
+      pg.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (pg.axis === 'x') pg.curEl = screenEl(tab);
+    }
+    if (pg.axis !== 'x') return;                        // vertical: let it scroll
+    pg.moved = true;
+    const dir = dx < 0 ? 1 : -1; pg.dir = dir;
+    pgNeighbor(dir);
+    const d = pg.nbrName ? dx : dx * 0.28;              // rubber-band at the ends
+    pg.dx = d;
+    if (pg.curEl) { pg.curEl.style.transition = 'none'; pg.curEl.style.transform = `translateX(${d}px)`; }
+    if (pg.nbrEl) { pg.nbrEl.style.transition = 'none'; pg.nbrEl.style.transform = `translateX(${(dir > 0 ? pg.W : -pg.W) + d}px)`; }
+    if (e.cancelable) e.preventDefault();
+  }, { capture: true, passive: false });
+  function pgEnd(cancel) {
+    if (!pg) return; const p = pg; pg = null;
+    if (p.axis !== 'x' || !p.moved) { clearT(p.curEl); if (p.nbrEl && p.nbrEl !== screenEl(tab)) { clearT(p.nbrEl); p.nbrEl.hidden = true; } return; }
+    const W = p.W, dir = p.dir, DUR = 240, E = 'cubic-bezier(.4,0,.2,1)';
+    const to = TAB_ORDER[TAB_ORDER.indexOf(tab) + dir];
+    const fast = (Date.now() - p.t0) < 350 && Math.abs(p.dx) > 40;
+    const commit = !cancel && to && (Math.abs(p.dx) > W * 0.32 || fast);
+    if (p.curEl) p.curEl.style.transition = `transform ${DUR}ms ${E}`;
+    if (p.nbrEl) p.nbrEl.style.transition = `transform ${DUR}ms ${E}`;
+    requestAnimationFrame(() => {
+      if (commit) { if (p.curEl) p.curEl.style.transform = `translateX(${dir > 0 ? -W : W}px)`; if (p.nbrEl) p.nbrEl.style.transform = 'translateX(0)'; }
+      else { if (p.curEl) p.curEl.style.transform = 'translateX(0)'; if (p.nbrEl) p.nbrEl.style.transform = `translateX(${dir > 0 ? W : -W}px)`; }
+    });
+    setTimeout(() => { if (commit) settle(p.curEl, p.nbrEl, to); else { clearT(p.curEl); if (p.nbrEl && p.nbrEl !== screenEl(tab)) { clearT(p.nbrEl); p.nbrEl.hidden = true; } } }, DUR + 30);
+  }
+  addEventListener('pointerup', () => pgEnd(false), { capture: true, passive: true });
+  addEventListener('pointercancel', () => pgEnd(true), { capture: true, passive: true });
   // A service row opens its path trace - on the globe.
   $('roomNetRows').addEventListener('click', (e) => {
     if (e.target.closest('.svc-edit, .svc-grip') || $('services').classList.contains('editing')) return;
