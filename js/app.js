@@ -4210,8 +4210,16 @@
     rbSp = rbSp * 0.7 + sp * 0.3;
     if (!rbOn && rbSp > 0.3) { rbOn = true; rbQuiet = 0; window.Sfx.rumble(true); }
     else if (rbOn) {
-      rbQuiet = rbSp < 0.08 ? rbQuiet + dt : 0;          // stopped for a moment: let it settle
-      if (rbQuiet > 120) { rbOn = false; window.Sfx.rumble(false); }
+      if (S.dragging) {
+        // A finger holding the globe still (or catching it mid-spin) stops
+        // the sound at once - no settle.
+        rbQuiet = sp < 0.03 ? rbQuiet + dt : 0;
+        if (rbQuiet > 60) { rbOn = false; rbSp = 0; window.Sfx.rumble(false, true); }
+      } else {
+        rbQuiet = rbSp < 0.08 ? rbQuiet + dt : 0;        // coasted to a stop: let it settle
+        // ...unless a quick tap just stopped it: that's abrupt too.
+        if (rbQuiet > 120) { rbOn = false; window.Sfx.rumble(false, performance.now() - S.lastInput < 400); }
+      }
     }
   }
   function frame(t) {

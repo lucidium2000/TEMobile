@@ -160,7 +160,7 @@
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.7, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.8);
     src.connect(f).connect(g).connect(master); src.start(t0, Math.random() * 3); src.stop(t0 + 0.85);
   }
-  function rumble(on) {
+  function rumble(on, abrupt) {
     if (MUTED || !ctx || on === rbOn) return;
     if (on && ctx.state === 'suspended') ctx.resume();
     rbOn = on;
@@ -175,6 +175,7 @@
         g.linearRampToValueAtTime(1, t + 0.35);     // quick, steady swell - then holds
         fr.linearRampToValueAtTime(30, t + 0.3); lp.linearRampToValueAtTime(130, t + 0.3);
       } else {
+        if (abrupt) { g.linearRampToValueAtTime(0, t + 0.08); return; }   // caught by a finger: just stop
         g.setTargetAtTime(0, t, 0.5);               // ~2 s slow fade
         fr.exponentialRampToValueAtTime(22, t + 1.8); lp.exponentialRampToValueAtTime(70, t + 1.8);
         if (performance.now() - rbSince > 350) settle();   // a real move earns the settle; a nudge just fades
