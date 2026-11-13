@@ -169,7 +169,6 @@
     if (n.testId) rows.push(['Test ID', n.testId]);
     if (n.id) rows.push(['Alert ID', String(n.id)]);
     return `<dl class="al-kv">${rows.map(([k, v, c]) => `<div${c ? ` class="${c}"` : ''}><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`
-      + (n.perma && /^https:\/\/app\.thousandeyes\.com\//.test(n.perma) ? `<a class="al-open" href="${esc(n.perma)}" target="_blank" rel="noopener">View in ThousandEyes ›</a> ` : '')
       + (withOpen ? `<button type="button" class="al-open" data-act="tenant">Open in My ThousandEyes ›</button>` : '');
   }
   const alKey = (n) => String(n.id || n.title || '');
@@ -399,7 +398,7 @@
         <div class="te-al-main"><b>${esc(n.title)}</b><span>${esc([n.cond, n.type].filter(Boolean).join(' · '))}</span></div>
         <div class="te-al-meta"><span>${esc(n.sev || '')}</span><small>${n.start ? alertSince(n.start) : ''}${n.viol ? ' · ' + n.viol + '\u00d7' : ''}</small></div>
         </div>
-        <div class="al-detail">${alertDetail(n, false)}${alertAgentsHtml(n)}${traceBtn(n)}</div>
+        <div class="al-detail">${alertDetail(n, false)}${alertAgentsHtml(n)}</div>
       </div>`;
     }).join('');
     host.querySelectorAll('.te-al').forEach((al) => { if (openAlerts.has(al.dataset.aid)) al.classList.add('open'); });
@@ -409,14 +408,32 @@
   // BGP and DNS tests don't have one this endpoint can return.
   const traceBtn = (n) => n.testId && !/endpoint|bgp|dns/i.test(n.type || '')
     ? `<button type="button" class="al-open al-trace" data-trace="${esc(n.testId)}" data-al="${esc(n.id)}" data-title="${esc(n.title)}">Last path trace \u203a</button>` : '';
+  // One compact row: "Seen by N agents" (expands the list, closed by default),
+  // Show on the globe, and Last path trace.
+  const openSeen = new Set();
   function alertAgentsHtml(n) {
-    const seen = tnModel.byAlert.get(String(n.id));
-    if (!seen || !seen.length) return '';
+    const seen = tnModel.byAlert.get(String(n.id)) || [];
     const onGlobe = seen.find((s) => tnModel.list.some((p) => p.key === s.key));
-    return `<div class="al-agents"><h4>Seen by ${seen.length} agent${seen.length === 1 ? '' : 's'}</h4><ul>${seen.slice(0, 10).map((s) => `<li><b>${esc(s.agent)}</b><span>${esc(fmtMetrics(s.metrics))}</span></li>`).join('')}${seen.length > 10 ? `<li class="more">+${seen.length - 10} more</li>` : ''}</ul>`
-      + (onGlobe ? `<button type="button" class="al-open" data-globe="${esc(onGlobe.key)}">Show on the globe \u203a</button>` : '') + '</div>';
+    const open = openSeen.has(String(n.id));
+    const acts = (seen.length ? `<button type="button" class="al-seen${open ? ' open' : ''}" data-seen="${esc(n.id)}" aria-expanded="${open}">Seen by ${seen.length} agent${seen.length === 1 ? '' : 's'}<i></i></button>` : '')
+      + (onGlobe ? `<button type="button" class="al-open" data-globe="${esc(onGlobe.key)}">Show on the globe \u203a</button>` : '')
+      + traceBtn(n);
+    if (!acts) return '';
+    return `<div class="al-acts">${acts}</div>`
+      + (seen.length ? `<div class="al-agents${open ? ' open' : ''}"><ul>${seen.slice(0, 25).map((s) => `<li><b>${esc(s.agent)}</b><span>${esc(fmtMetrics(s.metrics))}</span></li>`).join('')}${seen.length > 25 ? `<li class="more">+${seen.length - 25} more</li>` : ''}</ul></div>` : '');
   }
+
   $('teAlerts').addEventListener('click', (e) => {
+    const sb = e.target.closest('[data-seen]');
+    if (sb) {
+      e.stopPropagation();
+      const id = String(sb.dataset.seen), op = !openSeen.has(id);
+      if (op) openSeen.add(id); else openSeen.delete(id);
+      sb.classList.toggle('open', op); sb.setAttribute('aria-expanded', op);
+      const list = sb.closest('.al-detail').querySelector('.al-agents'); if (list) list.classList.toggle('open', op);
+      if (window.Sfx) window.Sfx.play('tap');
+      return;
+    }
     const tb = e.target.closest('[data-trace]');
     if (tb) { e.stopPropagation(); openTrace(tb.dataset.trace, tb.dataset.title, tnModel.byAlert.get(String(tb.dataset.al)) || []); return; }
     const gb = e.target.closest('[data-globe]');
@@ -457,8 +474,8 @@
     const close = () => { m.classList.remove('show'); setTimeout(() => { m.hidden = true; }, 220); ptState = null; if (window.Sfx) window.Sfx.play('close'); };
     m.addEventListener('click', (e) => {
       if (e.target === m || e.target.closest('.pt-x')) return close();
-      const ag = e.target.closest('[data-ptag]'); if (ag && ptState) { ptState.agent = ag.dataset.ptag; ptState.path = 0; return ptLoadRound(); }
-      const pa = e.target.closest('[data-ptpath]'); if (pa && ptState) { ptState.path = +pa.dataset.ptpath; return ptRender(); }
+      const ag = e.target.closest('[data-ptag]'); if (ag && ptState) { ptState.agent = ag.dataset.ptag; ptState.sel = null; return ptLoadRound(); }
+      const nd = e.target.closest('[data-ptn]'); if (nd && ptState) { if (window.Sfx) window.Sfx.play('tap'); return ptInfo(ptState.sel === nd.dataset.ptn ? null : nd.dataset.ptn); }
     });
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) close(); });
     return m;
@@ -516,26 +533,84 @@
     const st = ptState; if (!st || !st.round) return;
     const { ag, r, traces } = st.round;
     if (!traces.length) { $('ptBody').innerHTML = '<p class="pt-msg">This round has no hop data.</p>'; return; }
-    $('ptPaths').innerHTML = traces.length > 1 ? traces.map((t, i) => `<button type="button" class="pt-chip${i === st.path ? ' on' : ''}" data-ptpath="${i}">Path ${i + 1}</button>`).join('') : '';
-    const t = traces[Math.min(st.path, traces.length - 1)];
-    const hops = t.hops.slice().sort((a, b) => (a.hop || 0) - (b.hop || 0));
-    const target = r.serverIp || ag.serverIp || t.ipAddress || '', when = r.date || ag.date;
-    const last = hops[hops.length - 1], reached = last && target && (last.ipAddress === target);
-    let prev = 0, html = `<ol class="pt-line">
-      <li class="pt-n pt-src"><span class="pt-dot"></span><div class="pt-txt"><b>${esc(ag.name)}</b><small>${esc([r.sourceIp || ag.sourceIp, ag.loc].filter(Boolean).join(' \u00b7 '))}</small></div><span class="pt-ms">source</span></li>`;
-    for (const h of hops) {
-      const ip = h.ipAddress || h.ip || '', ms = h.responseTime != null ? h.responseTime : h.delay;
-      if (!ip) { html += `<li class="pt-n pt-none"><span class="pt-dot">${h.hop || ''}</span><div class="pt-txt"><b>No reply</b><small>This hop didn\u2019t answer the probe</small></div><span class="pt-ms">\u2013</span></li>`; continue; }
-      const jump = ms != null ? ms - prev : 0; if (ms != null) prev = Math.max(prev, ms);
-      const cls = jump >= 40 ? ' bad' : jump >= 15 ? ' warn' : '';
-      const sub = [h.rdns && h.rdns !== ip ? ip : '', h.network || h.networkName, h.location, h.prefix].filter(Boolean).join(' \u00b7 ');
-      html += `<li class="pt-n${cls}"><span class="pt-dot">${h.hop || ''}</span><div class="pt-txt"><b>${esc(h.rdns || ip)}</b><small>${esc(sub)}</small></div><span class="pt-ms">${ms != null ? Math.round(ms) + '<em>ms</em>' : '\u2013'}${cls ? `<i>+${Math.round(jump)}</i>` : ''}</span></li>`;
+    $('ptPaths').innerHTML = '';
+    // Build one graph from every path in the round (ThousandEyes style): a
+    // column per hop number, one node per IP in that column, so paths that
+    // split and rejoin are drawn that way. Links carry the delay added.
+    const target = r.serverIp || ag.serverIp || traces[0].ipAddress || '', when = r.date || ag.date;
+    const nodes = new Map(), edges = new Map();
+    const node = (key, col, o) => { let n = nodes.get(key); if (!n) { n = { key, col, ...o, paths: 0 }; nodes.set(key, n); } return n; };
+    const src = node('src', 0, { kind: 'src', label: ag.name, ip: r.sourceIp || ag.sourceIp || '', sub: ag.loc, ms: 0 });
+    let maxCol = 1, reachedAny = false;
+    traces.forEach((t, ti) => {
+      const hops = t.hops.slice().sort((a, b) => (a.hop || 0) - (b.hop || 0));
+      let prev = src, prevMs = 0;
+      src.paths++;
+      hops.forEach((h, hi) => {
+        const ip = h.ipAddress || h.ip || '', col = h.hop || hi + 1, ms = h.responseTime != null ? h.responseTime : h.delay;
+        const isT = ip && ip === target;
+        const n = node(isT ? 'dst' : col + '|' + (ip || '*' + ti), col, isT
+          ? { kind: 'dst', label: r.server || ag.server || target, ip: target, rdns: h.rdns, net: h.network || h.networkName, loc: h.location, ms }
+          : { kind: ip ? 'hop' : 'none', ip, rdns: h.rdns && h.rdns !== ip ? h.rdns : '', net: h.network || h.networkName || '', loc: h.location || '', prefix: h.prefix || '', ms });
+        if (isT) { reachedAny = true; n.col = Math.max(n.col, col); }
+        n.paths++; maxCol = Math.max(maxCol, col);
+        const ek = prev.key + '>' + n.key, e = edges.get(ek) || { a: prev, b: n, d: [] };
+        if (ms != null && ip) { e.d.push(Math.max(0, ms - prevMs)); prevMs = Math.max(prevMs, ms); }
+        edges.set(ek, e); prev = n;
+      });
+      if (prev.kind !== 'dst') {   // stopped short: a dashed link on to the target
+        const dst = node('dst', 0, { kind: 'dst', label: r.server || ag.server || target, ip: target, unreached: true });
+        const ek = prev.key + '>dst'; edges.set(ek, edges.get(ek) || { a: prev, b: dst, d: [], gap: true });
+      }
+    });
+    const dst = nodes.get('dst');
+    if (dst) { dst.col = Math.max(dst.col, maxCol + (reachedAny ? 0 : 1)); if (reachedAny) dst.unreached = false; }
+    // Lay out: columns left to right, nodes in a column stacked and centred.
+    const cols = new Map();
+    for (const n of nodes.values()) { if (!cols.has(n.col)) cols.set(n.col, []); cols.get(n.col).push(n); }
+    const colKeys = [...cols.keys()].sort((a, b) => a - b), CW = 96, RH = 58, PADX = 46;
+    const rows = Math.max(1, ...[...cols.values()].map((c) => c.length)), H = Math.max(150, rows * RH + 70), W = PADX * 2 + (colKeys.length - 1) * CW;
+    colKeys.forEach((c, i) => { const list = cols.get(c); list.forEach((n, j) => { n.x = PADX + i * CW; n.y = H / 2 + (j - (list.length - 1) / 2) * RH; }); });
+    const sev = (d) => d >= 40 ? 'bad' : d >= 15 ? 'warn' : '';
+    let svg = `<svg class="pt-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Path from ${esc(ag.name)} to ${esc(target)}">`;
+    for (const e of edges.values()) {
+      const d = e.d.length ? e.d.reduce((x, y) => x + y, 0) / e.d.length : null, c = e.gap ? 'gap' : d != null ? sev(d) : '';
+      svg += `<line class="pt-l ${c}" x1="${e.a.x}" y1="${e.a.y}" x2="${e.b.x}" y2="${e.b.y}"/>`;
+      if (d != null && !e.gap) {
+        const mx = (e.a.x + e.b.x) / 2, my = (e.a.y + e.b.y) / 2, txt = d < 1 ? '<1 ms' : Math.round(d) + ' ms';
+        svg += `<g class="pt-dl ${c}"><rect x="${mx - 19}" y="${my - 8}" width="38" height="16" rx="8"/><text x="${mx}" y="${my + 4}">${txt}</text></g>`;
+      }
     }
-    html += reached ? '' : `<li class="pt-n pt-gap"><span class="pt-dot">!</span><div class="pt-txt"><b>Didn\u2019t reach the target</b><small>The trace stopped before ${esc(target || 'the server')}</small></div></li>`;
-    html += `<li class="pt-n pt-dst${reached ? ' ok' : ''}"><span class="pt-dot"></span><div class="pt-txt"><b>${esc(r.server || ag.server || target)}</b><small>${esc(target)}</small></div><span class="pt-ms">${t.responseTime != null ? Math.round(t.responseTime) + '<em>ms</em>' : 'target'}</span></li></ol>`;
-    html += `<p class="pt-foot">${hops.length} hops${when ? ' \u00b7 round at ' + new Date(when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}${t.pathMtu ? ' \u00b7 MTU ' + t.pathMtu : ''} \u00b7 newest round, which may be after the alert started</p>`;
-    $('ptBody').innerHTML = html;
+    for (const n of nodes.values()) {
+      const big = n.kind === 'src' || n.kind === 'dst', rad = big ? 13 : 8;
+      const cut = (x, k) => (x && x.length > k ? x.slice(0, k - 1) + '\u2026' : x || '');
+      const lab = n.kind === 'src' ? cut(n.label, 16) : n.kind === 'dst' ? cut(n.ip || n.label, 16) : n.kind === 'none' ? 'no reply' : cut(n.ip, 15);
+      svg += `<g class="pt-nd ${n.kind}${n.unreached ? ' unreached' : ''}${st.sel === n.key ? ' sel' : ''}" data-ptn="${esc(n.key)}"><circle cx="${n.x}" cy="${n.y}" r="${rad + 12}" class="hit"/><circle cx="${n.x}" cy="${n.y}" r="${rad}"/>`
+        + (n.kind === 'src' ? `<path d="M${n.x - 5} ${n.y + 4}h10M${n.x - 3} ${n.y}a3 3 0 1 1 6 0v4h-6z" class="ic"/>` : n.kind === 'dst' ? `<circle cx="${n.x}" cy="${n.y}" r="4" class="ic"/>` : '')
+        + `<text x="${n.x}" y="${n.y + rad + 14}">${esc(lab)}</text></g>`;
+    }
+    svg += '</svg>';
+    st.nodes = nodes;
+    const nHops = Math.max(...traces.map((t) => t.hops.length)), rt = traces[0].responseTime;
+    $('ptBody').innerHTML = `<div class="pt-meta"><span><b>${esc(ag.name)}</b> \u2192 <b>${esc(r.server || target)}</b></span><span>${traces.length > 1 ? traces.length + ' paths \u00b7 ' : ''}${nHops} hops${rt != null ? ' \u00b7 ' + Math.round(rt) + ' ms' : ''}${dst && dst.unreached ? ' \u00b7 <em class="bad">didn\u2019t reach target</em>' : ''}</span></div>`
+      + `<div class="pt-scroll">${svg}</div><div class="pt-info" id="ptInfo"></div>`
+      + `<p class="pt-foot">Tap a node for details \u00b7 link labels are the delay each hop adds${when ? ' \u00b7 round at ' + new Date(when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''} (newest, may be after the alert started)</p>`;
+    ptInfo(st.sel && nodes.get(st.sel) ? st.sel : null);
   }
+  function ptInfo(key) {
+    const st = ptState, el = $('ptInfo'); if (!st || !el) return;
+    st.sel = key;
+    document.querySelectorAll('#ptBody .pt-nd').forEach((g) => g.classList.toggle('sel', g.dataset.ptn === key));
+    const n = key && st.nodes.get(key);
+    if (!n) { el.innerHTML = ''; el.hidden = true; return; }
+    el.hidden = false;
+    const kv = (k, v) => v || v === 0 ? `<div><dt>${k}</dt><dd>${esc(String(v))}</dd></div>` : '';
+    el.innerHTML = `<b>${esc(n.kind === 'src' ? n.label : n.kind === 'dst' ? n.label : n.kind === 'none' ? 'No reply' : (n.rdns || n.ip))}</b><dl class="al-kv">`
+      + kv('IP', n.ip) + kv('Reverse DNS', n.rdns) + kv('Prefix', n.prefix) + kv('Network', n.net) + kv('Location', n.loc || n.sub)
+      + kv('Response', n.ms != null && n.kind !== 'src' ? Math.round(n.ms) + ' ms' : '') + (st.round.traces.length > 1 && n.kind === 'hop' ? kv('On paths', n.paths + ' of ' + st.round.traces.length) : '')
+      + (n.kind === 'none' ? kv('Note', 'This hop didn\u2019t answer the probe') : '') + (n.unreached ? kv('Note', 'The trace stopped before reaching it') : '') + '</dl>';
+  }
+
   addEventListener('te-data', () => { if (tab === 'tenant') renderTenant(); });
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {

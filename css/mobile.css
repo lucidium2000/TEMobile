@@ -1202,3 +1202,39 @@ body.tn-min #viewTenant > :not(.tn-grab):not(.tn-head):not(.tn-stats) { opacity:
 .pt-src .pt-ms, .pt-dst .pt-ms:not(:has(em)) { font-size: .66em; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
 .pt-foot { margin: 10px 0 0; font-size: .72em; color: var(--ink-3); }
 .al-trace { margin-top: 8px; }
+/* Alert actions: one compact row; the agents list opens from "Seen by". */
+.al-acts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+.al-acts .al-open, .al-seen { margin: 0; padding: .42em .8em; font-size: .78em; }
+.al-seen { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; border: 1px solid var(--hair); background: rgba(255, 255, 255, .05); color: var(--ink-2); font: inherit; font-weight: 700; cursor: pointer; }
+.al-seen i { width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .2s; }
+.al-seen.open i { transform: translateY(1px) rotate(-135deg); }
+.al-agents:not(.open) { display: none; }
+.al-agents.open { margin-top: 8px; }
+/* Path trace, left to right like ThousandEyes: links labelled with the delay each hop adds. */
+.pt-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; font-size: .76em; color: var(--ink-3); margin: 2px 0 6px; }
+.pt-meta b { color: var(--ink-1, #e6edf7); font-weight: 700; }
+.pt-meta em.bad { font-style: normal; color: var(--orange, #fb923c); font-weight: 700; }
+.pt-scroll { overflow-x: auto; overflow-y: hidden; margin: 0 -16px; padding: 0 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none; border-top: 1px solid rgba(148, 163, 184, .1); border-bottom: 1px solid rgba(148, 163, 184, .1); background: radial-gradient(ellipse at center, rgba(56, 189, 248, .06), transparent 70%); }
+.pt-svg { display: block; }
+.pt-l { stroke: #4b6a8a; stroke-width: 2; }
+.pt-l.warn { stroke: #fbbf24; } .pt-l.bad { stroke: var(--orange, #fb923c); stroke-width: 2.5; }
+.pt-l.gap { stroke: #94a3b8; stroke-dasharray: 4 5; opacity: .7; }
+.pt-dl rect { fill: #0d1a2c; stroke: #2c4561; stroke-width: 1; }
+.pt-dl text { fill: #cbd5e1; font-size: 10px; font-weight: 700; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.pt-dl.warn rect { stroke: #fbbf24; } .pt-dl.warn text { fill: #fde68a; }
+.pt-dl.bad rect { stroke: var(--orange, #fb923c); } .pt-dl.bad text { fill: #fed7aa; }
+.pt-nd { cursor: pointer; }
+.pt-nd .hit { fill: transparent; }
+.pt-nd circle:not(.hit):not(.ic) { fill: #1f6fb5; stroke: #93c5fd; stroke-width: 2; }
+.pt-nd.src circle:not(.hit):not(.ic) { fill: #16a34a; stroke: #86efac; }
+.pt-nd.dst circle:not(.hit):not(.ic) { fill: #0e7490; stroke: #67e8f9; }
+.pt-nd.dst.unreached circle:not(.hit):not(.ic) { fill: #3f3f46; stroke: #fb923c; stroke-dasharray: 3 3; }
+.pt-nd.none circle:not(.hit):not(.ic) { fill: #0b1424; stroke: #64748b; stroke-dasharray: 3 3; }
+.pt-nd .ic { fill: none; stroke: #fff; stroke-width: 1.6; }
+.pt-nd.dst .ic { fill: #fff; stroke: none; }
+.pt-nd text { fill: #94a3b8; font-size: 9.5px; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.pt-nd.src text, .pt-nd.dst text { fill: #e2e8f0; font-weight: 700; }
+.pt-nd.sel circle:not(.hit):not(.ic) { stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .6)); }
+.pt-info { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, .04); font-size: .9em; }
+.pt-info > b { display: block; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-info .al-kv { margin: 0; }
