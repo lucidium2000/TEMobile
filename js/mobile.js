@@ -908,6 +908,7 @@
       panel.style.transition = animate ? 'height .3s cubic-bezier(.22,1,.36,1)' : 'none';
       panel.style.height = px + 'px';
       document.body.classList.toggle('sheet-min', px <= s.min + 8);
+      document.body.classList.toggle('sheet-tall', px > vh() * 0.6);   // globe buttons would sit on the list
       document.documentElement.style.setProperty('--sheet-px', px + 'px');
     }
     function snapTo(name, animate) {

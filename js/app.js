@@ -1535,7 +1535,7 @@
     const deep = [];
     deep.push(['Started', fmtTime(o.start) + ' · ' + new Date(o.start).toLocaleDateString()]);
     deep.push([o.active ? 'Ongoing for' : 'Lasted', fmtDur(o.durationS)]);
-    if (!o.active && o.endRound) deep.push(['Cleared', clearedAgo(o) + ' ago']);
+    if (!o.active && o.endRound) deep.push(['Cleared', clearedAgo(o)]);
     deep.push([o.kind === 'network' ? 'Interfaces affected' : 'Servers affected', String(o.kind === 'network' ? (o.interfaces || 0) : (o.servers || 0))]);
     deep.push(['Locations', String(o.locations.length)]);
     if (o.asn) deep.push(['Network (ASN)', 'AS' + o.asn]);
@@ -1654,12 +1654,13 @@
     if (o.fullName && o.fullName !== o.name) kv.push(['Provider', o.fullName]);
     if (o.appId) kv.push(['Service', o.appId]);
     if (o.domains && o.domains.length) kv.push(['Domains', o.domains.slice(0, 6).join(', ')]);
-    if (!o.active && o.endRound) kv.push(['Cleared', clearedAgo(o) + ' ago']);
+    if (!o.active && o.endRound) kv.push(['Cleared', clearedAgo(o)]);
     const pwrNear = o.locations.map((l) => nearestPower(l.lon, l.lat)).find(Boolean);
     if (pwrNear) kv.push(['Power out nearby', `${pwrNear.name}, ${pwrNear.state} · ${Math.round(pwrNear.out).toLocaleString('en-US')}`]);
     return `<li class="row-detail ${o.kind}" data-detail="${esc(o.id)}">`
       + `<div class="rd-metrics">${metrics.map(([b, s]) => `<div><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join('')}</div>`
       + (kv.length ? `<dl class="rd-kv">${kv.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '')
+      + `<div class="rd-h">Top locations <span>${locs.length}</span></div>`
       + `<ul class="rd-locs">${S.rdLocs.map((l, i) => `<li data-rdloc="${i}" title="Show on the globe">${esc(l.label || l.name)} <b>${l.n}</b></li>`).join('')}${locs.length > 10 ? `<li class="rd-more">+${locs.length - 10} more</li>` : ''}</ul>`
       + '</li>';
   }
