@@ -280,7 +280,7 @@
         const loc = (ag && (ag.location || (ag.location && ag.location.locationName))) || d.name || '';
         const who = (ag && (ag.agentName || ag.computerName)) || d.name || 'Agent';
         const m = (d.start && d.start.metrics) || d.metrics || null;
-        seen.push({ agent: who, loc, metrics: m, key: loc });
+        seen.push({ agent: who, loc, metrics: m, key: loc, id: String(d.id || '') });
         const g = geoLookup(typeof loc === 'string' ? loc : '');
         if (!g) continue;
         const p = pts.get(loc) || { key: loc, label: String(loc).split(',')[0].replace(/\s*\(.*\)\s*$/, ''), place: String(loc).split(',').slice(0, 2).join(','), lat: g.lat, lon: g.lon, alerts: [], agents: new Set(), sev: 'INFO', rows: [] };
@@ -399,12 +399,16 @@
         <div class="te-al-main"><b>${esc(n.title)}</b><span>${esc([n.cond, n.type].filter(Boolean).join(' · '))}</span></div>
         <div class="te-al-meta"><span>${esc(n.sev || '')}</span><small>${n.start ? alertSince(n.start) : ''}${n.viol ? ' · ' + n.viol + '\u00d7' : ''}</small></div>
         </div>
-        <div class="al-detail">${alertDetail(n, false)}${alertAgentsHtml(n)}</div>
+        <div class="al-detail">${alertDetail(n, false)}${alertAgentsHtml(n)}${traceBtn(n)}</div>
       </div>`;
     }).join('');
     host.querySelectorAll('.te-al').forEach((al) => { if (openAlerts.has(al.dataset.aid)) al.classList.add('open'); });
   }
   // Who saw an alert, with their numbers, and a way to see it on the globe.
+  // Network-layer CEA tests keep a path trace per agent per round; endpoint,
+  // BGP and DNS tests don't have one this endpoint can return.
+  const traceBtn = (n) => n.testId && !/endpoint|bgp|dns/i.test(n.type || '')
+    ? `<button type="button" class="al-open al-trace" data-trace="${esc(n.testId)}" data-al="${esc(n.id)}" data-title="${esc(n.title)}">Last path trace \u203a</button>` : '';
   function alertAgentsHtml(n) {
     const seen = tnModel.byAlert.get(String(n.id));
     if (!seen || !seen.length) return '';
@@ -413,6 +417,8 @@
       + (onGlobe ? `<button type="button" class="al-open" data-globe="${esc(onGlobe.key)}">Show on the globe \u203a</button>` : '') + '</div>';
   }
   $('teAlerts').addEventListener('click', (e) => {
+    const tb = e.target.closest('[data-trace]');
+    if (tb) { e.stopPropagation(); openTrace(tb.dataset.trace, tb.dataset.title, tnModel.byAlert.get(String(tb.dataset.al)) || []); return; }
     const gb = e.target.closest('[data-globe]');
     if (gb) {
       e.stopPropagation();
@@ -428,6 +434,108 @@
     if (op) openAlerts.add(al.dataset.aid); else openAlerts.delete(al.dataset.aid);
   });
   addEventListener('te-conn', () => { updateOTabs(); if (tab === 'tenant') renderTenant(); });
+
+  /* ── Last path trace for an alert's test, drawn as one straight line ─────
+   * /v7/test-results/{test}/path-vis lists each agent's recent rounds; the
+   * newest round for the chosen agent is then fetched hop by hop from
+   * /path-vis/agent/{agent}/round/{round}. Agents that raised the alert come
+   * first. Several paths (ECMP) get their own chips. */
+  let ptState = null;
+  function ptApi(path) {
+    const a = TEConn.account && TEConn.account(), aid = a && a.aid;
+    return TEConn.api(aid ? path + (path.includes('?') ? '&' : '?') + 'aid=' + encodeURIComponent(aid) : path);
+  }
+  function ptModal() {
+    let m = $('ptModal');
+    if (m) return m;
+    m = document.createElement('div'); m.id = 'ptModal'; m.className = 'pt-modal'; m.hidden = true;
+    m.innerHTML = `<div class="pt-card" role="dialog" aria-modal="true" aria-labelledby="ptTitle">
+      <header class="pt-head"><div><h3 id="ptTitle"></h3><p id="ptSub"></p></div><button type="button" class="pt-x" aria-label="Close">\u00d7</button></header>
+      <div class="pt-chips" id="ptAgents"></div><div class="pt-chips pt-paths" id="ptPaths"></div>
+      <div class="pt-body" id="ptBody"></div></div>`;
+    document.body.appendChild(m);
+    const close = () => { m.classList.remove('show'); setTimeout(() => { m.hidden = true; }, 220); ptState = null; if (window.Sfx) window.Sfx.play('close'); };
+    m.addEventListener('click', (e) => {
+      if (e.target === m || e.target.closest('.pt-x')) return close();
+      const ag = e.target.closest('[data-ptag]'); if (ag && ptState) { ptState.agent = ag.dataset.ptag; ptState.path = 0; return ptLoadRound(); }
+      const pa = e.target.closest('[data-ptpath]'); if (pa && ptState) { ptState.path = +pa.dataset.ptpath; return ptRender(); }
+    });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) close(); });
+    return m;
+  }
+  async function openTrace(testId, title, seen) {
+    const m = ptModal();
+    $('ptTitle').textContent = 'Last path trace';
+    $('ptSub').textContent = title || 'Test ' + testId;
+    $('ptAgents').innerHTML = ''; $('ptPaths').innerHTML = '';
+    $('ptBody').innerHTML = '<p class="pt-msg">Fetching the latest round\u2026</p>';
+    m.hidden = false; requestAnimationFrame(() => m.classList.add('show'));
+    if (window.Sfx) window.Sfx.play('open');
+    const st = ptState = { testId, seen: new Set(seen.map((x) => x.id).filter(Boolean)), agents: [], agent: null, path: 0, round: null };
+    try {
+      let rows = [];
+      for (const w of ['15m', '2h', '12h']) {   // tests run every 1 to 60 min
+        const d = await ptApi(`/v7/test-results/${encodeURIComponent(testId)}/path-vis?window=${w}`);
+        if (ptState !== st) return;
+        rows = (d && (d.results || d.pathVis)) || [];
+        if (rows.length) break;
+      }
+      if (!rows.length) { $('ptBody').innerHTML = '<p class="pt-msg">No path trace for this test. Only tests with network measurements keep one.</p>'; return; }
+      const by = new Map();   // newest round per agent
+      for (const r of rows) {
+        const id = String((r.agent && r.agent.agentId) || r.agentId || ''); if (!id) continue;
+        const cur = by.get(id);
+        if (!cur || (r.roundId || 0) > (cur.roundId || 0)) by.set(id, { id, name: (r.agent && r.agent.agentName) || 'Agent ' + id, loc: (r.agent && r.agent.location) || '', roundId: r.roundId, date: r.date, server: r.server, serverIp: r.serverIp, sourceIp: r.sourceIp });
+      }
+      st.agents = [...by.values()].sort((a, b) => (st.seen.has(b.id) - st.seen.has(a.id)) || a.name.localeCompare(b.name));
+      st.agent = st.agents[0].id;
+      await ptLoadRound();
+    } catch (e) {
+      if (ptState === st) $('ptBody').innerHTML = `<p class="pt-msg">Couldn\u2019t load the trace${e && e.message ? ': ' + esc(e.message) : ''}.</p>`;
+    }
+  }
+  async function ptLoadRound() {
+    const st = ptState; if (!st) return;
+    const ag = st.agents.find((a) => a.id === st.agent);
+    $('ptAgents').innerHTML = st.agents.slice(0, 12).map((a) => `<button type="button" class="pt-chip${a.id === st.agent ? ' on' : ''}${st.seen.has(a.id) ? ' hot' : ''}" data-ptag="${esc(a.id)}">${st.seen.has(a.id) ? '<i></i>' : ''}${esc(a.name)}</button>`).join('');
+    $('ptPaths').innerHTML = '';
+    $('ptBody').innerHTML = '<p class="pt-msg">Fetching hops\u2026</p>';
+    try {
+      const d = await ptApi(`/v7/test-results/${encodeURIComponent(st.testId)}/path-vis/agent/${encodeURIComponent(ag.id)}/round/${encodeURIComponent(ag.roundId)}`);
+      if (ptState !== st || st.agent !== ag.id) return;
+      const r = ((d && d.results) || [])[0] || d || {};
+      let tr = r.pathTraces || r.paths || [];
+      if (!Array.isArray(tr)) tr = [tr];
+      st.round = { ag, r, traces: tr.filter((t) => t && Array.isArray(t.hops) && t.hops.length) };
+      ptRender();
+    } catch (e) {
+      if (ptState === st) $('ptBody').innerHTML = `<p class="pt-msg">Couldn\u2019t load the hops${e && e.message ? ': ' + esc(e.message) : ''}.</p>`;
+    }
+  }
+  function ptRender() {
+    const st = ptState; if (!st || !st.round) return;
+    const { ag, r, traces } = st.round;
+    if (!traces.length) { $('ptBody').innerHTML = '<p class="pt-msg">This round has no hop data.</p>'; return; }
+    $('ptPaths').innerHTML = traces.length > 1 ? traces.map((t, i) => `<button type="button" class="pt-chip${i === st.path ? ' on' : ''}" data-ptpath="${i}">Path ${i + 1}</button>`).join('') : '';
+    const t = traces[Math.min(st.path, traces.length - 1)];
+    const hops = t.hops.slice().sort((a, b) => (a.hop || 0) - (b.hop || 0));
+    const target = r.serverIp || ag.serverIp || t.ipAddress || '', when = r.date || ag.date;
+    const last = hops[hops.length - 1], reached = last && target && (last.ipAddress === target);
+    let prev = 0, html = `<ol class="pt-line">
+      <li class="pt-n pt-src"><span class="pt-dot"></span><div class="pt-txt"><b>${esc(ag.name)}</b><small>${esc([r.sourceIp || ag.sourceIp, ag.loc].filter(Boolean).join(' \u00b7 '))}</small></div><span class="pt-ms">source</span></li>`;
+    for (const h of hops) {
+      const ip = h.ipAddress || h.ip || '', ms = h.responseTime != null ? h.responseTime : h.delay;
+      if (!ip) { html += `<li class="pt-n pt-none"><span class="pt-dot">${h.hop || ''}</span><div class="pt-txt"><b>No reply</b><small>This hop didn\u2019t answer the probe</small></div><span class="pt-ms">\u2013</span></li>`; continue; }
+      const jump = ms != null ? ms - prev : 0; if (ms != null) prev = Math.max(prev, ms);
+      const cls = jump >= 40 ? ' bad' : jump >= 15 ? ' warn' : '';
+      const sub = [h.rdns && h.rdns !== ip ? ip : '', h.network || h.networkName, h.location, h.prefix].filter(Boolean).join(' \u00b7 ');
+      html += `<li class="pt-n${cls}"><span class="pt-dot">${h.hop || ''}</span><div class="pt-txt"><b>${esc(h.rdns || ip)}</b><small>${esc(sub)}</small></div><span class="pt-ms">${ms != null ? Math.round(ms) + '<em>ms</em>' : '\u2013'}${cls ? `<i>+${Math.round(jump)}</i>` : ''}</span></li>`;
+    }
+    html += reached ? '' : `<li class="pt-n pt-gap"><span class="pt-dot">!</span><div class="pt-txt"><b>Didn\u2019t reach the target</b><small>The trace stopped before ${esc(target || 'the server')}</small></div></li>`;
+    html += `<li class="pt-n pt-dst${reached ? ' ok' : ''}"><span class="pt-dot"></span><div class="pt-txt"><b>${esc(r.server || ag.server || target)}</b><small>${esc(target)}</small></div><span class="pt-ms">${t.responseTime != null ? Math.round(t.responseTime) + '<em>ms</em>' : 'target'}</span></li></ol>`;
+    html += `<p class="pt-foot">${hops.length} hops${when ? ' \u00b7 round at ' + new Date(when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}${t.pathMtu ? ' \u00b7 MTU ' + t.pathMtu : ''} \u00b7 newest round, which may be after the alert started</p>`;
+    $('ptBody').innerHTML = html;
+  }
   addEventListener('te-data', () => { if (tab === 'tenant') renderTenant(); });
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {
