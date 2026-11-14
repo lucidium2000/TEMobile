@@ -50,9 +50,8 @@
       morphT = setTimeout(() => { el.classList.remove('morph-in'); line.classList.remove('go'); }, 900);
     }));
   }
-  // Sounds as a tab opens: the drawer whooshes up and settles (Weather pings
-  // its radar instead of the whoosh); Outages and News pulse a warning when
-  // something is happening now.
+  // Sounds as a tab opens: one plain click for every tab; Outages and News
+  // add a warning pulse when something is happening now.
   const sfx = (n, ms) => { if (!window.Sfx) return; if (ms) setTimeout(() => window.Sfx.play(n), ms); else window.Sfx.play(n); };
   function somethingActive(name) {
     const A = window.TEApp, act = A && A.outages ? A.outages().some((o) => o.active) : false;
@@ -63,9 +62,7 @@
   function tabSounds(name) {
     if (window.Haptic) window.Haptic.tap();   // a tick on every screen change
     if (!window.Sfx) return;
-    if (name === 'home') sfx('powerUp');
-    if (name === 'globe' || name === 'tenant') { sfx('drawerOpen'); sfx('settle', 420); }
-    if (name === 'weather') { sfx('chime'); sfx('settle', 420); }
+    sfx('tab');
     let hot = false; try { hot = (name === 'globe' || name === 'news') && somethingActive(name); } catch (_) { /* news not loaded yet */ }
     if (hot) sfx('warn', name === 'globe' ? 620 : 150);
   }
@@ -744,7 +741,7 @@
   window.TEMobile = { setTab: (t) => setTab(t), tab: () => tab, foldWx: (v) => foldWx(v) };
   document.getElementById('tabbar').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');
-    if (b && b.dataset.tab !== tab) { if (window.Sfx) window.Sfx.play('tap'); setTab(b.dataset.tab); }
+    if (b && b.dataset.tab !== tab) setTab(b.dataset.tab);
   });
   // ── Flow between tabs: This Device -> Network -> Outages -> Tenant -> Weather.
   // Home: tell the globe where its box is (it's drawn by the shared canvas
@@ -1538,10 +1535,8 @@
       void panel.offsetWidth;
       panel.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
       panel.style.transform = `translateY(${maxPx - to}px)`; visH = to;
-      if (to > fromH + 30) sfx('drawerOpen');
       clearTimeout(settleT);
       settleT = setTimeout(() => {
-        if (Math.abs(to - fromH) > 8) sfx('settle');
         panel.style.transition = 'none'; panel.style.transform = '';
         applyH(to, false);
         try { localStorage.setItem('te-m-sheet', name); } catch (_) { /* */ }
@@ -1903,7 +1898,7 @@
     if (el.dataset.scroll) setTimeout(() => { const t = $(el.dataset.scroll); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 80);
   }));
   // Detail views (Network, Device) aren't tabs: a way back Home.
-  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { if (window.Sfx) window.Sfx.play('tap'); setTab('home'); }));
+  document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => setTab('home')));
   $('hmList').addEventListener('click', (e) => {
     const head = e.target.closest('.grp-head');                  // tap a roll-up summary to expand / collapse it
     if (head) {
@@ -1914,7 +1909,7 @@
       if (window.Sfx) window.Sfx.play('tap');
       return;
     }
-    if (e.target.closest('.al-open')) { if (window.Sfx) window.Sfx.play('tap'); setTab('globe'); setTimeout(() => { try { setOTab('tenant'); } catch (_) { /* */ } }, 60); return; }
+    if (e.target.closest('.al-open')) { setTab('globe'); setTimeout(() => { try { setOTab('tenant'); } catch (_) { /* */ } }, 60); return; }
     const li = e.target.closest('li'); if (!li || li.classList.contains('feed-group')) return;
     if (li.dataset.url) { window.open(li.dataset.url, '_blank', 'noopener'); return; }
     if (window.Sfx) window.Sfx.play('tap');
@@ -2042,9 +2037,8 @@
       void view.offsetWidth;
       view.style.transition = `transform ${dur}ms cubic-bezier(.2, .9, .25, 1)`;
       view.style.transform = `translateY(${maxPx - to}px)`; vis = to;
-      if (to > fromH + 30) sfx('drawerOpen');
       clearTimeout(settleT);
-      settleT = setTimeout(() => { if (Math.abs(to - fromH) > 8) sfx('settle'); apply(to); }, dur + 20);
+      settleT = setTimeout(() => { apply(to); }, dur + 20);
     }
     function snapTo(name) { const cur = vis || view.offsetHeight; hold(cur); settle(name, cur, 0); }
     const toMid = () => { clearTimeout(settleT); apply(snaps().mid); };

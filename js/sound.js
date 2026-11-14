@@ -101,10 +101,7 @@
     // Numbers are from the soundboards (Nov 2026 pass: tighter, shorter).
     traceScan: () => { noise(0.6, 0.3, { f: 1500, to: 5000, q: 6, attack: 0.05 }); tone(1600, 0.6, { vol: 0.05 }); },   // #61 opening a path trace
     pathDone: () => { tone(784, 0.1, { vol: 0.22, type: 'triangle' }); tone(1175, 0.1, { vol: 0.22, type: 'triangle', delay: 0.08 }); tone(1568, 0.25, { vol: 0.2, type: 'triangle', delay: 0.16 }); },   // #64 all agents loaded
-    drawerOpen: () => noise(0.25, 0.7, { f: 300, to: 3200, q: 1.4, attack: 0.15 }),
-    settle:   () => { tone(130, 0.12, { to: 60, vol: 0.7 }); noise(0.015, 0.5, { f: 3000, q: 4, attack: 0.001 }); },
-    powerUp:  () => { tone(200, 0.45, { to: 1200, vol: 0.16, type: 'sawtooth', lp: 400, lp2: 5000, attack: 0.04 }); tone(1568, 0.3, { vol: 0.14, delay: 0.42 }); },   // #55 boot sweep
-    chime:    () => { noise(0.5, 0.3, { f: 800, to: 2400, q: 0.7, attack: 0.2 }); tone(1318, 0.5, { vol: 0.15, delay: 0.25 }); tone(1760, 0.6, { vol: 0.12, delay: 0.38 }); },   // #58 breeze chime
+    tab:      () => tone(1000, 0.05, { vol: 0.3, type: 'triangle' }),   // plain click for every tab
     warn:     () => { tone(520, 0.14, { vol: 0.22 }); tone(520, 0.14, { vol: 0.22, delay: 0.2 }); },   // #49 soft double pulse
     tap:      () => { tone(2400, 0.025, { vol: 0.3 }); noise(0.008, 0.25, { f: 6000, q: 3, attack: 0.001 }); },   // #29 glass tick
     on:       () => { tone(660, 0.09, { vol: 0.5 }); tone(990, 0.12, { vol: 0.5, delay: 0.07 }); },
