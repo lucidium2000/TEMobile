@@ -566,7 +566,7 @@
     m.ptOpen = true; m.hidden = false; requestAnimationFrame(() => m.classList.add('show'));
     orient(false); ptZoom = 1;
     if (!was && !(history.state && history.state.ptModal)) { try { history.pushState({ ...(history.state || {}), ptModal: 1 }, ''); } catch (_) { /* */ } }
-    if (window.Sfx) window.Sfx.play('open');
+    if (window.Sfx) window.Sfx.play('traceScan');
     const st = ptState = { testId, seen: new Set(seen.map((x) => x.id).filter(Boolean)), agents: [], total: 0, rounds: [], done: 0, sel: null, nodes: new Map() };
     try {
       let rows = [];
@@ -589,6 +589,7 @@
       let next = 0;
       const worker = async () => { while (next < st.agents.length && ptState === st) await ptLoadRound(st, next++); };
       await Promise.all([worker(), worker(), worker(), worker()]);
+      if (ptState === st && st.rounds.some(Boolean) && window.Sfx) window.Sfx.play('pathDone');
       if (ptState === st && !st.rounds.some(Boolean)) $('ptBody').innerHTML = '<p class="pt-msg">The latest rounds have no hop data.</p>';
     } catch (e) {
       if (ptState === st) $('ptBody').innerHTML = `<p class="pt-msg">Couldn’t load the trace${e && e.message ? ': ' + esc(e.message) : ''}.</p>`;

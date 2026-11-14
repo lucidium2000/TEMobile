@@ -98,25 +98,24 @@
   }
 
   const SOUNDS = {
-    // Soundboard picks: #7 whoosh in, #11 drawer settle, #15 globe rotate,
-    // #19 radar ping, #24 warning pulse.
+    // Numbers are from the soundboards (Nov 2026 pass: tighter, shorter).
+    traceScan: () => { noise(0.6, 0.3, { f: 1500, to: 5000, q: 6, attack: 0.05 }); tone(1600, 0.6, { vol: 0.05 }); },   // #61 opening a path trace
+    pathDone: () => { tone(784, 0.1, { vol: 0.22, type: 'triangle' }); tone(1175, 0.1, { vol: 0.22, type: 'triangle', delay: 0.08 }); tone(1568, 0.25, { vol: 0.2, type: 'triangle', delay: 0.16 }); },   // #64 all agents loaded
     drawerOpen: () => noise(0.25, 0.7, { f: 300, to: 3200, q: 1.4, attack: 0.15 }),
     settle:   () => { tone(130, 0.12, { to: 60, vol: 0.7 }); noise(0.015, 0.5, { f: 3000, q: 4, attack: 0.001 }); },
-    spin:     () => noise(0.45, 0.7, { type: 'lowpass', f: 350, to: 900, attack: 0.18 }),
-    radar:    () => echoTone(1500, 0.6, 0.36, 0.18, 0.35),
-    powerUp:  () => { tone(80, 0.6, { to: 880, vol: 0.18, type: 'sawtooth', lp: 300, lp2: 6000, attack: 0.05 }); tone(1760, 0.4, { vol: 0.16, delay: 0.6 }); },   // #27
-    chime:    () => { tone(880, 0.35, { vol: 0.32 }); tone(1320, 0.5, { vol: 0.32, delay: 0.12 }); },   // #22
-    warn:     () => { tone(440, 0.12, { vol: 0.16, type: 'square' }); tone(440, 0.12, { vol: 0.16, type: 'square', delay: 0.2 }); },
-    tap:      () => tone(1800, 0.035, { vol: 0.35 }),
+    powerUp:  () => { tone(200, 0.45, { to: 1200, vol: 0.16, type: 'sawtooth', lp: 400, lp2: 5000, attack: 0.04 }); tone(1568, 0.3, { vol: 0.14, delay: 0.42 }); },   // #55 boot sweep
+    chime:    () => { noise(0.5, 0.3, { f: 800, to: 2400, q: 0.7, attack: 0.2 }); tone(1318, 0.5, { vol: 0.15, delay: 0.25 }); tone(1760, 0.6, { vol: 0.12, delay: 0.38 }); },   // #58 breeze chime
+    warn:     () => { tone(520, 0.14, { vol: 0.22 }); tone(520, 0.14, { vol: 0.22, delay: 0.2 }); },   // #49 soft double pulse
+    tap:      () => { tone(2400, 0.025, { vol: 0.3 }); noise(0.008, 0.25, { f: 6000, q: 3, attack: 0.001 }); },   // #29 glass tick
     on:       () => { tone(660, 0.09, { vol: 0.5 }); tone(990, 0.12, { vol: 0.5, delay: 0.07 }); },
     off:      () => { tone(880, 0.09, { vol: 0.45 }); tone(587, 0.12, { vol: 0.45, delay: 0.07 }); },
     toggle:   () => { tone(740, 0.06, { vol: 0.4, type: 'triangle' }); tone(988, 0.07, { vol: 0.35, type: 'triangle', delay: 0.05 }); },
-    // Subtle: a short, quiet sine with only a small upward lift.
-    select:   () => tone(620, 0.12, { to: 740, vol: 0.16, attack: 0.015 }),
-    alert:    () => { tone(1760, 0.4, { vol: 0.4 }); tone(1318, 0.55, { vol: 0.4, delay: 0.22 }); },
+    // Picking a pin or place: a quiet two-step "locked on".
+    select:   () => { tone(1200, 0.08, { vol: 0.25 }); tone(1800, 0.12, { vol: 0.2, delay: 0.06 }); },   // #37 lock-on ping
+    alert:    () => echoTone(880, 0.5, 0.3, 0.22, 0.35),   // #51 sonar alert
     camOn:    () => { tone(523, 0.1, { vol: 0.45 }); tone(784, 0.1, { vol: 0.45, delay: 0.08 }); tone(1046, 0.16, { vol: 0.4, delay: 0.16 }); },
     camOff:   () => { tone(784, 0.1, { vol: 0.4 }); tone(523, 0.16, { vol: 0.4, delay: 0.08 }); },
-    error:    () => { tone(180, 0.12, { vol: 0.35, type: 'square' }); tone(160, 0.16, { vol: 0.35, type: 'square', delay: 0.15 }); },
+    error:    () => { tone(330, 0.1, { vol: 0.3, type: 'triangle' }); tone(262, 0.16, { vol: 0.3, type: 'triangle', delay: 0.1 }); },   // #66 soft deny
     ready:    () => { tone(1046, 0.12, { vol: 0.45 }); tone(1568, 0.25, { vol: 0.45, delay: 0.09 }); },
     pause:    () => tone(700, 0.14, { to: 420, vol: 0.25 }),
     grab:     () => tone(220, 0.06, { vol: 0.6, type: 'triangle' }),
@@ -124,9 +123,8 @@
     next:     () => tone(880, 0.08, { to: 1175, vol: 0.4 }),
     prev:     () => tone(880, 0.08, { to: 660, vol: 0.4 }),
     whoosh:   () => whoosh(0.45, 400, 2400, 0.55),
-    open:     () => tone(520, 0.1, { to: 880, vol: 0.35 }),
-    close:    () => tone(700, 0.08, { to: 440, vol: 0.3 }),
-    reset:    () => tone(900, 0.25, { to: 450, vol: 0.3, type: 'triangle' }),
+    open:     () => { tone(700, 0.04, { vol: 0.35 }); tone(1050, 0.06, { vol: 0.3, delay: 0.04 }); },   // #47 click in
+    close:    () => { tone(1050, 0.04, { vol: 0.3 }); tone(700, 0.06, { vol: 0.3, delay: 0.04 }); },    // #48 click out
     zoom:     () => tone(500, 0.12, { to: 900, vol: 0.3, type: 'triangle' }),
   };
 
