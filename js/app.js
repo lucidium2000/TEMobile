@@ -291,7 +291,6 @@
       const ask = () => {
         removeEventListener('touchend', ask, true); removeEventListener('click', ask, true);
         DeviceOrientationEvent.requestPermission().then((r) => { if (r === 'granted') listen(); }).catch(() => {});
-        if (window.Drop) window.Drop.ask();   // same tap: motion (the drop bounce) too
       };
       addEventListener('touchend', ask, true); addEventListener('click', ask, true);
     } else listen();
@@ -4113,8 +4112,6 @@
   }
   // Hooks for the mobile tabs (js/mobile.js).
   window.TEApp = {
-    /** Test the drop bounce without shaking anything (strength 0..1). */
-    drop(k) { BOUNCE.lastKick = 0; window.Drop.kick(k == null ? 1 : k); },
     /** Turn the globe to a place and zoom in. */
     flyToPlace(lon, lat) { select(null); zoomTo(Math.max(view.zoom, 2.6), [lon, lat]); },
     /** This device's place (IP lookup, or the exact location if set). */
@@ -4226,86 +4223,7 @@
       if (rbQuiet > 100) { rbOn = false; window.Sfx.rumble(false, performance.now() - S.lastInput < 400 || !!S.spin || !!S.flight); }
     } else rbQuiet = 0;
   }
-  /* Drop bounce: push the phone down quickly (like it's falling) and the
-   * globe falls away from you, rebounds past where it was - closer - and
-   * settles back, like a ball. devicemotion's gravity-free acceleration is
-   * projected onto "up" (taken from gravity, so it works however the phone is
-   * held); a sharp downward push kicks an underdamped spring on the globe's
-   * size. iOS needs permission from a tap (asked with the tilt one).
-   * ?drop=0 turns it off; ?drop=<0.5..2> scales it. */
-  const DROP_K = qs.get('drop') === '0' || !GYRO_K ? 0 : Math.max(0.3, Math.min(2.5, parseFloat(qs.get('drop')) || 1));
-  // Tennis-ball model, in log-size units (x < 0 = farther away): thrown away
-  // under gravity, a hard bounce off the "ground", flies up past where it
-  // started (closer), then eases back home. Bigger push = deeper and higher.
-  const BOUNCE = { x: 0, v: 0, ph: 0, G: 0, D: 0, vb: 0, lastKick: 0 };
-  const DROP_FALL = 0.5, DROP_RISE = 0.75, DROP_HOME = 6.5;   // s to the ground, s up to the peak, settle rate
-  const DROP_DIR = qs.get('dropdir') === '-1' ? -1 : 1;      // ?dropdir=-1 flips it (comes at you first)
-  window.Drop = {
-    on: false,
-    ask() {
-      if (!DROP_K || this.on || !('DeviceMotionEvent' in window)) return;
-      if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission().then((r) => { if (r === 'granted') this.listen(); }).catch(() => {});
-      } else this.listen();
-    },
-    listen() { if (this.on) return; this.on = true; addEventListener('devicemotion', onDrop); },
-    kick(strength) {   // also handy for testing: TEApp.drop(1)
-      const t = performance.now();
-      if (BOUNCE.ph || t - BOUNCE.lastKick < 900 || S.dragging) return;
-      BOUNCE.lastKick = t;
-      const k = Math.max(0.3, Math.min(1, strength)) * DROP_K;
-      const D = 1.9 * k, C = 0.7 * k;                    // depth (to ~15% size) and how far past home it comes (~2x)
-      const G = 2 * (D + C) / (DROP_RISE * DROP_RISE);    // gravity that makes the rise take DROP_RISE
-      BOUNCE.G = G; BOUNCE.D = D; BOUNCE.vb = G * DROP_RISE;
-      BOUNCE.x = 0; BOUNCE.v = -(D - 0.5 * G * DROP_FALL * DROP_FALL) / DROP_FALL;   // thrown: reaches the ground in DROP_FALL
-      BOUNCE.ph = 1;
-    },
-  };
-  let lastLift = 0, dropT = 0, dropV = 0, dropJolt = null;
-  function onDrop(e) {
-    const a = e.acceleration, g = e.accelerationIncludingGravity;
-    if (!a || !g || a.x == null || g.x == null) return;
-    // "Up" in the phone's frame: what's left of the gravity-included reading
-    // once the motion is taken out.
-    const ux = g.x - a.x, uy = g.y - a.y, uz = g.z - a.z, um = Math.hypot(ux, uy, uz);
-    if (um < 6) return;                                  // free fall or nonsense: no reliable "up"
-    const up = (a.x * ux + a.y * uy + a.z * uz) / um;    // m/s^2 along up; negative = pushed down
-    // Which way is the phone actually moving? A leaky running total of the
-    // up/down acceleration is its vertical speed. A push down jolts downward
-    // while moving down -> bounce, at once. A lift jolts downward too as it
-    // stops, but it's still moving UP then, so that never counts.
-    const t = performance.now(), dt = dropT ? Math.min(0.1, (t - dropT) / 1000) : 0.016; dropT = t;
-    // Hands push down on a slant, so a jolt anywhere within 60 degrees of
-    // straight down counts at its full strength, not just its vertical part.
-    const am = Math.hypot(a.x, a.y, a.z), down = -up >= 0.5 * am ? am : -up;
-    if (down > 1.5) {                                   // half the push it used to take
-      // Judged once, as the jolt starts: was the phone already moving up?
-      if (!dropJolt) dropJolt = { ok: dropV < 0.05 && t - lastLift > 500, peak: down };
-      else dropJolt.peak = Math.max(dropJolt.peak, down);
-    } else if (dropJolt) {                                // jolt over: bounce, sized by its peak
-      if (dropJolt.ok) window.Drop.kick((dropJolt.peak - 1) / 2.5);
-      dropJolt = null;
-    }
-    dropV = dropV * Math.exp(-dt / 2.0) + up * dt;
-    if (up > 1) lastLift = t;
-  }
-  if (DROP_K && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission !== 'function') window.Drop.listen();
-  function stepBounce(dt) {
-    const B = BOUNCE; if (!B.ph) return;
-    const n = 6, h = Math.min(dt, 50) / 1000 / n;
-    for (let i = 0; i < n && B.ph; i++) {
-      if (B.ph === 1) {            // falling away, speeding up
-        B.v -= B.G * h; B.x += B.v * h;
-        if (B.x <= -B.D) { B.x = -B.D; B.v = B.vb; B.ph = 2; sfx('pock'); sfx('rebound'); }   // hits the ground: bounces
-      } else if (B.ph === 2) {     // flying back up, slowing; passes home
-        B.v -= B.G * h; B.x += B.v * h;
-        if (B.v <= 0) B.ph = 3;                                  // the peak, closest to you
-      } else {                     // eases back home
-        B.v += (-DROP_HOME * DROP_HOME * B.x - 2 * DROP_HOME * B.v) * h; B.x += B.v * h;
-        if (Math.abs(B.x) < 0.002 && Math.abs(B.v) < 0.01) { B.x = B.v = 0; B.ph = 0; }
-      }
-    }
-  }
+
 
   function frame(t) {
     // Schedule first: one bad frame must never stop the globe (and with it, all input).
@@ -4329,9 +4247,7 @@
       ctx.setTransform(S.pr, 0, 0, S.pr, 0, 0);
       if (!glr) drawSky();   // (also covers WebGL having been dropped mid-run)
       perfMark('sky');
-      stepBounce(dt);
-      if (BOUNCE.x) { const z = view.zoom; view.zoom = z * Math.exp(BOUNCE.x * DROP_DIR); try { drawGlobe(t, layout()); } finally { view.zoom = z; } }
-      else drawGlobe(t, layout());
+      drawGlobe(t, layout());
       updateFloat();
       updateSheen();
     } catch (e) {

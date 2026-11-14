@@ -100,10 +100,6 @@
   const SOUNDS = {
     // Soundboard picks: #7 whoosh in, #11 drawer settle, #15 globe rotate,
     // #19 radar ping, #24 warning pulse.
-    // Drop bounce: a tennis ball hitting the ground (hollow "pock"), and the
-    // softer air of it flying back up past you.
-    pock:     () => { tone(210, 0.09, { to: 120, vol: 0.9, attack: 0.002 }); tone(560, 0.05, { to: 380, vol: 0.35, attack: 0.001, type: 'triangle' }); noise(0.03, 0.6, { f: 1400, q: 2.5, attack: 0.001 }); },
-    rebound:  () => noise(0.5, 0.35, { f: 500, to: 1600, q: 1.2, attack: 0.18 }),
     drawerOpen: () => noise(0.25, 0.7, { f: 300, to: 3200, q: 1.4, attack: 0.15 }),
     settle:   () => { tone(130, 0.12, { to: 60, vol: 0.7 }); noise(0.015, 0.5, { f: 3000, q: 4, attack: 0.001 }); },
     spin:     () => noise(0.45, 0.7, { type: 'lowpass', f: 350, to: 900, attack: 0.18 }),
